@@ -17,6 +17,7 @@ import {
   parseManualDecisionScenarios,
   type CrowdsecInstanceConfig,
 } from './instances-config';
+import { DEFAULT_UPDATE_CHECK_URL } from './update-check';
 
 type UnknownRecord = Record<string, unknown>;
 type ConfigPath = readonly (string | number)[];
@@ -1951,6 +1952,7 @@ function initialConfigReference(document: UnknownRecord): UnknownRecord {
   const oidc = record(auth.oidc, 'auth.oidc');
   const notifications = record(document.notifications, 'notifications');
   const audit = record(document.audit, 'audit');
+  const updates = document.updates === undefined ? {} : record(document.updates, 'updates');
   const crowdsec = record(document.crowdsec, 'crowdsec');
   const sync = record(crowdsec.sync, 'crowdsec.sync');
   const manualDecisions =
@@ -2078,6 +2080,10 @@ function initialConfigReference(document: UnknownRecord): UnknownRecord {
     audit: {
       logFile: '/app/data/audit.log',
       ...audit,
+    },
+    updates: {
+      checkUrl: DEFAULT_UPDATE_CHECK_URL,
+      ...updates,
     },
     crowdsec: {
       ...crowdsec,
