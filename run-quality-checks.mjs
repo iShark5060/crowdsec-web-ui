@@ -12,7 +12,12 @@ const steps = [
   { name: 'Formatting', command: 'pnpm run check-format' },
   { name: 'Lint', command: 'pnpm run lint' },
   { name: 'Typecheck', command: 'pnpm run typecheck' },
-  { name: 'Tests', command: process.env.CI ? 'pnpm run coverage' : 'pnpm run test' },
+  // App logs include "WARNING:" (for example missing LAPI auth). That is not a failed check.
+  {
+    name: 'Tests',
+    command: process.env.CI ? 'pnpm run coverage' : 'pnpm run test',
+    detectWarnings: false,
+  },
 ];
 
 const results = [];
@@ -35,7 +40,12 @@ for (const step of steps) {
     stdio: 'pipe',
     shell: true,
     encoding: 'utf8',
+    // ponytail: default 1MB pipe kills the server suite mid-run. Stream the output if logs outgrow 64MB.
+    maxBuffer: 64 * 1024 * 1024,
   });
+  if (run.error) {
+    console.error(run.error.message);
+  }
   process.stdout.write(run.stdout ?? '');
   process.stderr.write(run.stderr ?? '');
   const finishedAt = process.hrtime.bigint();
