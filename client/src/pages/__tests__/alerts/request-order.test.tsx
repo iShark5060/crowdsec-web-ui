@@ -1,3 +1,5 @@
+import './harness';
+
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { test, expect, vi } from 'vitest';
