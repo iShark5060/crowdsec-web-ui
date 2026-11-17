@@ -17,6 +17,7 @@ import {
   parseManualDecisionScenarios,
   type CrowdsecInstanceConfig,
 } from './instances-config';
+import { DEFAULT_UPDATE_CHECK_URL } from './update-check';
 
 type UnknownRecord = Record<string, unknown>;
 type ConfigPath = readonly (string | number)[];
@@ -30,6 +31,7 @@ export interface ParsedConfigFile {
   sqliteIncrementalVacuumEnabled: boolean;
   sqliteJournalSizeLimitBytes: number;
   updateCheckEnabled?: boolean;
+  updateCheckUrl?: string;
   manualDecisionScenarios: string[];
 }
 
@@ -476,9 +478,11 @@ export function parseApplicationConfig(
   setString(env, audit, 'logFile', 'AUDIT_LOG_FILE', 'audit', true);
 
   const updates = section(root, 'updates');
-  knownKeys(updates, ['enabled'], 'updates');
+  knownKeys(updates, ['enabled', 'checkUrl'], 'updates');
   const updateCheckEnabled =
     updates.enabled === undefined ? undefined : boolean(updates.enabled, 'updates.enabled');
+  const updateCheckUrl =
+    updates.checkUrl === undefined ? undefined : string(updates.checkUrl, 'updates.checkUrl');
 
   const crowdsec = section(root, 'crowdsec');
   knownKeys(
@@ -631,6 +635,7 @@ export function parseApplicationConfig(
     sqliteIncrementalVacuumEnabled,
     sqliteJournalSizeLimitBytes,
     updateCheckEnabled,
+    updateCheckUrl,
     manualDecisionScenarios,
   };
 }
@@ -716,7 +721,7 @@ export const CONFIG_KEY_ORDER = new Map<string, readonly string[]>([
       'statisticsSidebarVisible',
     ],
   ],
-  ['updates', ['enabled']],
+  ['updates', ['enabled', 'checkUrl']],
   ['auth', ['enabled', 'sessionSecret', 'totpSecret', 'totpSeed', 'passwordLogin', 'oidc']],
   ['auth.passwordLogin', ['enabled']],
   [
@@ -1180,6 +1185,7 @@ const CONFIG_VALUE_ENV = [
   ['CONFIG_AUDIT_ENABLED', ['audit', 'enabled']],
   ['CONFIG_AUDIT_LOG_FILE', ['audit', 'logFile']],
   ['CONFIG_UPDATES_ENABLED', ['updates', 'enabled']],
+  ['CONFIG_UPDATE_CHECK_URL', ['updates', 'checkUrl']],
   ['CONFIG_CROWDSEC_SIMULATIONS_ENABLED', ['crowdsec', 'simulationsEnabled']],
   ['CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGINS', ['crowdsec', 'alertFilters', 'includeOrigins']],
   ['CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGINS', ['crowdsec', 'alertFilters', 'excludeOrigins']],
@@ -1946,6 +1952,7 @@ function initialConfigReference(document: UnknownRecord): UnknownRecord {
   const oidc = record(auth.oidc, 'auth.oidc');
   const notifications = record(document.notifications, 'notifications');
   const audit = record(document.audit, 'audit');
+  const updates = document.updates === undefined ? {} : record(document.updates, 'updates');
   const crowdsec = record(document.crowdsec, 'crowdsec');
   const sync = record(crowdsec.sync, 'crowdsec.sync');
   const manualDecisions =
@@ -2073,6 +2080,10 @@ function initialConfigReference(document: UnknownRecord): UnknownRecord {
     audit: {
       logFile: '/app/data/audit.log',
       ...audit,
+    },
+    updates: {
+      checkUrl: DEFAULT_UPDATE_CHECK_URL,
+      ...updates,
     },
     crowdsec: {
       ...crowdsec,

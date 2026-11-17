@@ -32,6 +32,7 @@ import {
   loadInstancesConfig,
   type CrowdsecInstanceConfig,
 } from './instances-config';
+import { DEFAULT_UPDATE_CHECK_URL } from './update-check';
 
 export type AlertFilterMode = 'default' | 'new' | 'legacy';
 export type TimeFormat = 'browser' | '12h' | '24h';
@@ -161,6 +162,7 @@ export interface RuntimeConfig {
   branch: string;
   commitHash: string;
   updateCheckEnabled: boolean;
+  updateCheckUrl: string;
   deploymentMode: 'standard' | 'load-test';
   loadTestProfile: string | null;
   dbDir: string;
@@ -596,6 +598,7 @@ function createRuntimeConfigFromEnvironment(env: NodeJS.ProcessEnv): RuntimeConf
     branch: env.VITE_BRANCH || 'main',
     commitHash: env.VITE_COMMIT_HASH || '',
     updateCheckEnabled: Boolean(env.VITE_COMMIT_HASH || env.VITE_VERSION),
+    updateCheckUrl: DEFAULT_UPDATE_CHECK_URL,
     deploymentMode: env.CROWDSEC_WEB_UI_MODE === 'load-test' ? 'load-test' : 'standard',
     loadTestProfile:
       env.CROWDSEC_WEB_UI_MODE === 'load-test' ? env.LOADTEST_PROFILE?.trim() || 'default' : null,
@@ -708,6 +711,7 @@ function createRuntimeConfigFromParsedConfig(parsed: ParsedConfigFile): RuntimeC
   runtimeConfig.prometheusUrl = primaryInstance.prometheus[0]?.url;
   if (parsed.updateCheckEnabled !== undefined)
     runtimeConfig.updateCheckEnabled = parsed.updateCheckEnabled;
+  if (parsed.updateCheckUrl !== undefined) runtimeConfig.updateCheckUrl = parsed.updateCheckUrl;
   return runtimeConfig;
 }
 

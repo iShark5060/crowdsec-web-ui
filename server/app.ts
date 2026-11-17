@@ -498,6 +498,7 @@ export function createApp(options: CreateAppOptions = {}): AppController {
       commitHash: config.commitHash,
       version: config.version,
       enabled: config.updateCheckEnabled,
+      url: config.updateCheckUrl,
     });
   const checkCrowdsecUpdates =
     options.crowdsecUpdateChecker ||
