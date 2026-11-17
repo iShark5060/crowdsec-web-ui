@@ -103,6 +103,7 @@ jobs:
           set -eu
           # ponytail: amd64 only. This runner has no qemu, so arm64 is not built. Add a second platform when the runner can emulate it.
           docker build \
+            --push \
             --build-arg "VITE_COMMIT_HASH=${SHA8}" \
             --build-arg "VITE_BUILD_DATE=${DATE}" \
             --build-arg "VITE_REPO_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
@@ -112,8 +113,6 @@ jobs:
             -t "${IMAGE}:${VERSION}" \
             -t "${IMAGE}:latest" \
             .
-          docker push "${IMAGE}:${VERSION}"
-          docker push "${IMAGE}:latest"
 
       - name: Create Forgejo release
         env:
