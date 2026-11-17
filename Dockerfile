@@ -53,7 +53,6 @@ COPY vite.config.ts ./
 COPY vitest.config.ts ./
 COPY vitest.server.config.ts ./
 COPY vitest.client.config.ts ./
-COPY eslint.config.js ./
 COPY docker-entrypoint.sh ./
 COPY run.sh ./
 COPY run.ps1 ./
