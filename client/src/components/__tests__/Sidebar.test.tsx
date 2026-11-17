@@ -1,13 +1,15 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate, type NavigateFunction } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
-import { Sidebar } from '../Sidebar';
-import { useNotificationUnreadCount } from '../../contexts/useNotificationUnreadCount';
-import { I18nContext } from '../../lib/i18n';
+
 import { BrandingContext } from '../../contexts/branding-context';
-import { DEFAULT_BRANDING } from '../../lib/branding';
+import { useNotificationUnreadCount } from '../../contexts/useNotificationUnreadCount';
 import { updateAllowlistsSidebarPreference, updateStatisticsSidebarPreference } from '../../lib/api';
+import { DEFAULT_BRANDING } from '../../lib/branding';
+import { I18nContext } from '../../lib/i18n';
+import { Provide } from '../../test/Provide';
+import { Sidebar } from '../Sidebar';
 
 const { refreshNowMock, setThemeMock } = vi.hoisted(() => ({ refreshNowMock: vi.fn(), setThemeMock: vi.fn() }));
 
@@ -27,40 +29,40 @@ vi.mock('../../contexts/useNotificationUnreadCount', () => ({
   useNotificationUnreadCount: vi.fn(),
 }));
 
-function renderSidebar(
-  translations?: Record<string, string>,
-  initialEntries: string[] = ['/'],
-  appName?: string,
-) {
+function renderSidebar(translations?: Record<string, string>, initialEntries: string[] = ['/'], appName?: string) {
   const router = (
     <MemoryRouter initialEntries={initialEntries}>
-      <Sidebar
-        isOpen
-        onClose={vi.fn()}
-        onToggle={vi.fn()}
-        theme="dark"
-        setTheme={setThemeMock}
-      />
+      <Sidebar isOpen onClose={vi.fn()} onToggle={vi.fn()} theme="dark" setTheme={setThemeMock} />
     </MemoryRouter>
   );
   const sidebar = appName ? (
-    <BrandingContext.Provider value={{ ...DEFAULT_BRANDING, appName, setBranding: vi.fn(), refreshBranding: vi.fn() }}>
+    <Provide
+      context={BrandingContext}
+      value={{ ...DEFAULT_BRANDING, appName, setBranding: vi.fn(), refreshBranding: vi.fn() }}
+    >
       {router}
-    </BrandingContext.Provider>
-  ) : router;
+    </Provide>
+  ) : (
+    router
+  );
 
   return render(
     translations ? (
-      <I18nContext.Provider value={{
-        language: 'de',
-        preference: 'de',
-        browserLanguage: 'en',
-        setLanguagePreference: vi.fn(),
-        t: (key) => translations[key] ?? key,
-      }}>
+      <Provide
+        context={I18nContext}
+        value={{
+          language: 'de',
+          preference: 'de',
+          browserLanguage: 'en',
+          setLanguagePreference: vi.fn(),
+          t: (key) => translations[key] ?? key,
+        }}
+      >
         {sidebar}
-      </I18nContext.Provider>
-    ) : sidebar,
+      </Provide>
+    ) : (
+      sidebar
+    ),
   );
 }
 
@@ -192,7 +194,12 @@ describe('Sidebar', () => {
 
     renderSidebar();
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/update-check?version=2026.5.2&branch=main&commit_hash=abc123'), expect.anything()));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/update-check?version=2026.5.2&branch=main&commit_hash=abc123'),
+        expect.anything(),
+      ),
+    );
     expect(screen.queryByText('Update Available')).not.toBeInTheDocument();
   });
 
@@ -222,14 +229,16 @@ describe('Sidebar', () => {
 
   test('updates allowlists visibility when its preference is saved', async () => {
     vi.mocked(useNotificationUnreadCount).mockReturnValue({
-      unreadCount: 0, setUnreadCount: vi.fn(), refreshUnreadCount: vi.fn(),
+      unreadCount: 0,
+      setUnreadCount: vi.fn(),
+      refreshUnreadCount: vi.fn(),
     });
     let visible: boolean | undefined;
-    fetchMock.mockImplementation(async (input: string | URL | Request) => (
+    fetchMock.mockImplementation(async (input: string | URL | Request) =>
       String(input).includes('/api/config')
         ? Response.json({ allowlists_sidebar_visible: visible })
-        : Response.json({ update_available: false })
-    ));
+        : Response.json({ update_available: false }),
+    );
     renderSidebar();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/config'), undefined));
     expect(screen.getAllByRole('link', { name: 'Allowlists' })).toHaveLength(2);
@@ -252,14 +261,16 @@ describe('Sidebar', () => {
 
   test('places statistics above metrics and hides it when its preference is disabled', async () => {
     vi.mocked(useNotificationUnreadCount).mockReturnValue({
-      unreadCount: 0, setUnreadCount: vi.fn(), refreshUnreadCount: vi.fn(),
+      unreadCount: 0,
+      setUnreadCount: vi.fn(),
+      refreshUnreadCount: vi.fn(),
     });
-    const sidebarConfig: { statistics_sidebar_visible?: boolean; metrics_sidebar_visible: boolean } = { metrics_sidebar_visible: true };
-    fetchMock.mockImplementation(async (input: string | URL | Request) => (
-      String(input).includes('/api/config')
-        ? Response.json(sidebarConfig)
-        : Response.json({ update_available: false })
-    ));
+    const sidebarConfig: { statistics_sidebar_visible?: boolean; metrics_sidebar_visible: boolean } = {
+      metrics_sidebar_visible: true,
+    };
+    fetchMock.mockImplementation(async (input: string | URL | Request) =>
+      String(input).includes('/api/config') ? Response.json(sidebarConfig) : Response.json({ update_available: false }),
+    );
     renderSidebar();
     const metricsLink = (await screen.findAllByRole('link', { name: 'Metrics' }))[0];
     const statisticsLink = screen.getAllByRole('link', { name: 'Statistics' })[0];
@@ -327,8 +338,12 @@ describe('Sidebar', () => {
     await userEvent.click(selector);
     const allInstances = screen.getByRole('option', { name: 'Alle Instanzen' });
     expect(allInstances.querySelector('.lucide-boxes')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Primary' }).querySelector('.instance-color-icon')).toHaveClass('bg-blue-500');
-    expect(screen.getByRole('option', { name: 'Secondary' }).querySelector('.instance-color-icon')).toHaveClass('bg-green-500');
+    expect(screen.getByRole('option', { name: 'Primary' }).querySelector('.instance-color-icon')).toHaveClass(
+      'bg-blue-500',
+    );
+    expect(screen.getByRole('option', { name: 'Secondary' }).querySelector('.instance-color-icon')).toHaveClass(
+      'bg-green-500',
+    );
   });
 
   test('identifies load-test mode instead of showing regular build metadata', async () => {
@@ -398,7 +413,9 @@ describe('Sidebar', () => {
 
     renderSidebar();
 
-    expect(screen.getAllByRole('link', { name: 'Settings' }).map((link) => link.getAttribute('href'))).toContain('/settings');
+    expect(screen.getAllByRole('link', { name: 'Settings' }).map((link) => link.getAttribute('href'))).toContain(
+      '/settings',
+    );
     expect(screen.queryByLabelText('Language')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+
 import { formatCustomDate, type DateFormat } from '../../../shared/date-format';
 
 export type TimeFormat = 'browser' | '12h' | '24h';
@@ -16,14 +17,21 @@ export interface DateTimeContextValue extends DateTimeSettings {
   formatDateTime: (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => string;
 }
 
-export const DEFAULT_DATE_TIME_SETTINGS: DateTimeSettings = { timeZone: null, timeFormat: 'browser', dateFormat: 'browser' };
+export const DEFAULT_DATE_TIME_SETTINGS: DateTimeSettings = {
+  timeZone: null,
+  timeFormat: 'browser',
+  dateFormat: 'browser',
+};
 
 function toDate(value: Date | string | number): Date | null {
   const date = value instanceof Date ? value : new Date(value);
   return Number.isFinite(date.getTime()) ? date : null;
 }
 
-function withSettings(settings: DateTimeSettings, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormatOptions {
+function withSettings(
+  settings: DateTimeSettings,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormatOptions {
   return {
     ...options,
     ...(settings.timeZone ? { timeZone: settings.timeZone } : {}),
@@ -31,28 +39,52 @@ function withSettings(settings: DateTimeSettings, options: Intl.DateTimeFormatOp
   };
 }
 
-export function formatDateValue(value: Date | string | number, settings: DateTimeSettings, options: Intl.DateTimeFormatOptions = {}): string {
+export function formatDateValue(
+  value: Date | string | number,
+  settings: DateTimeSettings,
+  options: Intl.DateTimeFormatOptions = {},
+): string {
   const date = toDate(value);
   if (!date) return String(value);
   // Charts request a compact label explicitly; keep those labels in the browser locale.
-  const hasExplicitDateOptions = options.day !== undefined || options.month !== undefined || options.year !== undefined || options.weekday !== undefined;
+  const hasExplicitDateOptions =
+    options.day !== undefined ||
+    options.month !== undefined ||
+    options.year !== undefined ||
+    options.weekday !== undefined;
   if (settings.dateFormat !== 'browser' && !hasExplicitDateOptions) {
-    return formatCustomDate(date, settings.dateFormat, settings.timeZone ?? options.timeZone ?? null);
+    return formatCustomDate(
+      date,
+      settings.dateFormat,
+      settings.timeZone ?? options.timeZone ?? null,
+    );
   }
   return date.toLocaleDateString(undefined, withSettings(settings, options));
 }
 
-export function formatTimeValue(value: Date | string | number, settings: DateTimeSettings, options: Intl.DateTimeFormatOptions = {}): string {
+export function formatTimeValue(
+  value: Date | string | number,
+  settings: DateTimeSettings,
+  options: Intl.DateTimeFormatOptions = {},
+): string {
   const date = toDate(value);
   return date ? date.toLocaleTimeString(undefined, withSettings(settings, options)) : String(value);
 }
 
-export function formatDateTimeValue(value: Date | string | number, settings: DateTimeSettings, options: Intl.DateTimeFormatOptions = {}): string {
+export function formatDateTimeValue(
+  value: Date | string | number,
+  settings: DateTimeSettings,
+  options: Intl.DateTimeFormatOptions = {},
+): string {
   const date = toDate(value);
   if (!date) return String(value);
   const formatOptions = withSettings(settings, options);
   if (settings.dateFormat === 'browser') return date.toLocaleString(undefined, formatOptions);
-  const formattedDate = formatCustomDate(date, settings.dateFormat, settings.timeZone ?? options.timeZone ?? null);
+  const formattedDate = formatCustomDate(
+    date,
+    settings.dateFormat,
+    settings.timeZone ?? options.timeZone ?? null,
+  );
   return `${formattedDate}, ${date.toLocaleTimeString(undefined, formatOptions)}`;
 }
 

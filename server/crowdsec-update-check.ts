@@ -23,15 +23,23 @@ export interface CrowdsecUpdateCheckOptions {
   metricsFetchImpl?: FetchLike;
 }
 
-interface Release { version: string; url: string }
-interface EndpointVersion { version: string | null; retryAt: number }
+interface Release {
+  version: string;
+  url: string;
+}
+interface EndpointVersion {
+  version: string | null;
+  retryAt: number;
+}
 
 const RELEASE_CACHE_MS = 6 * 60 * 60_000;
 const ENDPOINT_CACHE_MS = 15 * 60_000;
 const FAILURE_RETRY_MS = 5 * 60_000;
 const RELEASE_URL = 'https://api.github.com/repos/crowdsecurity/crowdsec/releases/latest';
 
-export function createCrowdsecUpdateChecker(options: CrowdsecUpdateCheckOptions): CrowdsecUpdateChecker {
+export function createCrowdsecUpdateChecker(
+  options: CrowdsecUpdateCheckOptions,
+): CrowdsecUpdateChecker {
   const fetchImpl = options.releaseFetchImpl || fetch;
   let releaseCache: { value: Release | null; retryAt: number } | null = null;
   let releaseInFlight: Promise<Release | null> | null = null;
@@ -44,15 +52,23 @@ export function createCrowdsecUpdateChecker(options: CrowdsecUpdateCheckOptions)
     releaseInFlight = (async () => {
       try {
         const response = await fetchImpl(RELEASE_URL, {
-          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'crowdsec-web-ui-update-check' },
+          headers: {
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'crowdsec-web-ui-update-check',
+          },
           signal: AbortSignal.timeout(10_000),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const payload = await response.json() as { tag_name?: unknown; html_url?: unknown };
-        const parsedVersion = typeof payload.tag_name === 'string' ? parseVersion(payload.tag_name) : null;
-        if (typeof payload.tag_name !== 'string' || !parsedVersion || parsedVersion.prerelease.length
-          || typeof payload.html_url !== 'string'
-          || !payload.html_url.startsWith('https://github.com/crowdsecurity/crowdsec/releases/')) {
+        const payload = (await response.json()) as { tag_name?: unknown; html_url?: unknown };
+        const parsedVersion =
+          typeof payload.tag_name === 'string' ? parseVersion(payload.tag_name) : null;
+        if (
+          typeof payload.tag_name !== 'string' ||
+          !parsedVersion ||
+          parsedVersion.prerelease.length ||
+          typeof payload.html_url !== 'string' ||
+          !payload.html_url.startsWith('https://github.com/crowdsecurity/crowdsec/releases/')
+        ) {
           throw new Error('Invalid CrowdSec release response');
         }
         const value: Release = { version: payload.tag_name, url: payload.html_url };
@@ -69,7 +85,10 @@ export function createCrowdsecUpdateChecker(options: CrowdsecUpdateCheckOptions)
     return releaseInFlight;
   }
 
-  async function getEndpointVersion(instance: CrowdsecInstanceConfig, endpoint: CrowdsecInstanceConfig['prometheus'][number]): Promise<string | null> {
+  async function getEndpointVersion(
+    instance: CrowdsecInstanceConfig,
+    endpoint: CrowdsecInstanceConfig['prometheus'][number],
+  ): Promise<string | null> {
     const key = `${instance.id}:${endpoint.id}`;
     const cached = endpointCache.get(key);
     if (cached && Date.now() < cached.retryAt) return cached.version;
@@ -84,8 +103,10 @@ export function createCrowdsecUpdateChecker(options: CrowdsecUpdateCheckOptions)
           tls: endpoint.tls,
           fetchImpl: options.metricsFetchImpl,
         });
-        const version = samples.find((sample) => sample.name === 'cs_info')?.labels.version
-          || samples.find((sample) => sample.name === 'cs_info')?.labels.Version || null;
+        const version =
+          samples.find((sample) => sample.name === 'cs_info')?.labels.version ||
+          samples.find((sample) => sample.name === 'cs_info')?.labels.Version ||
+          null;
         const validVersion = version && parseVersion(version) ? version : null;
         endpointCache.set(key, {
           version: validVersion,
@@ -105,31 +126,46 @@ export function createCrowdsecUpdateChecker(options: CrowdsecUpdateCheckOptions)
   }
 
   return async () => {
-    const sources = options.instances.flatMap((instance) => instance.prometheus.map((endpoint) => ({ instance, endpoint })));
+    const sources = options.instances.flatMap((instance) =>
+      instance.prometheus.map((endpoint) => ({ instance, endpoint })),
+    );
     if (sources.length === 0) return [];
     const release = await getRelease();
-    if (!release) return sources.map(({ instance, endpoint }) => ({
-      instanceId: instance.id, instanceName: instance.name,
-      endpointId: endpoint.id, endpointName: endpoint.name,
-      currentVersion: null, remoteVersion: null, releaseUrl: null, updateAvailable: null,
-    }));
-    return Promise.all(sources.map(async ({ instance, endpoint }) => {
-      const currentVersion = await getEndpointVersion(instance, endpoint);
-      return {
+    if (!release)
+      return sources.map(({ instance, endpoint }) => ({
         instanceId: instance.id,
         instanceName: instance.name,
         endpointId: endpoint.id,
         endpointName: endpoint.name,
-        currentVersion,
-        remoteVersion: release.version,
-        releaseUrl: release.url,
-        updateAvailable: currentVersion ? compareVersions(currentVersion, release.version) < 0 : null,
-      };
-    }));
+        currentVersion: null,
+        remoteVersion: null,
+        releaseUrl: null,
+        updateAvailable: null,
+      }));
+    return Promise.all(
+      sources.map(async ({ instance, endpoint }) => {
+        const currentVersion = await getEndpointVersion(instance, endpoint);
+        return {
+          instanceId: instance.id,
+          instanceName: instance.name,
+          endpointId: endpoint.id,
+          endpointName: endpoint.name,
+          currentVersion,
+          remoteVersion: release.version,
+          releaseUrl: release.url,
+          updateAvailable: currentVersion
+            ? compareVersions(currentVersion, release.version) < 0
+            : null,
+        };
+      }),
+    );
   };
 }
 
-interface ParsedVersion { core: [number, number, number]; prerelease: string[] }
+interface ParsedVersion {
+  core: [number, number, number];
+  prerelease: string[];
+}
 
 // CrowdSec builds report `Version-Tag`, where the tag is usually build metadata
 // rather than a SemVer prerelease: a commit hash (`v1.8.2-3d369d64`), a package
@@ -141,13 +177,22 @@ function isPrereleaseSuffix(parts: string[]): boolean {
 }
 
 function parseVersion(input: string): ParsedVersion | null {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(input.trim());
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(
+    input.trim(),
+  );
   if (!match) return null;
   const core = [Number(match[1]), Number(match[2]), Number(match[3])] as [number, number, number];
-  if (!core.every(Number.isSafeInteger) || match.slice(1, 4).some((part) => part.length > 1 && part.startsWith('0'))) return null;
+  if (
+    !core.every(Number.isSafeInteger) ||
+    match.slice(1, 4).some((part) => part.length > 1 && part.startsWith('0'))
+  )
+    return null;
   const suffix = match[4]?.split('.') || [];
   if (!isPrereleaseSuffix(suffix)) return { core, prerelease: [] };
-  if (suffix.some((part) => !part || (/^\d+$/.test(part) && part.length > 1 && part.startsWith('0')))) return null;
+  if (
+    suffix.some((part) => !part || (/^\d+$/.test(part) && part.length > 1 && part.startsWith('0')))
+  )
+    return null;
   return { core, prerelease: suffix };
 }
 

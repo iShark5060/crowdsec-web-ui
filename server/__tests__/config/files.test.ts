@@ -1,11 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { readFileSync, statSync } from 'node:fs';
+
 import { describe, expect, test, vi } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { createRuntimeConfig as createRuntimeConfigImpl, getIntervalName, parseBooleanEnv, parseCsvEnv, parseLookbackToMs, parseOidcScope, parseOidcUnmatchedRole, parseOptionalBooleanEnv, parseRefreshInterval, parseTimeFormat, parseTimeZone } from '../../config';
-import { ConfigurationLoadError } from '../../config-error';
-import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret, tempDirs } from './harness';
+
+import { createRuntimeConfig as createRuntimeConfigImpl } from '../../config';
+import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret } from './harness';
 
 describe('configuration files', () => {
   test('loads all application settings from CONFIG_FILE and ignores deprecated setting environment variables', () => {
@@ -139,7 +138,9 @@ instances:
       expect(config.dashboardAuth.oidcAutoLogin).toBe(true);
       expect(config.dashboardAuth.oidcBackchannelLogout).toBe(false);
       expect(config.instances[0].lapiAuth).toEqual({ mode: 'password', user: 'watcher', password: 'lapi-secret' });
-      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/PORT.*CROWDSEC_URL.*application YAML.*takes precedence.*variables do not affect/i));
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(/PORT.*CROWDSEC_URL.*application YAML.*takes precedence.*variables do not affect/i),
+      );
       expect(log).toHaveBeenCalledWith(`Loaded application configuration from ${configFile}.`);
     } finally {
       warn.mockRestore();
@@ -184,10 +185,13 @@ instances:
       });
       expect(config.notificationSecretKey).toBe('direct-notification-secret');
       expect(config.instances[0].lapiAuth).toEqual({
-        mode: 'password', user: 'watcher', password: 'direct-lapi-password',
+        mode: 'password',
+        user: 'watcher',
+        password: 'direct-lapi-password',
       });
       expect(config.instances[0].prometheus[0].auth).toEqual({
-        type: 'bearer', token: 'direct-metrics-token',
+        type: 'bearer',
+        token: 'direct-metrics-token',
       });
     } finally {
       log.mockRestore();
@@ -211,7 +215,9 @@ instances:
       expect(generatedConfig.port).toBe(4100);
       expect(generatedConfig.refreshIntervalMs).toBe(300_000);
       expect(generatedConfig.instances[0].lapiAuth).toEqual({
-        mode: 'password', user: 'watcher', password: 'do-not-write-this-password',
+        mode: 'password',
+        user: 'watcher',
+        password: 'do-not-write-this-password',
       });
       expect(generatedConfig.dashboardAuth.sessionSecret).toBe('do-not-write-this-auth-secret');
       const saved = readFileSync(generatedConfigFile, 'utf8');
@@ -230,7 +236,11 @@ instances:
       expect(document.storage).toBeUndefined();
       expect(document.crowdsec.sync.lookback).toBeUndefined();
       expect(statSync(generatedConfigFile).mode & 0o777).toBe(0o600);
-      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/migrated into the generated YAML.*config\.yaml.*now authoritative.*variables no longer affect/i));
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /migrated into the generated YAML.*config\.yaml.*now authoritative.*variables no longer affect/i,
+        ),
+      );
       expect(log).toHaveBeenCalledWith(expect.stringMatching(/Saved generated configuration.*config\.yaml/i));
       expect(log).toHaveBeenCalledWith(`Loaded application configuration from ${generatedConfigFile}.`);
     } finally {
@@ -387,14 +397,20 @@ instances:
     const secondConfigFile = createMissingConfigPath();
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      createRuntimeConfigImpl({
-        ...Object.fromEntries(entries),
-        CONFIG_UI: '{ readOnly: true, dateFormat: dd/mm/yyyy, timeFormat: 24h, timeZone: UTC }',
-      }, { defaultConfigFile: firstConfigFile });
-      createRuntimeConfigImpl({
-        CONFIG_UI: '{ timeZone: UTC, timeFormat: 24h, dateFormat: dd/mm/yyyy, readOnly: true }',
-        ...Object.fromEntries([...entries].reverse()),
-      }, { defaultConfigFile: secondConfigFile });
+      createRuntimeConfigImpl(
+        {
+          ...Object.fromEntries(entries),
+          CONFIG_UI: '{ readOnly: true, dateFormat: dd/mm/yyyy, timeFormat: 24h, timeZone: UTC }',
+        },
+        { defaultConfigFile: firstConfigFile },
+      );
+      createRuntimeConfigImpl(
+        {
+          CONFIG_UI: '{ timeZone: UTC, timeFormat: 24h, dateFormat: dd/mm/yyyy, readOnly: true }',
+          ...Object.fromEntries([...entries].reverse()),
+        },
+        { defaultConfigFile: secondConfigFile },
+      );
       const first = readFileSync(firstConfigFile, 'utf8');
       const second = readFileSync(secondConfigFile, 'utf8');
       expect(first).toBe(second);
@@ -403,7 +419,14 @@ instances:
 
       const document = parseYaml(first);
       expect(Object.keys(document)).toEqual([
-        'server', 'storage', 'ui', 'updates', 'auth', 'notifications', 'crowdsec', 'instances',
+        'server',
+        'storage',
+        'ui',
+        'updates',
+        'auth',
+        'notifications',
+        'crowdsec',
+        'instances',
       ]);
       expect(Object.keys(document.ui)).toEqual(['timeZone', 'timeFormat', 'dateFormat', 'readOnly']);
       expect(Object.keys(document.instances[0])).toEqual(['lapi', 'metrics', 'sync']);
@@ -420,9 +443,12 @@ instances:
     const generatedConfigFile = createMissingConfigPath();
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const config = createRuntimeConfigImpl({
-        CONFIG_SERVER_PORT: '3000',
-      }, { defaultConfigFile: generatedConfigFile });
+      const config = createRuntimeConfigImpl(
+        {
+          CONFIG_SERVER_PORT: '3000',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       const saved = readFileSync(generatedConfigFile, 'utf8');
       expect(config.port).toBe(3000);
       expect(saved).toContain('server:\n  port: 3000\n  # basePath: ""');
@@ -436,18 +462,23 @@ instances:
     const generatedConfigFile = createMissingConfigPath();
     const certFile = createTempSecret('certificate');
     const keyFile = createTempSecret('private-key');
-    const config = createRuntimeConfigImpl({
-      CONFIG_INSTANCE_LAPI_URL: 'https://crowdsec.example.com:8080',
-      CONFIG_INSTANCE_LAPI_AUTH_CERT_FILE: certFile,
-      CONFIG_INSTANCE_LAPI_AUTH_KEY_FILE: keyFile,
-      CONFIG_INSTANCE_METRICS_URL: 'https://crowdsec.example.com:6060/metrics',
-      CONFIG_INSTANCE_METRICS_AUTH_USERNAME: 'metrics-user',
-      CONFIG_INSTANCE_METRICS_AUTH_PASSWORD: 'metrics-password',
-    }, { defaultConfigFile: generatedConfigFile });
+    const config = createRuntimeConfigImpl(
+      {
+        CONFIG_INSTANCE_LAPI_URL: 'https://crowdsec.example.com:8080',
+        CONFIG_INSTANCE_LAPI_AUTH_CERT_FILE: certFile,
+        CONFIG_INSTANCE_LAPI_AUTH_KEY_FILE: keyFile,
+        CONFIG_INSTANCE_METRICS_URL: 'https://crowdsec.example.com:6060/metrics',
+        CONFIG_INSTANCE_METRICS_AUTH_USERNAME: 'metrics-user',
+        CONFIG_INSTANCE_METRICS_AUTH_PASSWORD: 'metrics-password',
+      },
+      { defaultConfigFile: generatedConfigFile },
+    );
 
     expect(config.instances[0].lapiAuth).toEqual({ mode: 'mtls', certPath: certFile, keyPath: keyFile });
     expect(config.instances[0].prometheus[0].auth).toEqual({
-      type: 'basic', username: 'metrics-user', password: 'metrics-password',
+      type: 'basic',
+      username: 'metrics-user',
+      password: 'metrics-password',
     });
     const persisted = parseYaml(readFileSync(generatedConfigFile, 'utf8'));
     expect(persisted.instances[0].lapi.auth.type).toBeUndefined();
@@ -576,23 +607,26 @@ crowdsec:
   manualDecisions:
     scenarios: [no-slash]${instance}
 `);
-    expect(() => createRuntimeConfig({ CONFIG_FILE: invalidFormat }))
-      .toThrow(/crowdsec\.manualDecisions\.scenarios entry "no-slash" must look like author\/name/i);
+    expect(() => createRuntimeConfig({ CONFIG_FILE: invalidFormat })).toThrow(
+      /crowdsec\.manualDecisions\.scenarios entry "no-slash" must look like author\/name/i,
+    );
 
     const notArray = createTempConfig(`
 crowdsec:
   manualDecisions:
     scenarios: custom/abuse-report${instance}
 `);
-    expect(() => createRuntimeConfig({ CONFIG_FILE: notArray }))
-      .toThrow(/crowdsec\.manualDecisions\.scenarios must be an array of non-empty strings/i);
+    expect(() => createRuntimeConfig({ CONFIG_FILE: notArray })).toThrow(
+      /crowdsec\.manualDecisions\.scenarios must be an array of non-empty strings/i,
+    );
 
     const unknownInstanceKey = createTempConfig(`${instance}
     manualDecisions:
       scenario: [custom/abuse-report]
 `);
-    expect(() => createRuntimeConfig({ CONFIG_FILE: unknownInstanceKey }))
-      .toThrow(/unknown instances\[0\]\.manualDecisions setting.*scenario/i);
+    expect(() => createRuntimeConfig({ CONFIG_FILE: unknownInstanceKey })).toThrow(
+      /unknown instances\[0\]\.manualDecisions setting.*scenario/i,
+    );
   });
 
   test('loads auth.passwordLogin.enabled from YAML and CONFIG_ overrides', () => {
@@ -614,8 +648,14 @@ ${instance}`);
     try {
       expect(createRuntimeConfig({ CONFIG_FILE: unset }).dashboardAuth.passwordLoginEnabled).toBeNull();
       expect(createRuntimeConfig({ CONFIG_FILE: disabled }).dashboardAuth.passwordLoginEnabled).toBe(false);
-      expect(createRuntimeConfig({ CONFIG_FILE: disabled, CONFIG_AUTH_PASSWORD_LOGIN_ENABLED: 'true' }).dashboardAuth.passwordLoginEnabled).toBe(true);
-      expect(createRuntimeConfig({ CONFIG_FILE: unset, CONFIG_AUTH_PASSWORD_LOGIN_ENABLED: 'false' }).dashboardAuth.passwordLoginEnabled).toBe(false);
+      expect(
+        createRuntimeConfig({ CONFIG_FILE: disabled, CONFIG_AUTH_PASSWORD_LOGIN_ENABLED: 'true' }).dashboardAuth
+          .passwordLoginEnabled,
+      ).toBe(true);
+      expect(
+        createRuntimeConfig({ CONFIG_FILE: unset, CONFIG_AUTH_PASSWORD_LOGIN_ENABLED: 'false' }).dashboardAuth
+          .passwordLoginEnabled,
+      ).toBe(false);
     } finally {
       log.mockRestore();
     }
@@ -625,25 +665,32 @@ auth:
   passwordLogin:
     enabled: please
 ${instance}`);
-    expect(() => createRuntimeConfig({ CONFIG_FILE: invalidEnabled })).toThrow(/auth\.passwordLogin\.enabled must be a boolean/i);
+    expect(() => createRuntimeConfig({ CONFIG_FILE: invalidEnabled })).toThrow(
+      /auth\.passwordLogin\.enabled must be a boolean/i,
+    );
 
     const unknownKey = createTempConfig(`
 auth:
   passwordLogin:
     disabled: true
 ${instance}`);
-    expect(() => createRuntimeConfig({ CONFIG_FILE: unknownKey })).toThrow(/unknown auth\.passwordLogin setting.*disabled/i);
+    expect(() => createRuntimeConfig({ CONFIG_FILE: unknownKey })).toThrow(
+      /unknown auth\.passwordLogin setting.*disabled/i,
+    );
   });
 
   test('sets manual decision scenarios from CONFIG_ setup variables', () => {
     const generatedConfigFile = createMissingConfigPath();
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const config = createRuntimeConfigImpl({
-        CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS_0: 'custom/abuse-report',
-        CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS_1: 'custom/scanner',
-        CONFIG_INSTANCE_MANUAL_DECISIONS_SCENARIOS: '[custom/branch-office]',
-      }, { defaultConfigFile: generatedConfigFile });
+      const config = createRuntimeConfigImpl(
+        {
+          CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS_0: 'custom/abuse-report',
+          CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS_1: 'custom/scanner',
+          CONFIG_INSTANCE_MANUAL_DECISIONS_SCENARIOS: '[custom/branch-office]',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       expect(config.manualDecisionScenarios).toEqual(['custom/abuse-report', 'custom/scanner']);
       expect(config.instances[0].manualDecisionScenarios).toEqual(['custom/branch-office']);
       const persisted = parseYaml(readFileSync(generatedConfigFile, 'utf8'));
@@ -659,10 +706,13 @@ ${instance}`);
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const config = createRuntimeConfigImpl({
-        PORT: '4100',
-        CONFIG_SERVER_PORT: '4200',
-      }, { defaultConfigFile: generatedConfigFile });
+      const config = createRuntimeConfigImpl(
+        {
+          PORT: '4100',
+          CONFIG_SERVER_PORT: '4200',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       expect(config.port).toBe(4200);
       expect(parseYaml(readFileSync(generatedConfigFile, 'utf8')).server.port).toBe(4200);
       expect(warn).toHaveBeenCalledWith(expect.stringMatching(/PORT.*migrated into the generated YAML/i));
@@ -671,5 +721,4 @@ ${instance}`);
       log.mockRestore();
     }
   });
-
 });

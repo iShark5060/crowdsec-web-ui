@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+
 import type { AlertDecision, AlertRecord, AlertSource } from '../shared/contracts';
 
 export type NormalizedAlertRow = {
@@ -37,22 +38,72 @@ export type NormalizedAlertRow = {
 };
 
 const NORMALIZED_ALERT_KEYS = new Set([
-  'id', 'uuid', 'created_at', 'start_at', 'stop_at', 'scenario', 'kind', 'reason',
-  'source', 'message', 'machine_id', 'machine_alias', 'events_count',
-  'decisions', 'target', 'meta_search', 'simulated',
+  'id',
+  'uuid',
+  'created_at',
+  'start_at',
+  'stop_at',
+  'scenario',
+  'kind',
+  'reason',
+  'source',
+  'message',
+  'machine_id',
+  'machine_alias',
+  'events_count',
+  'decisions',
+  'target',
+  'meta_search',
+  'simulated',
 ]);
 
 const NORMALIZED_SOURCE_KEYS = new Set([
-  'ip', 'value', 'cn', 'as_name', 'as_number', 'scope', 'latitude',
-  'longitude', 'city', 'region', 'range',
+  'ip',
+  'value',
+  'cn',
+  'as_name',
+  'as_number',
+  'scope',
+  'latitude',
+  'longitude',
+  'city',
+  'region',
+  'range',
 ]);
 
 export const ALERT_RECORD_COLUMNS = [
-  'COALESCE(upstream_id, CAST(id AS TEXT)) AS id', 'id AS internal_id', 'instance_id', 'uuid', 'created_at', 'start_at', 'stop_at', 'scenario', 'record_scenario', 'kind', 'reason',
-  'source_ip', 'source_value', 'source_scope', 'source_range', 'source_as_number',
-  'source_extra_data', 'message', 'machine_id', 'machine_alias', 'events_count',
-  'latitude', 'longitude', 'country', 'region', 'city', 'as_name', 'target',
-  'meta_search', 'simulated', 'extra_data', 'metadata_hash',
+  'COALESCE(upstream_id, CAST(id AS TEXT)) AS id',
+  'id AS internal_id',
+  'instance_id',
+  'uuid',
+  'created_at',
+  'start_at',
+  'stop_at',
+  'scenario',
+  'record_scenario',
+  'kind',
+  'reason',
+  'source_ip',
+  'source_value',
+  'source_scope',
+  'source_range',
+  'source_as_number',
+  'source_extra_data',
+  'message',
+  'machine_id',
+  'machine_alias',
+  'events_count',
+  'latitude',
+  'longitude',
+  'country',
+  'region',
+  'city',
+  'as_name',
+  'target',
+  'meta_search',
+  'simulated',
+  'extra_data',
+  'metadata_hash',
 ].join(', ');
 
 export type NormalizedDecisionRow = {
@@ -203,7 +254,9 @@ export function alertFromRow(row: NormalizedAlertRow): AlertRecord {
   return alert;
 }
 
-export function parseDecisionPayload(rawData: string | null | undefined): (AlertDecision & Record<string, unknown>) | null {
+export function parseDecisionPayload(
+  rawData: string | null | undefined,
+): (AlertDecision & Record<string, unknown>) | null {
   if (!rawData) return null;
   try {
     const parsed = JSON.parse(rawData) as AlertDecision & Record<string, unknown>;
@@ -213,7 +266,9 @@ export function parseDecisionPayload(rawData: string | null | undefined): (Alert
   }
 }
 
-export function serializeDecisionExtras(decision: (AlertDecision & Record<string, unknown>) | null | undefined): string | null {
+export function serializeDecisionExtras(
+  decision: (AlertDecision & Record<string, unknown>) | null | undefined,
+): string | null {
   if (!decision) return null;
   const extras: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(decision)) {
@@ -222,7 +277,9 @@ export function serializeDecisionExtras(decision: (AlertDecision & Record<string
   return Object.keys(extras).length > 0 ? JSON.stringify(extras) : null;
 }
 
-export function decisionFromRow(row: NormalizedDecisionRow): AlertDecision & Record<string, unknown> {
+export function decisionFromRow(
+  row: NormalizedDecisionRow,
+): AlertDecision & Record<string, unknown> {
   const extras = parseExtras(row.extra_data);
   const decision: AlertDecision & Record<string, unknown> = {
     ...extras,
@@ -234,7 +291,13 @@ export function decisionFromRow(row: NormalizedDecisionRow): AlertDecision & Rec
   };
 
   assignDefined(decision, 'uuid', row.uuid);
-  assignDefined(decision, 'alert_id', row.alert_id === undefined || row.alert_id === null ? row.alert_id : normalizeRecordId(row.alert_id));
+  assignDefined(
+    decision,
+    'alert_id',
+    row.alert_id === undefined || row.alert_id === null
+      ? row.alert_id
+      : normalizeRecordId(row.alert_id),
+  );
   assignDefined(decision, 'value', row.value);
   assignDefined(decision, 'type', row.type);
   assignDefined(decision, 'origin', row.origin);
@@ -267,7 +330,7 @@ function parseExtras(value: string | null | undefined): Record<string, unknown> 
   try {
     const parsed = JSON.parse(value) as unknown;
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
+      ? (parsed as Record<string, unknown>)
       : {};
   } catch {
     return {};
@@ -282,7 +345,10 @@ function stableSerialize(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`).join(',')}}`;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`)
+      .join(',')}}`;
   }
   return JSON.stringify(value);
 }

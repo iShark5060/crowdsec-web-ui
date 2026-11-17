@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
+
 import { CountryFlag } from '../CountryFlag';
 
 describe('CountryFlag', () => {
@@ -12,12 +13,9 @@ describe('CountryFlag', () => {
     expect(flag).toBeEmptyDOMElement();
   });
 
-  test.each([undefined, null, '', 'D', 'DEU', 'D1'])(
-    'renders nothing for invalid code %s',
-    (code) => {
-      const { container } = render(<CountryFlag code={code} />);
+  test.each([undefined, null, '', 'D', 'DEU', 'D1'])('renders nothing for invalid code %s', (code) => {
+    const { container } = render(<CountryFlag code={code} />);
 
-      expect(container).toBeEmptyDOMElement();
-    },
-  );
+    expect(container).toBeEmptyDOMElement();
+  });
 });

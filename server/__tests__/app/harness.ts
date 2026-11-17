@@ -1,16 +1,18 @@
-import { beforeEach } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
-import path from 'path';
-import { tmpdir } from 'os';
 import crypto from 'node:crypto';
+import { tmpdir } from 'os';
+import path from 'path';
+
+import { beforeEach } from 'vitest';
+
 import type { AlertRecord } from '../../../shared/contracts';
 import { resolveMachineName } from '../../../shared/machine';
+import { createApp, type CreateAppOptions } from '../../app';
 import { createRuntimeConfig } from '../../config';
 import { CrowdsecDatabase } from '../../database';
 import { LapiClient, type LapiRequestInit } from '../../lapi';
-import { createApp, type CreateAppOptions } from '../../app';
-import { getAlertTargets, getAlertTargetSummary, resolveAlertHistoryAt } from '../../utils/alerts';
 import type { MqttPublishConfig } from '../../notifications/mqtt-client';
+import { getAlertTargets, getAlertTargetSummary, resolveAlertHistoryAt } from '../../utils/alerts';
 
 export let tempDir: string;
 
@@ -116,18 +118,29 @@ export function sampleImplicitSimulatedAlert(): AlertRecord {
 
 export function createAuthSessionCookie(
   database: CrowdsecDatabase,
-  payload: { userId: number; username: string; role: 'admin' | 'read-only'; authMethod: 'password' | 'passkey' | 'oidc'; sid?: string; oidcLogoutVersion?: number; oidcSessionVersion?: number; sessionVersion?: number },
+  payload: {
+    userId: number;
+    username: string;
+    role: 'admin' | 'read-only';
+    authMethod: 'password' | 'passkey' | 'oidc';
+    sid?: string;
+    oidcLogoutVersion?: number;
+    oidcSessionVersion?: number;
+    sessionVersion?: number;
+  },
   configuredSecret?: string,
   times: { issuedAt?: number; expiresAt?: number } = {},
 ): string {
   const secret = configuredSecret || database.getMeta('auth_session_secret')?.value;
   if (!secret) throw new Error('Auth session secret was not initialized');
   const now = Math.floor(Date.now() / 1000);
-  const encodedPayload = Buffer.from(JSON.stringify({
-    ...payload,
-    iat: times.issuedAt ?? now,
-    exp: times.expiresAt ?? now + 60 * 60,
-  })).toString('base64url');
+  const encodedPayload = Buffer.from(
+    JSON.stringify({
+      ...payload,
+      iat: times.issuedAt ?? now,
+      exp: times.expiresAt ?? now + 60 * 60,
+    }),
+  ).toString('base64url');
   const signature = crypto.createHmac('sha256', secret).update(encodedPayload).digest('base64url');
   return `crowdsec_web_ui_session=${encodedPayload}.${signature}`;
 }
@@ -361,7 +374,10 @@ export function destroyTempDir(): void {
 export function createTestDistRoot(): string {
   const distRoot = path.join(tempDir, 'dist');
   mkdirSync(path.join(distRoot, 'assets'), { recursive: true });
-  writeFileSync(path.join(distRoot, 'index.html'), '<!doctype html><html><head></head><body><div id="root"></div></body></html>');
+  writeFileSync(
+    path.join(distRoot, 'index.html'),
+    '<!doctype html><html><head></head><body><div id="root"></div></body></html>',
+  );
   writeFileSync(path.join(distRoot, 'assets', 'app.js'), 'console.log("ok");');
   writeFileSync(path.join(distRoot, 'world-50m.json'), '{"type":"Topology"}');
   writeFileSync(path.join(distRoot, 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
@@ -369,41 +385,44 @@ export function createTestDistRoot(): string {
   return distRoot;
 }
 
-export function createController(options: {
-  alertDetailPayload?: unknown;
-  simulationsEnabled?: boolean;
-  authMode?: 'password' | 'mtls' | 'none';
-  /** An undefined value removes a default, for example to leave a setting unset in the application config. */
-  env?: Record<string, string | undefined>;
-  fetchResolver?: (url: string, init?: LapiRequestInit) => Response | Promise<Response> | undefined;
-  notificationFetchResolver?: (url: string, init?: RequestInit) => Response | Promise<Response> | undefined;
-  metricsFetchResolver?: (url: string, init?: RequestInit) => Response | Promise<Response> | undefined;
-  crowdsecUpdateChecker?: CreateAppOptions['crowdsecUpdateChecker'];
-  mqttPublishResolver?: (config: MqttPublishConfig, payload: string) => void | Promise<void>;
-  syncWorker?: CreateAppOptions['syncWorker'];
-  queryWorker?: CreateAppOptions['queryWorker'];
-  analyticsQueryWorker?: CreateAppOptions['analyticsQueryWorker'];
-  facetQueryWorker?: CreateAppOptions['facetQueryWorker'];
-  database?: CrowdsecDatabase;
-  initialCacheState?: CreateAppOptions['initialCacheState'];
-  attackLocationResolver?: CreateAppOptions['attackLocationResolver'];
-} = {}) {
+export function createController(
+  options: {
+    alertDetailPayload?: unknown;
+    simulationsEnabled?: boolean;
+    authMode?: 'password' | 'mtls' | 'none';
+    /** An undefined value removes a default, for example to leave a setting unset in the application config. */
+    env?: Record<string, string | undefined>;
+    fetchResolver?: (url: string, init?: LapiRequestInit) => Response | Promise<Response> | undefined;
+    notificationFetchResolver?: (url: string, init?: RequestInit) => Response | Promise<Response> | undefined;
+    metricsFetchResolver?: (url: string, init?: RequestInit) => Response | Promise<Response> | undefined;
+    crowdsecUpdateChecker?: CreateAppOptions['crowdsecUpdateChecker'];
+    mqttPublishResolver?: (config: MqttPublishConfig, payload: string) => void | Promise<void>;
+    syncWorker?: CreateAppOptions['syncWorker'];
+    queryWorker?: CreateAppOptions['queryWorker'];
+    analyticsQueryWorker?: CreateAppOptions['analyticsQueryWorker'];
+    facetQueryWorker?: CreateAppOptions['facetQueryWorker'];
+    database?: CrowdsecDatabase;
+    initialCacheState?: CreateAppOptions['initialCacheState'];
+    attackLocationResolver?: CreateAppOptions['attackLocationResolver'];
+  } = {},
+) {
   const authMode = options.authMode || 'password';
   const mtlsCertPath = path.join(tempDir, 'agent.pem');
   const mtlsKeyPath = path.join(tempDir, 'agent-key.pem');
   const mtlsCaPath = path.join(tempDir, 'ca.pem');
-  const authEnv = authMode === 'password'
-    ? {
-        CROWDSEC_USER: 'watcher',
-        CROWDSEC_PASSWORD: 'secret',
-      }
-    : authMode === 'mtls'
+  const authEnv =
+    authMode === 'password'
       ? {
-          CROWDSEC_TLS_CERT_PATH: mtlsCertPath,
-          CROWDSEC_TLS_KEY_PATH: mtlsKeyPath,
-          CROWDSEC_TLS_CA_CERT_PATH: mtlsCaPath,
+          CROWDSEC_USER: 'watcher',
+          CROWDSEC_PASSWORD: 'secret',
         }
-      : {};
+      : authMode === 'mtls'
+        ? {
+            CROWDSEC_TLS_CERT_PATH: mtlsCertPath,
+            CROWDSEC_TLS_KEY_PATH: mtlsKeyPath,
+            CROWDSEC_TLS_CA_CERT_PATH: mtlsCaPath,
+          }
+        : {};
 
   if (authMode === 'mtls') {
     writeFileSync(mtlsCertPath, 'test-cert');
@@ -435,7 +454,13 @@ export function createController(options: {
   const config = createRuntimeConfig(env, { defaultConfigFile: path.join(tempDir, 'config.yaml') });
 
   const database = options.database || new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
-  const fetchCalls: Array<{ url: string; method: string; body?: unknown; headers?: RequestInit['headers']; dispatcher?: unknown }> = [];
+  const fetchCalls: Array<{
+    url: string;
+    method: string;
+    body?: unknown;
+    headers?: RequestInit['headers'];
+    dispatcher?: unknown;
+  }> = [];
   const fetchImpl = async (input: string | URL | Request, init?: LapiRequestInit): Promise<Response> => {
     const requestInit = init;
     const url = String(input);
@@ -525,7 +550,6 @@ export function createController(options: {
 
   return { controller, database, lapiClient, fetchCalls };
 }
-
 
 export function seedAlert(database: CrowdsecDatabase, alert: AlertRecord): void {
   const insert = database.transaction<AlertRecord>((record) => {

@@ -13,7 +13,8 @@ export function makeGeoNamesSnapshotsImmutable(dumpDirectory) {
     if (fs.existsSync(stablePath)) continue;
 
     const datedPattern = new RegExp(`^${basename}_\\d{4}-\\d{2}-\\d{2}\\.txt$`);
-    const datedFilename = fs.readdirSync(directoryPath)
+    const datedFilename = fs
+      .readdirSync(directoryPath)
       .filter((filename) => datedPattern.test(filename))
       .sort()
       .at(-1);

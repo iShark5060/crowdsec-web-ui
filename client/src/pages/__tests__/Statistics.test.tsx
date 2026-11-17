@@ -1,49 +1,197 @@
-import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { Link, MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { Statistics } from '../Statistics';
+
+import {
+  DEFAULT_STATISTICS_SETTINGS,
+  type StatisticsConfiguration,
+  type StatisticsResponse,
+  type StatisticsScenario,
+} from '../../../../shared/statistics';
 import { StatisticsSettings } from '../../components/StatisticsSettings';
-import { I18nContext, type I18nContextValue } from '../../lib/i18n';
 import { addDecision, addDecisions, checkAllowlist, fetchConfig, lookupManualDecisions } from '../../lib/api';
+import { createDateTimeContextValue, DateTimeContext, DEFAULT_DATE_TIME_SETTINGS } from '../../lib/dateTime';
+import { I18nContext, type I18nContextValue } from '../../lib/i18n';
+import { loadStoredQuickFilters, saveStoredQuickFilters } from '../../lib/quickFilters';
 import { sessionFetch } from '../../lib/sessionFetch';
 import en from '../../locales/en.json';
-import { createDateTimeContextValue, DateTimeContext, DEFAULT_DATE_TIME_SETTINGS } from '../../lib/dateTime';
-import { loadStoredQuickFilters, saveStoredQuickFilters } from '../../lib/quickFilters';
+import { Provide } from '../../test/Provide';
 import type { ConfigResponse } from '../../types';
-import { DEFAULT_STATISTICS_SETTINGS, type StatisticsConfiguration, type StatisticsResponse, type StatisticsScenario } from '../../../../shared/statistics';
+import { Statistics } from '../Statistics';
 
-vi.mock('../../lib/api', () => ({ fetchConfig: vi.fn(), addDecision: vi.fn(), addDecisions: vi.fn(), checkAllowlist: vi.fn(), lookupManualDecisions: vi.fn() }));
+vi.mock('../../lib/api', () => ({
+  fetchConfig: vi.fn(),
+  addDecision: vi.fn(),
+  addDecisions: vi.fn(),
+  checkAllowlist: vi.fn(),
+  lookupManualDecisions: vi.fn(),
+}));
 vi.mock('../../lib/sessionFetch', () => ({ sessionFetch: vi.fn() }));
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   LineChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   BarChart: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  CartesianGrid: () => null, XAxis: () => null, YAxis: () => null, Tooltip: () => null, Legend: () => null, Line: () => null, Bar: () => null,
+  CartesianGrid: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+  Tooltip: () => null,
+  Legend: () => null,
+  Line: () => null,
+  Bar: () => null,
 }));
-const i18n: I18nContextValue = { language: 'en', preference: 'en', browserLanguage: 'en', setLanguagePreference: () => {}, t: (key, values = {}) => Object.entries(values).reduce((message, [name, value]) => message.replaceAll(`{${name}}`, String(value)), (en as Record<string, string>)[key] || key) };
-const configuration: StatisticsConfiguration = { settings: { ...DEFAULT_STATISTICS_SETTINGS, enabled: true }, managed: {}, status: { running: false, lastSuccess: '2026-11-07T12:00:00Z', backlog: 0, backfillPending: false, error: null, revision: 1 }, timeZone: 'UTC' };
+const i18n: I18nContextValue = {
+  language: 'en',
+  preference: 'en',
+  browserLanguage: 'en',
+  setLanguagePreference: () => {},
+  t: (key, values = {}) =>
+    Object.entries(values).reduce(
+      (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
+      (en as Record<string, string>)[key] || key,
+    ),
+};
+const configuration: StatisticsConfiguration = {
+  settings: { ...DEFAULT_STATISTICS_SETTINGS, enabled: true },
+  managed: {},
+  status: {
+    running: false,
+    lastSuccess: '2026-11-07T12:00:00Z',
+    backlog: 0,
+    backfillPending: false,
+    error: null,
+    revision: 1,
+  },
+  timeZone: 'UTC',
+};
 function payload(): StatisticsResponse {
   return {
-    filters: { from: '2026-10-09', to: '2026-11-07', instance: 'all', simulation: 'live', limit: 10 }, revision: 1, configuration,
+    filters: { from: '2026-10-09', to: '2026-11-07', instance: 'all', simulation: 'live', limit: 10 },
+    revision: 1,
+    configuration,
     coverage: { from: '2026-11-01T00:00:00Z', through: '2026-11-07T12:00:00Z', partial: true, comparisonPartial: true },
-    totals: { alerts: 12, events: 48, uniqueIPs: 1, remediations: 2, decisions: 3, repeatAttackers: 1, remediatedIPs: 1, returnedAfterRemediation: 0, newIPs: null },
-    previousTotals: null, targets: [{ label: 'web.example.com', count: 9, uniqueIPs: 1 }],
-    attackers: [{ value: '192.0.2.7', label: '192.0.2.7', alerts: 12, events: 48, uniqueIPs: 1, remediations: 2, remediationTypes: [{ label: 'ban', count: 1 }, { label: 'captcha', count: 1 }], machines: 1, activeDays: 3, firstActivity: '2026-11-01T10:00:00Z', lastActivity: '2026-11-07T11:00:00Z', country: 'DE', asn: '42', network: 'Example', scenarios: [{ label: 'ssh', count: 12 }], targetedMachines: [{ value: '["default","m-1"]', label: 'Server one', count: 12 }] }],
-    machines: [{ value: '["default","m-1"]', label: 'Server one', instance: 'default', machineId: 'm-1', alerts: 12, events: 48, uniqueIPs: 1, remediations: 2, remediationTypes: [{ label: 'ban', count: 2 }], machines: 1, activeDays: 3, firstActivity: null, lastActivity: null, country: 'DE', asn: '42', network: 'Example', scenarios: [], targetedMachines: [] }],
-    series: [{ date: '2026-10-09', alerts: null, decisions: null }], granularity: 'day', scenarios: [{ label: 'ssh', count: 12, uniqueIPs: 1, machines: 1, remediations: 2, remediatedIPs: 1, remediatedIPsAnyScenario: 1, remediationTypes: [{ label: 'ban', count: 2 }], activeDays: 3, firstActivity: '2026-11-05T08:00:00Z', lastActivity: '2026-11-07T09:30:00Z', previous: null }], countries: [], networks: [], remediationTypes: [{ label: 'ban', count: 2 }, { label: 'captcha', count: 1 }, { label: 'throttle', count: 1 }], decisionTypes: [], decisionOrigins: [], increases: [], decreases: [], quietMachines: [],
+    totals: {
+      alerts: 12,
+      events: 48,
+      uniqueIPs: 1,
+      remediations: 2,
+      decisions: 3,
+      repeatAttackers: 1,
+      remediatedIPs: 1,
+      returnedAfterRemediation: 0,
+      newIPs: null,
+    },
+    previousTotals: null,
+    targets: [{ label: 'web.example.com', count: 9, uniqueIPs: 1 }],
+    attackers: [
+      {
+        value: '192.0.2.7',
+        label: '192.0.2.7',
+        alerts: 12,
+        events: 48,
+        uniqueIPs: 1,
+        remediations: 2,
+        remediationTypes: [
+          { label: 'ban', count: 1 },
+          { label: 'captcha', count: 1 },
+        ],
+        machines: 1,
+        activeDays: 3,
+        firstActivity: '2026-11-01T10:00:00Z',
+        lastActivity: '2026-11-07T11:00:00Z',
+        country: 'DE',
+        asn: '42',
+        network: 'Example',
+        scenarios: [{ label: 'ssh', count: 12 }],
+        targetedMachines: [{ value: '["default","m-1"]', label: 'Server one', count: 12 }],
+      },
+    ],
+    machines: [
+      {
+        value: '["default","m-1"]',
+        label: 'Server one',
+        instance: 'default',
+        machineId: 'm-1',
+        alerts: 12,
+        events: 48,
+        uniqueIPs: 1,
+        remediations: 2,
+        remediationTypes: [{ label: 'ban', count: 2 }],
+        machines: 1,
+        activeDays: 3,
+        firstActivity: null,
+        lastActivity: null,
+        country: 'DE',
+        asn: '42',
+        network: 'Example',
+        scenarios: [],
+        targetedMachines: [],
+      },
+    ],
+    series: [{ date: '2026-10-09', alerts: null, decisions: null }],
+    granularity: 'day',
+    scenarios: [
+      {
+        label: 'ssh',
+        count: 12,
+        uniqueIPs: 1,
+        machines: 1,
+        remediations: 2,
+        remediatedIPs: 1,
+        remediatedIPsAnyScenario: 1,
+        remediationTypes: [{ label: 'ban', count: 2 }],
+        activeDays: 3,
+        firstActivity: '2026-11-05T08:00:00Z',
+        lastActivity: '2026-11-07T09:30:00Z',
+        previous: null,
+      },
+    ],
+    countries: [],
+    networks: [],
+    remediationTypes: [
+      { label: 'ban', count: 2 },
+      { label: 'captcha', count: 1 },
+      { label: 'throttle', count: 1 },
+    ],
+    decisionTypes: [],
+    decisionOrigins: [],
+    increases: [],
+    decreases: [],
+    quietMachines: [],
   };
 }
-function Location() { const location = useLocation(); return <output data-testid="location">{location.pathname}{location.search}</output>; }
+function Location() {
+  const location = useLocation();
+  return (
+    <output data-testid="location">
+      {location.pathname}
+      {location.search}
+    </output>
+  );
+}
 function mount(content = <Statistics />, url = '/statistics?from=2026-10-09&to=2026-11-07') {
-  return render(<I18nContext.Provider value={i18n}><MemoryRouter initialEntries={[url]}>{content}<Location /></MemoryRouter></I18nContext.Provider>);
+  return render(
+    <I18nContext.Provider value={i18n}>
+      <MemoryRouter initialEntries={[url]}>
+        {content}
+        <Location />
+      </MemoryRouter>
+    </I18nContext.Provider>,
+  );
 }
 beforeEach(() => {
-  vi.mocked(fetchConfig).mockResolvedValue({ statistics: configuration, lookback_days: 7, instances: [{ id: 'default', name: 'Production' }] } as ConfigResponse);
+  vi.mocked(fetchConfig).mockResolvedValue({
+    statistics: configuration,
+    lookback_days: 7,
+    instances: [{ id: 'default', name: 'Production' }],
+  } as ConfigResponse);
   vi.mocked(sessionFetch).mockImplementation(async () => Response.json(payload()));
   vi.mocked(lookupManualDecisions).mockResolvedValue({ decisions: [] });
 });
-afterEach(() => { vi.clearAllMocks(); localStorage.clear(); });
+afterEach(() => {
+  vi.clearAllMocks();
+  localStorage.clear();
+});
 
 describe('Statistics page', () => {
   test('shows rankings and missing coverage but hides machine changes for a single machine', async () => {
@@ -65,13 +213,19 @@ describe('Statistics page', () => {
     expect(attacker.getByText('Captcha 1')).toBeInTheDocument();
     expect(within(screen.getByRole('row', { name: 'ssh' })).getByText('Ban 2')).toBeInTheDocument();
     expect(within(topIps).getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
-    expect(within(topIps).getByRole('button', { name: 'Ban' }).closest('td')).toBe(within(topIps).getAllByRole('cell').at(-1));
+    expect(within(topIps).getByRole('button', { name: 'Ban' }).closest('td')).toBe(
+      within(topIps).getAllByRole('cell').at(-1),
+    );
     // Activity names its first and last timestamps, in Top IPs and Top Scenarios alike.
     expect(within(topIps).getByRole('columnheader', { name: 'Activity' })).toBeInTheDocument();
-    expect(within(topIps).getAllByRole('cell').at(-2)).toHaveTextContent('3 days activeFirst seen11/1/2026, 10:00:00 AMLast seen11/7/2026, 11:00:00 AM');
+    expect(within(topIps).getAllByRole('cell').at(-2)).toHaveTextContent(
+      '3 days activeFirst seen11/1/2026, 10:00:00 AMLast seen11/7/2026, 11:00:00 AM',
+    );
     const topScenarios = screen.getByRole('row', { name: 'ssh' }).closest('table')!;
     expect(within(topScenarios).getAllByRole('columnheader').at(-1)).toHaveTextContent('Activity');
-    expect(within(topScenarios).getAllByRole('cell').at(-1)).toHaveTextContent('3 days activeFirst seen11/5/2026, 8:00:00 AMLast seen11/7/2026, 9:30:00 AM');
+    expect(within(topScenarios).getAllByRole('cell').at(-1)).toHaveTextContent(
+      '3 days activeFirst seen11/5/2026, 8:00:00 AMLast seen11/7/2026, 9:30:00 AM',
+    );
     // With one instance, Top Machines does not name it, like the rest of the app.
     expect(screen.queryByText('Production')).not.toBeInTheDocument();
     expect(screen.getByText(/Counts reflect observed data/)).toBeInTheDocument();
@@ -92,7 +246,9 @@ describe('Statistics page', () => {
 
     expect(topIps).toHaveAttribute('data-column-widths', 'fixed');
     expect(topScenarios).not.toHaveAttribute('data-column-widths');
-    const stored = JSON.parse(localStorage.getItem('crowdsec-web-ui:statistics-attackers:table-column-widths')!) as Record<string, number>;
+    const stored = JSON.parse(
+      localStorage.getItem('crowdsec-web-ui:statistics-attackers:table-column-widths')!,
+    ) as Record<string, number>;
     expect(stored.ip).toBe(stored.alerts + 16);
     expect(Array.from(topIps.querySelectorAll('col'), (col) => col.style.width).at(-1)).toBe('128px');
 
@@ -103,7 +259,14 @@ describe('Statistics page', () => {
   });
 
   test('keeps ranking limits and attacker filters in the URL and builds UTC investigation links', async () => {
-    mount(<DateTimeContext.Provider value={createDateTimeContextValue({ ...DEFAULT_DATE_TIME_SETTINGS, timeZone: 'Europe/Berlin' })}><Statistics /></DateTimeContext.Provider>);
+    mount(
+      <Provide
+        context={DateTimeContext}
+        value={createDateTimeContextValue({ ...DEFAULT_DATE_TIME_SETTINGS, timeZone: 'Europe/Berlin' })}
+      >
+        <Statistics />
+      </Provide>,
+    );
     const attacker = await screen.findByRole('row', { name: '192.0.2.7' });
     fireEvent.click(within(attacker).getAllByRole('cell')[1]);
     await screen.findByRole('link', { name: 'View Alerts' });
@@ -119,12 +282,19 @@ describe('Statistics page', () => {
     expect(target.searchParams.get('q')).toContain('ip=192.0.2.7');
     expect(target.searchParams.get('q')).toContain('sim=live');
     expect(target.searchParams.has('simulation')).toBe(false);
-    const decisions = new URL(screen.getByRole('link', { name: 'View Decisions' }).getAttribute('href')!, 'http://localhost');
+    const decisions = new URL(
+      screen.getByRole('link', { name: 'View Decisions' }).getAttribute('href')!,
+      'http://localhost',
+    );
     expect(decisions.pathname).toBe('/decisions');
     expect(decisions.searchParams.get('q')).toBe(target.searchParams.get('q'));
     expect(decisions.searchParams.get('include_expired')).toBe('true');
     // Following a link replaces the saved quick filters with the Statistics selection.
-    saveStoredQuickFilters({ selections: { country: { included: ['FR'], excluded: [] } }, dateRange: { start: '', end: '' }, simulation: 'all' });
+    saveStoredQuickFilters({
+      selections: { country: { included: ['FR'], excluded: [] } },
+      dateRange: { start: '', end: '' },
+      simulation: 'all',
+    });
     fireEvent.click(link);
     expect(loadStoredQuickFilters()).toEqual({
       selections: { ip: { included: ['192.0.2.7'], excluded: [] } },
@@ -135,16 +305,32 @@ describe('Statistics page', () => {
   });
 
   test('uses the days and timestamps of the statistics time zone', async () => {
-    vi.mocked(fetchConfig).mockResolvedValue({ statistics: { ...configuration, timeZone: 'Europe/Berlin' }, lookback_days: 7, instances: [{ id: 'default', name: 'Production' }] } as ConfigResponse);
-    mount(<DateTimeContext.Provider value={createDateTimeContextValue({ ...DEFAULT_DATE_TIME_SETTINGS, timeZone: 'Europe/Berlin' })}><Statistics /></DateTimeContext.Provider>);
+    vi.mocked(fetchConfig).mockResolvedValue({
+      statistics: { ...configuration, timeZone: 'Europe/Berlin' },
+      lookback_days: 7,
+      instances: [{ id: 'default', name: 'Production' }],
+    } as ConfigResponse);
+    mount(
+      <Provide
+        context={DateTimeContext}
+        value={createDateTimeContextValue({ ...DEFAULT_DATE_TIME_SETTINGS, timeZone: 'Europe/Berlin' })}
+      >
+        <Statistics />
+      </Provide>,
+    );
     const attacker = await screen.findByRole('row', { name: '192.0.2.7' });
     expect(screen.getByText(/Statistics use calendar days in Europe\/Berlin\. Dashboard totals/)).toBeInTheDocument();
-    expect(within(attacker).getAllByRole('cell').at(-2)).toHaveTextContent('First seen11/1/2026, 11:00:00 AMLast seen11/7/2026, 12:00:00 PM');
+    expect(within(attacker).getAllByRole('cell').at(-2)).toHaveTextContent(
+      'First seen11/1/2026, 11:00:00 AMLast seen11/7/2026, 12:00:00 PM',
+    );
     // The statistics request waits for the zone, so it is sent once.
     expect(sessionFetch).toHaveBeenCalledTimes(1);
     // Statistics days and the quick filters share the zone, so the range maps to whole local days.
     fireEvent.click(within(attacker).getAllByRole('cell')[1]);
-    const link = new URL((await screen.findByRole('link', { name: 'View Alerts' })).getAttribute('href')!, 'http://localhost');
+    const link = new URL(
+      (await screen.findByRole('link', { name: 'View Alerts' })).getAttribute('href')!,
+      'http://localhost',
+    );
     expect(link.searchParams.get('q')).toContain('date>=2026-10-09T00 AND date<=2026-11-07T23');
   });
 
@@ -166,17 +352,24 @@ describe('Statistics page', () => {
   ])('toggles and highlights the %s row like the breakdown cards', async (field, label, value) => {
     vi.mocked(sessionFetch).mockImplementation(async () => {
       const data = payload();
-      return Response.json({ ...data, machines: [...data.machines, { ...data.machines[0], value: '["default","m-2"]', label: 'Server two' }] } satisfies StatisticsResponse);
+      return Response.json({
+        ...data,
+        machines: [...data.machines, { ...data.machines[0], value: '["default","m-2"]', label: 'Server two' }],
+      } satisfies StatisticsResponse);
     });
     mount();
     let row = await screen.findByRole('row', { name: label });
     expect(row).toHaveAttribute('aria-selected', 'false');
     fireEvent.click(within(row).getAllByRole('cell')[1]);
-    await waitFor(() => expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).get(field)).toBe(value));
+    await waitFor(() =>
+      expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).get(field)).toBe(value),
+    );
     row = await screen.findByRole('row', { name: label });
     expect(row).toHaveAttribute('aria-selected', 'true');
     fireEvent.keyDown(row, { key: ' ' });
-    await waitFor(() => expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).has(field)).toBe(false));
+    await waitFor(() =>
+      expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).has(field)).toBe(false),
+    );
     expect(await screen.findByRole('row', { name: label })).toHaveAttribute('aria-selected', 'false');
   });
 
@@ -184,26 +377,54 @@ describe('Statistics page', () => {
     ['Top Targets', 'web.example.com', 'target', 'web.example.com', 'Clear Target'],
     ['Top Countries', 'Germany', 'country', 'DE', 'Clear Country'],
     ['Top AS', 'Example Cloud', 'network', 'Example Cloud', 'Clear AS'],
-  ])('filters Statistics from %s and clears or toggles the selection', async (title, label, field, value, clearLabel) => {
-    vi.mocked(sessionFetch).mockImplementation(async () => Response.json({ ...payload(), countries: [{ label: 'DE', count: 12, uniqueIPs: 1 }], networks: [{ label: 'Example Cloud', count: 12, uniqueIPs: 1 }] } satisfies StatisticsResponse));
-    mount();
-    const card = (await screen.findByRole('heading', { name: title })).closest('.rounded-xl') as HTMLElement;
-    fireEvent.click(within(card).getByRole('button', { name: new RegExp(label) }));
-    await waitFor(() => expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).get(field)).toBe(value));
-    await screen.findByRole('link', { name: 'View Alerts' });
-    expect(new URLSearchParams(String(vi.mocked(sessionFetch).mock.calls.at(-1)?.[0]).split('?')[1]).get(field)).toBe(value);
-    const alerts = new URL(screen.getByRole('link', { name: 'View Alerts' }).getAttribute('href')!, 'http://localhost');
-    expect(alerts.searchParams.get('q')).toContain(`${field === 'network' ? 'as' : field}=${value.includes(' ') ? JSON.stringify(value) : value}`);
-    fireEvent.click(screen.getByRole('button', { name: clearLabel }));
-    await waitFor(() => expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).has(field)).toBe(false));
-    const currentRow = async () => within((await screen.findByRole('heading', { name: title })).closest('.rounded-xl') as HTMLElement).getByRole('button', { name: new RegExp(label) });
-    let row = await currentRow();
-    fireEvent.keyDown(row, { key: 'Enter' });
-    await waitFor(() => expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).get(field)).toBe(value));
-    row = await currentRow();
-    fireEvent.keyDown(row, { key: ' ' });
-    await waitFor(() => expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).has(field)).toBe(false));
-  });
+  ])(
+    'filters Statistics from %s and clears or toggles the selection',
+    async (title, label, field, value, clearLabel) => {
+      vi.mocked(sessionFetch).mockImplementation(async () =>
+        Response.json({
+          ...payload(),
+          countries: [{ label: 'DE', count: 12, uniqueIPs: 1 }],
+          networks: [{ label: 'Example Cloud', count: 12, uniqueIPs: 1 }],
+        } satisfies StatisticsResponse),
+      );
+      mount();
+      const card = (await screen.findByRole('heading', { name: title })).closest('.rounded-xl') as HTMLElement;
+      fireEvent.click(within(card).getByRole('button', { name: new RegExp(label) }));
+      await waitFor(() =>
+        expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).get(field)).toBe(value),
+      );
+      await screen.findByRole('link', { name: 'View Alerts' });
+      expect(new URLSearchParams(String(vi.mocked(sessionFetch).mock.calls.at(-1)?.[0]).split('?')[1]).get(field)).toBe(
+        value,
+      );
+      const alerts = new URL(
+        screen.getByRole('link', { name: 'View Alerts' }).getAttribute('href')!,
+        'http://localhost',
+      );
+      expect(alerts.searchParams.get('q')).toContain(
+        `${field === 'network' ? 'as' : field}=${value.includes(' ') ? JSON.stringify(value) : value}`,
+      );
+      fireEvent.click(screen.getByRole('button', { name: clearLabel }));
+      await waitFor(() =>
+        expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).has(field)).toBe(false),
+      );
+      const currentRow = async () =>
+        within((await screen.findByRole('heading', { name: title })).closest('.rounded-xl') as HTMLElement).getByRole(
+          'button',
+          { name: new RegExp(label) },
+        );
+      let row = await currentRow();
+      fireEvent.keyDown(row, { key: 'Enter' });
+      await waitFor(() =>
+        expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).get(field)).toBe(value),
+      );
+      row = await currentRow();
+      fireEvent.keyDown(row, { key: ' ' });
+      await waitFor(() =>
+        expect(new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1]).has(field)).toBe(false),
+      );
+    },
+  );
 
   test('keeps machine counts without machine links and the ban action independent of the attacker row', async () => {
     mount();
@@ -234,12 +455,25 @@ describe('Statistics page', () => {
 
   test('keeps a decision badge on the instances that confirmed the ban', async () => {
     vi.mocked(fetchConfig).mockResolvedValue({
-      statistics: configuration, instances: [{ id: 'default', name: 'Production' }, { id: 'edge', name: 'Edge' }],
+      statistics: configuration,
+      instances: [
+        { id: 'default', name: 'Production' },
+        { id: 'edge', name: 'Edge' },
+      ],
     } as ConfigResponse);
-    vi.mocked(addDecision).mockResolvedValue({ results: [{ instance_id: 'default', instance_name: 'Production', success: true }] });
+    vi.mocked(addDecision).mockResolvedValue({
+      results: [{ instance_id: 'default', instance_name: 'Production', success: true }],
+    });
     const path = '/statistics?from=2026-10-09&to=2026-11-07';
-    mount(<><Statistics /><Link to={path + '&instance=edge'}>Switch to Edge</Link><Link to={path + '&instance=all'}>Show all instances</Link>
-      <Link to={path + '&instance=default'}>Switch to Production</Link></>, path + '&instance=default');
+    mount(
+      <>
+        <Statistics />
+        <Link to={path + '&instance=edge'}>Switch to Edge</Link>
+        <Link to={path + '&instance=all'}>Show all instances</Link>
+        <Link to={path + '&instance=default'}>Switch to Production</Link>
+      </>,
+      path + '&instance=default',
+    );
     const row = () => screen.findByRole('row', { name: '192.0.2.7' });
     fireEvent.click(within(await row()).getByRole('button', { name: 'Ban' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Add Decision' }));
@@ -256,11 +490,23 @@ describe('Statistics page', () => {
 
   test('shows active manual decisions from the server after a reload, per instance', async () => {
     vi.mocked(fetchConfig).mockResolvedValue({
-      statistics: configuration, instances: [{ id: 'default', name: 'Production' }, { id: 'edge', name: 'Edge' }],
+      statistics: configuration,
+      instances: [
+        { id: 'default', name: 'Production' },
+        { id: 'edge', name: 'Edge' },
+      ],
     } as ConfigResponse);
-    vi.mocked(lookupManualDecisions).mockResolvedValue({ decisions: [{ value: '192.0.2.7', instance_id: 'default', stop_at: '2026-11-20T00:00:00Z' }] });
+    vi.mocked(lookupManualDecisions).mockResolvedValue({
+      decisions: [{ value: '192.0.2.7', instance_id: 'default', stop_at: '2026-11-20T00:00:00Z' }],
+    });
     const path = '/statistics?from=2026-10-09&to=2026-11-07';
-    mount(<><Statistics /><Link to={path + '&instance=all'}>Show all instances</Link></>, path + '&instance=default');
+    mount(
+      <>
+        <Statistics />
+        <Link to={path + '&instance=all'}>Show all instances</Link>
+      </>,
+      path + '&instance=default',
+    );
     const row = () => screen.findByRole('row', { name: '192.0.2.7' });
     expect(await within(await row()).findByText('Decision added')).toBeInTheDocument();
     expect(lookupManualDecisions).toHaveBeenCalledWith(['192.0.2.7']);
@@ -272,12 +518,28 @@ describe('Statistics page', () => {
 
   test('bans every top IP without a decision at once', async () => {
     const data = payload();
-    const attacker = (value: string, returnedAfterRemediation: boolean) => ({ ...data.attackers[0], value, label: value, returnedAfterRemediation });
-    vi.mocked(sessionFetch).mockImplementation(async () => Response.json({
-      ...data, attackers: [attacker('192.0.2.7', false), attacker('192.0.2.8', true), attacker('192.0.2.9', true)],
-    } satisfies StatisticsResponse));
-    vi.mocked(lookupManualDecisions).mockResolvedValue({ decisions: [{ value: '192.0.2.7', instance_id: 'default', stop_at: '2026-11-20T00:00:00Z' }] });
-    vi.mocked(addDecisions).mockResolvedValue({ added: ['192.0.2.8', '192.0.2.9'], allowlisted: [], results: [{ instance_id: 'default', instance_name: 'Production', success: true }], succeeded: 1, failed: 0 });
+    const attacker = (value: string, returnedAfterRemediation: boolean) => ({
+      ...data.attackers[0],
+      value,
+      label: value,
+      returnedAfterRemediation,
+    });
+    vi.mocked(sessionFetch).mockImplementation(async () =>
+      Response.json({
+        ...data,
+        attackers: [attacker('192.0.2.7', false), attacker('192.0.2.8', true), attacker('192.0.2.9', true)],
+      } satisfies StatisticsResponse),
+    );
+    vi.mocked(lookupManualDecisions).mockResolvedValue({
+      decisions: [{ value: '192.0.2.7', instance_id: 'default', stop_at: '2026-11-20T00:00:00Z' }],
+    });
+    vi.mocked(addDecisions).mockResolvedValue({
+      added: ['192.0.2.8', '192.0.2.9'],
+      allowlisted: [],
+      results: [{ instance_id: 'default', instance_name: 'Production', success: true }],
+      succeeded: 1,
+      failed: 0,
+    });
     mount();
     const card = (await screen.findByRole('heading', { name: 'Top IPs' })).closest('.rounded-xl') as HTMLElement;
     // The IP with an active decision is left out, and returned IPs get the longer duration.
@@ -286,79 +548,189 @@ describe('Statistics page', () => {
     expect(screen.getByLabelText('Duration')).toHaveValue('7d');
     fireEvent.click(screen.getByRole('button', { name: 'Add 2 Decisions' }));
     await waitFor(() => expect(within(card).getAllByText('Decision added')).toHaveLength(3));
-    expect(addDecisions).toHaveBeenCalledWith(expect.objectContaining({ values: ['192.0.2.8', '192.0.2.9'], duration: '7d', reason: 'Returned after remediation' }));
+    expect(addDecisions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: ['192.0.2.8', '192.0.2.9'],
+        duration: '7d',
+        reason: 'Returned after remediation',
+      }),
+    );
     expect(within(card).queryByRole('button', { name: /Ban all/ })).not.toBeInTheDocument();
   });
 
   test('shows active manual decisions for the rows of a finding', async () => {
     const data = payload();
-    const ip = (value: string) => ({ ip: value, alerts: 7, remediations: 1, remediationTypes: [{ label: 'ban', count: 1 }], machines: 1, firstRemediation: '2026-11-02' });
+    const ip = (value: string) => ({
+      ip: value,
+      alerts: 7,
+      remediations: 1,
+      remediationTypes: [{ label: 'ban', count: 1 }],
+      machines: 1,
+      firstRemediation: '2026-11-02',
+    });
     vi.mocked(lookupManualDecisions).mockImplementation(async (values) => ({
-      decisions: values.filter((value) => value === '203.0.113.9').map((value) => ({ value, instance_id: 'default', stop_at: '2026-11-20T00:00:00Z' })),
+      decisions: values
+        .filter((value) => value === '203.0.113.9')
+        .map((value) => ({ value, instance_id: 'default', stop_at: '2026-11-20T00:00:00Z' })),
     }));
-    vi.mocked(sessionFetch).mockImplementation(async (url) => String(url).includes('/api/statistics/details')
-      ? Response.json({ kind: 'returned', ips: [ip('203.0.113.9'), ip('203.0.113.10')], total: 2 })
-      : Response.json({ ...data, totals: { ...data.totals, returnedAfterRemediation: 2 } }));
+    vi.mocked(sessionFetch).mockImplementation(async (url) =>
+      String(url).includes('/api/statistics/details')
+        ? Response.json({ kind: 'returned', ips: [ip('203.0.113.9'), ip('203.0.113.10')], total: 2 })
+        : Response.json({ ...data, totals: { ...data.totals, returnedAfterRemediation: 2 } }),
+    );
     mount();
     const summary = await screen.findByRole('button', { name: /2 IPs attacked again/ });
     fireEvent.click(summary);
     const finding = summary.closest('li')!;
     expect(await within(finding).findByText('Decision added')).toBeInTheDocument();
     expect(lookupManualDecisions).toHaveBeenCalledWith(['203.0.113.9', '203.0.113.10']);
-    expect(within(within(finding).getByRole('row', { name: '203.0.113.10' })).getByRole('button', { name: 'Ban' })).toBeInTheDocument();
+    expect(
+      within(within(finding).getByRole('row', { name: '203.0.113.10' })).getByRole('button', { name: 'Ban' }),
+    ).toBeInTheDocument();
     // A single pending value does not need a bulk action.
     expect(within(finding).queryByRole('button', { name: /Ban all/ })).not.toBeInTheDocument();
   });
 
   test('reports only the share of a scenario that CrowdSec detected, not alerts of manual decisions', async () => {
     const data = payload();
-    const scenario = (label: string, remediations: number, detected?: StatisticsScenario['detected']) => ({ label, count: 80, uniqueIPs: 60, machines: 2, remediations, remediatedIPs: remediations ? 14 : 0, remediatedIPsAnyScenario: remediations ? 14 : 0, remediationTypes: [], activeDays: 1, firstActivity: null, lastActivity: null, previous: 10, ...(detected ? { detected } : {}) });
-    vi.mocked(sessionFetch).mockImplementation(async (url) => String(url).includes('/api/statistics/details')
-      ? Response.json({ kind: 'ips', ips: [], total: 0, ranges: [], rangeTotal: 0 })
-      : Response.json({
-        ...data,
-        coverage: { ...data.coverage, partial: false, comparisonPartial: false },
-        scenarios: [
-          // Manual decisions only, on every instance that raised them.
-          scenario('manual/web-ui', 80, { count: 0, uniqueIPs: 0, remediations: 0, remediatedIPsAnyScenario: 0, previous: 0 }),
-          // Manual decisions on one instance, and real detections without a remediation on another.
-          scenario('custom/edge', 25, { count: 55, uniqueIPs: 46, remediations: 0, remediatedIPsAnyScenario: 0, previous: 0 }),
-          // Every IP is remediated only counting the manual decisions; one detected IP is not.
-          { ...scenario('crowdsecurity/vpatch-env-access', 0, { count: 20, uniqueIPs: 2, remediations: 0, remediatedIPsAnyScenario: 1, previous: 10 }), remediatedIPsAnyScenario: 60 },
-        ],
-      } satisfies StatisticsResponse));
+    const scenario = (label: string, remediations: number, detected?: StatisticsScenario['detected']) => ({
+      label,
+      count: 80,
+      uniqueIPs: 60,
+      machines: 2,
+      remediations,
+      remediatedIPs: remediations ? 14 : 0,
+      remediatedIPsAnyScenario: remediations ? 14 : 0,
+      remediationTypes: [],
+      activeDays: 1,
+      firstActivity: null,
+      lastActivity: null,
+      previous: 10,
+      ...(detected ? { detected } : {}),
+    });
+    vi.mocked(sessionFetch).mockImplementation(async (url) =>
+      String(url).includes('/api/statistics/details')
+        ? Response.json({ kind: 'ips', ips: [], total: 0, ranges: [], rangeTotal: 0 })
+        : Response.json({
+            ...data,
+            coverage: { ...data.coverage, partial: false, comparisonPartial: false },
+            scenarios: [
+              // Manual decisions only, on every instance that raised them.
+              scenario('manual/web-ui', 80, {
+                count: 0,
+                uniqueIPs: 0,
+                remediations: 0,
+                remediatedIPsAnyScenario: 0,
+                previous: 0,
+              }),
+              // Manual decisions on one instance, and real detections without a remediation on another.
+              scenario('custom/edge', 25, {
+                count: 55,
+                uniqueIPs: 46,
+                remediations: 0,
+                remediatedIPsAnyScenario: 0,
+                previous: 0,
+              }),
+              // Every IP is remediated only counting the manual decisions; one detected IP is not.
+              {
+                ...scenario('crowdsecurity/vpatch-env-access', 0, {
+                  count: 20,
+                  uniqueIPs: 2,
+                  remediations: 0,
+                  remediatedIPsAnyScenario: 1,
+                  previous: 10,
+                }),
+                remediatedIPsAnyScenario: 60,
+              },
+            ],
+          } satisfies StatisticsResponse),
+    );
     mount();
     const findings = (await screen.findByRole('heading', { name: 'Findings' })).closest('.rounded-xl') as HTMLElement;
-    expect(within(findings).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+    expect(
+      within(findings)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
       expect.stringMatching(/custom\/edge raised 55 alerts from 46 IPs without a single remediation/),
       expect.stringMatching(/crowdsecurity\/vpatch-env-access.*20 .*2 IPs.*1 /),
       expect.stringMatching(/New attack type: custom\/edge raised 55 alerts from 46 IPs/),
     ]);
     // Their details list the detected IPs only.
     fireEvent.click(within(findings).getByRole('button', { name: /^custom\/edge raised 55 alerts/ }));
-    await waitFor(() => expect(String(vi.mocked(sessionFetch).mock.calls.at(-1)?.[0])).toMatch(/details\?.*scenario=custom%2Fedge.*detected=1/));
+    await waitFor(() =>
+      expect(String(vi.mocked(sessionFetch).mock.calls.at(-1)?.[0])).toMatch(
+        /details\?.*scenario=custom%2Fedge.*detected=1/,
+      ),
+    );
   });
 
   test('turns the statistics into findings and compares tiles only with a complete preceding period', async () => {
     const data = payload();
     const web = '["default","m-2"]';
-    vi.mocked(sessionFetch).mockImplementation(async () => Response.json({
-      ...data,
-      coverage: { ...data.coverage, partial: false, comparisonPartial: false },
-      totals: { ...data.totals, alerts: 200, uniqueIPs: 40, remediatedIPs: 30, returnedAfterRemediation: 4, newIPs: 25 },
-      previousTotals: { alerts: 100, remediations: 2, decisions: 3, uniqueIPs: 40, remediatedIPs: 20, repeatAttackers: 1 },
-      scenarios: [
-        { label: 'crowdsecurity/http-probing', count: 150, uniqueIPs: 30, machines: 2, remediations: 0, remediatedIPs: 0, remediatedIPsAnyScenario: 0, remediationTypes: [], activeDays: 1, firstActivity: null, lastActivity: null, previous: 0 },
-        { label: 'crowdsecurity/ssh-bf', count: 50, uniqueIPs: 10, machines: 1, remediations: 30, remediatedIPs: 10, remediatedIPsAnyScenario: 10, remediationTypes: [{ label: 'ban', count: 30 }], activeDays: 1, firstActivity: null, lastActivity: null, previous: 50 },
-      ],
-      networks: [{ label: 'Example Cloud', count: 120, uniqueIPs: 25 }],
-      quietMachines: [{ value: web, label: 'Web', previous: 80 }],
-      increases: [{ value: '["default","m-1"]', label: 'Server one', current: 60, previous: 10, change: 50 }],
-    } satisfies StatisticsResponse));
+    vi.mocked(sessionFetch).mockImplementation(async () =>
+      Response.json({
+        ...data,
+        coverage: { ...data.coverage, partial: false, comparisonPartial: false },
+        totals: {
+          ...data.totals,
+          alerts: 200,
+          uniqueIPs: 40,
+          remediatedIPs: 30,
+          returnedAfterRemediation: 4,
+          newIPs: 25,
+        },
+        previousTotals: {
+          alerts: 100,
+          remediations: 2,
+          decisions: 3,
+          uniqueIPs: 40,
+          remediatedIPs: 20,
+          repeatAttackers: 1,
+        },
+        scenarios: [
+          {
+            label: 'crowdsecurity/http-probing',
+            count: 150,
+            uniqueIPs: 30,
+            machines: 2,
+            remediations: 0,
+            remediatedIPs: 0,
+            remediatedIPsAnyScenario: 0,
+            remediationTypes: [],
+            activeDays: 1,
+            firstActivity: null,
+            lastActivity: null,
+            previous: 0,
+          },
+          {
+            label: 'crowdsecurity/ssh-bf',
+            count: 50,
+            uniqueIPs: 10,
+            machines: 1,
+            remediations: 30,
+            remediatedIPs: 10,
+            remediatedIPsAnyScenario: 10,
+            remediationTypes: [{ label: 'ban', count: 30 }],
+            activeDays: 1,
+            firstActivity: null,
+            lastActivity: null,
+            previous: 50,
+          },
+        ],
+        networks: [{ label: 'Example Cloud', count: 120, uniqueIPs: 25 }],
+        quietMachines: [{ value: web, label: 'Web', previous: 80 }],
+        increases: [{ value: '["default","m-1"]', label: 'Server one', current: 60, previous: 10, change: 50 }],
+      } satisfies StatisticsResponse),
+    );
     mount();
     const findings = (await screen.findByRole('heading', { name: 'Findings' })).closest('.rounded-xl') as HTMLElement;
     const showMore = within(findings).getByRole('button', { name: 'Show 1 more' });
-    expect(within(findings).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+    expect(
+      within(findings)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
       expect.stringMatching(/Web raised no alerts in this period, after 80/),
       expect.stringMatching(/crowdsecurity\/http-probing raised 150 alerts from 30 IPs without a single remediation/),
       expect.stringMatching(/4 IPs attacked again on a later day after a remediation/),
@@ -384,9 +756,13 @@ describe('Statistics page', () => {
     fireEvent.click(within(scenario).getByRole('link'));
     expect(screen.getByTestId('location').textContent).not.toContain('scenario=');
     fireEvent.click(within(scenario).getAllByRole('cell')[1]);
-    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('scenario=crowdsecurity%2Fhttp-probing'));
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toContain('scenario=crowdsecurity%2Fhttp-probing'),
+    );
     const link = await screen.findByRole('link', { name: 'View Alerts' });
-    expect(new URL(link.getAttribute('href')!, 'http://localhost').searchParams.get('q')).toContain('scenario=crowdsecurity/http-probing');
+    expect(new URL(link.getAttribute('href')!, 'http://localhost').searchParams.get('q')).toContain(
+      'scenario=crowdsecurity/http-probing',
+    );
     expect(String(vi.mocked(sessionFetch).mock.calls.at(-1)?.[0])).toContain('scenario=crowdsecurity%2Fhttp-probing');
   });
 
@@ -394,24 +770,69 @@ describe('Statistics page', () => {
     const data = payload();
     const detailUrls: string[] = [];
     vi.mocked(checkAllowlist).mockResolvedValue({ results: [] } as never);
-    vi.mocked(addDecision).mockResolvedValue({ results: [{ instance_id: 'default', instance_name: 'Production', success: true }] } as never);
+    vi.mocked(addDecision).mockResolvedValue({
+      results: [{ instance_id: 'default', instance_name: 'Production', success: true }],
+    } as never);
     vi.mocked(sessionFetch).mockImplementation(async (url) => {
       if (String(url).includes('/api/statistics/details')) {
         detailUrls.push(String(url));
         const query = new URLSearchParams(String(url).split('?')[1]);
-        if (query.get('kind') === 'returned') return Response.json({ kind: 'returned', ips: [{ ip: '203.0.113.9', alerts: 7, remediations: 1, remediationTypes: [{ label: 'ban', count: 1 }], machines: 1, activeDays: 3, country: 'DE', asn: '42', network: 'Example', lastActivity: '2026-11-06T10:00:00Z', firstRemediation: '2026-11-02', remediatedBefore: false }], total: 1 });
-        return Response.json({ kind: 'ips', ranges: [{ range: '198.51.100.0/24', ips: 6, alerts: 40 }], rangeTotal: 1, ips: [], total: 0 });
+        if (query.get('kind') === 'returned')
+          return Response.json({
+            kind: 'returned',
+            ips: [
+              {
+                ip: '203.0.113.9',
+                alerts: 7,
+                remediations: 1,
+                remediationTypes: [{ label: 'ban', count: 1 }],
+                machines: 1,
+                activeDays: 3,
+                country: 'DE',
+                asn: '42',
+                network: 'Example',
+                lastActivity: '2026-11-06T10:00:00Z',
+                firstRemediation: '2026-11-02',
+                remediatedBefore: false,
+              },
+            ],
+            total: 1,
+          });
+        return Response.json({
+          kind: 'ips',
+          ranges: [{ range: '198.51.100.0/24', ips: 6, alerts: 40 }],
+          rangeTotal: 1,
+          ips: [],
+          total: 0,
+        });
       }
       return Response.json({
         ...data,
         totals: { ...data.totals, alerts: 200, returnedAfterRemediation: 1 },
-        scenarios: [{ label: 'crowdsecurity/vpatch-env-access', count: 709, uniqueIPs: 93, machines: 1, remediations: 0, remediatedIPs: 0, remediatedIPsAnyScenario: 0, remediationTypes: [], activeDays: 1, firstActivity: null, lastActivity: null, previous: null }],
+        scenarios: [
+          {
+            label: 'crowdsecurity/vpatch-env-access',
+            count: 709,
+            uniqueIPs: 93,
+            machines: 1,
+            remediations: 0,
+            remediatedIPs: 0,
+            remediatedIPsAnyScenario: 0,
+            remediationTypes: [],
+            activeDays: 1,
+            firstActivity: null,
+            lastActivity: null,
+            previous: null,
+          },
+        ],
         networks: [{ label: 'Example Cloud', count: 120, uniqueIPs: 25 }],
       } satisfies StatisticsResponse);
     });
     mount();
     // AppSec blocks in-band, so it is not reported as a missing remediation.
-    expect(await screen.findByText(/crowdsecurity\/vpatch-env-access \(AppSec\) blocked 709 requests from 93 IPs/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/crowdsecurity\/vpatch-env-access \(AppSec\) blocked 709 requests from 93 IPs/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/without a single remediation/)).not.toBeInTheDocument();
 
     const returned = screen.getByText(/1 IPs attacked again/).closest('li')!;
@@ -422,13 +843,18 @@ describe('Statistics page', () => {
     fireEvent.click(summary);
     expect(summary).toHaveAttribute('aria-expanded', 'true');
     expect(await within(returned).findByText('203.0.113.9')).toBeInTheDocument();
-    expect(document.getElementById(summary.getAttribute('aria-controls')!)).toContainElement(within(returned).getByText('203.0.113.9'));
+    expect(document.getElementById(summary.getAttribute('aria-controls')!)).toContainElement(
+      within(returned).getByText('203.0.113.9'),
+    );
     fireEvent.click(summary);
     expect(summary).toHaveAttribute('aria-expanded', 'false');
     expect(within(returned).queryByText('203.0.113.9')).not.toBeInTheDocument();
     fireEvent.click(summary);
     await within(returned).findByText('203.0.113.9');
-    expect(within(returned).getByRole('link', { name: 'Learn more' })).toHaveAttribute('href', expect.stringContaining('#duration_expr'));
+    expect(within(returned).getByRole('link', { name: 'Learn more' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('#duration_expr'),
+    );
     // The preceding period is incomplete, so earlier remediations are not searched.
     expect(new URLSearchParams(detailUrls[0].split('?')[1]).get('history')).toBeNull();
     fireEvent.click(within(returned).getByRole('button', { name: 'Ban' }));
@@ -436,7 +862,9 @@ describe('Statistics page', () => {
     expect(screen.getByLabelText('IP / Range')).toHaveValue('203.0.113.9');
     fireEvent.click(screen.getByRole('button', { name: 'Add Decision' }));
     expect(await within(returned).findByText('Decision added')).toBeInTheDocument();
-    expect(addDecision).toHaveBeenCalledWith(expect.objectContaining({ ip: '203.0.113.9', duration: '7d', reason: 'Returned after remediation' }));
+    expect(addDecision).toHaveBeenCalledWith(
+      expect.objectContaining({ ip: '203.0.113.9', duration: '7d', reason: 'Returned after remediation' }),
+    );
 
     const network = screen.getByText(/Example Cloud accounts for 60%/).closest('li')!;
     fireEvent.click(within(network).getByRole('button', { name: /Example Cloud accounts for/ }));
@@ -448,38 +876,98 @@ describe('Statistics page', () => {
 
   test('reports AppSec rules by the IPs no scenario remediated, not as a profile gap', async () => {
     const data = payload();
-    const row = (label: string, remediatedIPsAnyScenario: number) => ({ label, count: 120, uniqueIPs: 10, machines: 1, remediations: 0, remediatedIPs: 0, remediatedIPsAnyScenario,
-      remediationTypes: [], activeDays: 1, firstActivity: null, lastActivity: null, previous: null });
-    vi.mocked(sessionFetch).mockImplementation(async () => Response.json({ ...data, scenarios: [
-      row('anomaly score block: lfi: 5, anomaly: 5', 4),
-      row('crowdsecurity/vpatch-CVE-2025-29927', 10),
-      row('crowdsecurity/crs-942100', 0),
-      // The scenario that should ban AppSec offenders is a profile gap when it does not.
-      row('crowdsecurity/appsec-native', 0),
-    ] } satisfies StatisticsResponse));
+    const row = (label: string, remediatedIPsAnyScenario: number) => ({
+      label,
+      count: 120,
+      uniqueIPs: 10,
+      machines: 1,
+      remediations: 0,
+      remediatedIPs: 0,
+      remediatedIPsAnyScenario,
+      remediationTypes: [],
+      activeDays: 1,
+      firstActivity: null,
+      lastActivity: null,
+      previous: null,
+    });
+    vi.mocked(sessionFetch).mockImplementation(async () =>
+      Response.json({
+        ...data,
+        scenarios: [
+          row('anomaly score block: lfi: 5, anomaly: 5', 4),
+          row('crowdsecurity/vpatch-CVE-2025-29927', 10),
+          row('crowdsecurity/crs-942100', 0),
+          // The scenario that should ban AppSec offenders is a profile gap when it does not.
+          row('crowdsecurity/appsec-native', 0),
+        ],
+      } satisfies StatisticsResponse),
+    );
     mount();
     const findings = (await screen.findByRole('heading', { name: 'Findings' })).closest('.rounded-xl') as HTMLElement;
-    expect(within(findings).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+    expect(
+      within(findings)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    ).toEqual([
       expect.stringMatching(/crowdsecurity\/appsec-native raised 120 alerts from 10 IPs without a single remediation/),
-      expect.stringMatching(/anomaly score block: lfi: 5, anomaly: 5 \(AppSec\) blocked 120 requests from 10 IPs in-band; another scenario remediated 4 of these IPs/),
-      expect.stringMatching(/crowdsecurity\/crs-942100 \(AppSec\) blocked 120 requests from 10 IPs in-band; no scenario remediated any of these IPs/),
+      expect.stringMatching(
+        /anomaly score block: lfi: 5, anomaly: 5 \(AppSec\) blocked 120 requests from 10 IPs in-band; another scenario remediated 4 of these IPs/,
+      ),
+      expect.stringMatching(
+        /crowdsecurity\/crs-942100 \(AppSec\) blocked 120 requests from 10 IPs in-band; no scenario remediated any of these IPs/,
+      ),
     ]);
     // Every IP of the virtual patch was banned by another scenario.
     expect(within(findings).queryByText(/vpatch-CVE-2025-29927/)).not.toBeInTheDocument();
     // The scenario table shows that share below the rule's own coverage, without the warning colour.
     const rule = screen.getByRole('row', { name: 'anomaly score block: lfi: 5, anomaly: 5' });
     expect(within(rule).getByText('40% by any scenario').closest('td')).not.toHaveClass('text-red-600');
-    expect(within(screen.getByRole('row', { name: 'crowdsecurity/appsec-native' })).getByText('0%')).toHaveClass('text-red-600');
+    expect(within(screen.getByRole('row', { name: 'crowdsecurity/appsec-native' })).getByText('0%')).toHaveClass(
+      'text-red-600',
+    );
   });
 
   test('places the scenario button beside bulk actions in an expanded finding', async () => {
     const data = payload();
     vi.mocked(sessionFetch).mockImplementation(async (url) => {
-      if (String(url).includes('/api/statistics/details')) return Response.json({
-        kind: 'ips', ranges: [], rangeTotal: 0, total: 2,
-        ips: ['203.0.113.9', '203.0.113.10'].map((ip) => ({ ip, alerts: 7, remediations: 0, remediationTypes: [], machines: 1, activeDays: 1, country: 'DE', asn: '42', network: 'Example', lastActivity: '2026-11-06T10:00:00Z' })),
-      });
-      return Response.json({ ...data, scenarios: [{ label: 'crowdsecurity/vpatch-env-access', count: 14, uniqueIPs: 2, machines: 1, remediations: 0, remediatedIPs: 0, remediatedIPsAnyScenario: 0, remediationTypes: [], activeDays: 1, firstActivity: null, lastActivity: null, previous: null }] } satisfies StatisticsResponse);
+      if (String(url).includes('/api/statistics/details'))
+        return Response.json({
+          kind: 'ips',
+          ranges: [],
+          rangeTotal: 0,
+          total: 2,
+          ips: ['203.0.113.9', '203.0.113.10'].map((ip) => ({
+            ip,
+            alerts: 7,
+            remediations: 0,
+            remediationTypes: [],
+            machines: 1,
+            activeDays: 1,
+            country: 'DE',
+            asn: '42',
+            network: 'Example',
+            lastActivity: '2026-11-06T10:00:00Z',
+          })),
+        });
+      return Response.json({
+        ...data,
+        scenarios: [
+          {
+            label: 'crowdsecurity/vpatch-env-access',
+            count: 14,
+            uniqueIPs: 2,
+            machines: 1,
+            remediations: 0,
+            remediatedIPs: 0,
+            remediatedIPsAnyScenario: 0,
+            remediationTypes: [],
+            activeDays: 1,
+            firstActivity: null,
+            lastActivity: null,
+            previous: null,
+          },
+        ],
+      } satisfies StatisticsResponse);
     });
     mount();
     const summary = await screen.findByRole('button', { name: /AppSec.*blocked/ });
@@ -492,24 +980,62 @@ describe('Statistics page', () => {
     expect(scenario).toHaveClass('border', 'rounded-md');
     expect(within(finding).queryByRole('link', { name: 'Show scenario' })).not.toBeInTheDocument();
     fireEvent.click(scenario);
-    await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('scenario=crowdsecurity%2Fvpatch-env-access'));
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toContain('scenario=crowdsecurity%2Fvpatch-env-access'),
+    );
   });
 
   test('bans every listed IP of a finding at once and offers to bypass the allowlist for skipped ones', async () => {
     const data = payload();
-    const ip = (value: string) => ({ ip: value, alerts: 7, remediations: 1, remediationTypes: [{ label: 'ban', count: 1 }], machines: 1, activeDays: 3, country: 'DE', asn: '42', network: 'Example', lastActivity: '2026-11-06T10:00:00Z', firstRemediation: '2026-11-02', remediatedBefore: false });
+    const ip = (value: string) => ({
+      ip: value,
+      alerts: 7,
+      remediations: 1,
+      remediationTypes: [{ label: 'ban', count: 1 }],
+      machines: 1,
+      activeDays: 3,
+      country: 'DE',
+      asn: '42',
+      network: 'Example',
+      lastActivity: '2026-11-06T10:00:00Z',
+      firstRemediation: '2026-11-02',
+      remediatedBefore: false,
+    });
     const results = [{ instance_id: 'default', instance_name: 'Production', success: true }];
     vi.mocked(addDecisions)
-      .mockResolvedValueOnce({ added: ['203.0.113.9', '203.0.113.11'], allowlisted: [{ value: '203.0.113.10', allowlisted: [{ instance_id: 'default', instance_name: 'Production', reason: 'office' }] }], results, succeeded: 1, failed: 0 })
+      .mockResolvedValueOnce({
+        added: ['203.0.113.9', '203.0.113.11'],
+        allowlisted: [
+          {
+            value: '203.0.113.10',
+            allowlisted: [{ instance_id: 'default', instance_name: 'Production', reason: 'office' }],
+          },
+        ],
+        results,
+        succeeded: 1,
+        failed: 0,
+      })
       .mockResolvedValueOnce({ added: ['203.0.113.10'], allowlisted: [], results, succeeded: 1, failed: 0 });
     vi.mocked(sessionFetch).mockImplementation(async (url) => {
       if (String(url).includes('/api/statistics/details')) {
         // 30 matches: the first request lists 25, "Show more" asks for the rest.
         const size = Number(new URLSearchParams(String(url).split('?')[1]).get('size'));
-        if (size !== 25) return Response.json({ kind: 'returned', ips: Array.from({ length: 30 }, (_, index) => ip(`203.0.113.${index + 9}`)), total: 30 });
-        return Response.json({ kind: 'returned', ips: [ip('203.0.113.9'), ip('203.0.113.10'), ip('203.0.113.11')], total: 30 });
+        if (size !== 25)
+          return Response.json({
+            kind: 'returned',
+            ips: Array.from({ length: 30 }, (_, index) => ip(`203.0.113.${index + 9}`)),
+            total: 30,
+          });
+        return Response.json({
+          kind: 'returned',
+          ips: [ip('203.0.113.9'), ip('203.0.113.10'), ip('203.0.113.11')],
+          total: 30,
+        });
       }
-      return Response.json({ ...data, totals: { ...data.totals, returnedAfterRemediation: 3 } } satisfies StatisticsResponse);
+      return Response.json({
+        ...data,
+        totals: { ...data.totals, returnedAfterRemediation: 3 },
+      } satisfies StatisticsResponse);
     });
     mount();
     const returned = (await screen.findByText(/3 IPs attacked again/)).closest('li')!;
@@ -521,7 +1047,13 @@ describe('Statistics page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add 3 Decisions' }));
 
     expect(await screen.findByText('1 allowlisted values were skipped')).toBeInTheDocument();
-    expect(addDecisions).toHaveBeenCalledWith(expect.objectContaining({ values: ['203.0.113.9', '203.0.113.10', '203.0.113.11'], duration: '7d', reason: 'Returned after remediation' }));
+    expect(addDecisions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        values: ['203.0.113.9', '203.0.113.10', '203.0.113.11'],
+        duration: '7d',
+        reason: 'Returned after remediation',
+      }),
+    );
     expect(screen.getByText('Added decisions for 2 values.')).toBeInTheDocument();
     expect(within(returned).getAllByText('Decision added')).toHaveLength(2);
     const submit = screen.getByRole('button', { name: 'Add 1 Decisions' });
@@ -529,7 +1061,9 @@ describe('Statistics page', () => {
     fireEvent.click(screen.getByLabelText('Bypass allowlist'));
     fireEvent.click(submit);
     await waitFor(() => expect(screen.queryByText('Values (1)')).not.toBeInTheDocument());
-    expect(addDecisions).toHaveBeenLastCalledWith(expect.objectContaining({ values: ['203.0.113.10'], bypass_allowlist: true }));
+    expect(addDecisions).toHaveBeenLastCalledWith(
+      expect.objectContaining({ values: ['203.0.113.10'], bypass_allowlist: true }),
+    );
     expect(within(returned).getAllByText('Decision added')).toHaveLength(3);
     expect(within(returned).queryByRole('button', { name: /Ban all/ })).not.toBeInTheDocument();
 
@@ -544,15 +1078,50 @@ describe('Statistics page', () => {
     const production = { instance_id: 'default', instance_name: 'Production', success: true };
     const edge = { instance_id: 'edge', instance_name: 'Edge' };
     vi.mocked(fetchConfig).mockResolvedValue({
-      statistics: configuration, instances: [{ id: 'default', name: 'Production' }, { id: 'edge', name: 'Edge' }],
+      statistics: configuration,
+      instances: [
+        { id: 'default', name: 'Production' },
+        { id: 'edge', name: 'Edge' },
+      ],
     } as ConfigResponse);
     vi.mocked(addDecisions)
-      .mockResolvedValueOnce({ added: values, allowlisted: [], results: [production, { ...edge, success: false }], succeeded: 1, failed: 1 })
-      .mockResolvedValueOnce({ added: [], allowlisted: values.map((value) => ({ value, allowlisted: [{ ...edge, reason: 'office' }] })), results: [], succeeded: 0, failed: 0 })
-      .mockResolvedValueOnce({ added: values, allowlisted: [], results: [{ ...edge, success: true }], succeeded: 1, failed: 0 });
-    vi.mocked(sessionFetch).mockImplementation(async (url) => String(url).includes('/api/statistics/details')
-      ? Response.json({ kind: 'returned', ips: values.map((ip) => ({ ip, alerts: 7, remediations: 1, remediationTypes: [{ label: 'ban', count: 1 }], machines: 1, firstRemediation: '2026-11-02' })), total: 2 })
-      : Response.json({ ...data, totals: { ...data.totals, returnedAfterRemediation: 2 } }));
+      .mockResolvedValueOnce({
+        added: values,
+        allowlisted: [],
+        results: [production, { ...edge, success: false }],
+        succeeded: 1,
+        failed: 1,
+      })
+      .mockResolvedValueOnce({
+        added: [],
+        allowlisted: values.map((value) => ({ value, allowlisted: [{ ...edge, reason: 'office' }] })),
+        results: [],
+        succeeded: 0,
+        failed: 0,
+      })
+      .mockResolvedValueOnce({
+        added: values,
+        allowlisted: [],
+        results: [{ ...edge, success: true }],
+        succeeded: 1,
+        failed: 0,
+      });
+    vi.mocked(sessionFetch).mockImplementation(async (url) =>
+      String(url).includes('/api/statistics/details')
+        ? Response.json({
+            kind: 'returned',
+            ips: values.map((ip) => ({
+              ip,
+              alerts: 7,
+              remediations: 1,
+              remediationTypes: [{ label: 'ban', count: 1 }],
+              machines: 1,
+              firstRemediation: '2026-11-02',
+            })),
+            total: 2,
+          })
+        : Response.json({ ...data, totals: { ...data.totals, returnedAfterRemediation: 2 } }),
+    );
     mount();
     const summary = await screen.findByRole('button', { name: /2 IPs attacked again/ });
     fireEvent.click(summary);
@@ -568,22 +1137,43 @@ describe('Statistics page', () => {
     fireEvent.click(screen.getByLabelText('Bypass allowlist'));
     fireEvent.click(submit);
     expect(await within(finding).findAllByText('Decision added')).toHaveLength(2);
-    expect(addDecisions).toHaveBeenLastCalledWith(expect.objectContaining({
-      scope: 'instance', instance_id: 'edge', values, bypass_allowlist: true,
-    }));
+    expect(addDecisions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: 'instance',
+        instance_id: 'edge',
+        values,
+        bypass_allowlist: true,
+      }),
+    );
   });
 
   test('compares machine activity with the preceding period', async () => {
     const data = payload();
-    vi.mocked(fetchConfig).mockResolvedValue({ statistics: configuration, lookback_days: 7, instances: [{ id: 'default', name: 'Production' }, { id: 'edge', name: 'Edge' }] } as ConfigResponse);
-    vi.mocked(sessionFetch).mockImplementation(async () => Response.json({
-      ...data,
-      coverage: { ...data.coverage, comparisonPartial: false },
-      previousTotals: { alerts: 600, remediations: 2, decisions: 3, uniqueIPs: 1, remediatedIPs: 1, repeatAttackers: 1 },
-      increases: [{ value: '["edge","proxy-02"]', label: 'proxy-02', current: 1896, previous: 366, change: 1530 }],
-      decreases: [{ value: '["default","web-01"]', label: 'web-01', current: 50, previous: 200, change: -150 }],
-      quietMachines: [{ value: '["default","dev-bastion"]', label: 'dev-bastion', previous: 120 }],
-    } satisfies StatisticsResponse));
+    vi.mocked(fetchConfig).mockResolvedValue({
+      statistics: configuration,
+      lookback_days: 7,
+      instances: [
+        { id: 'default', name: 'Production' },
+        { id: 'edge', name: 'Edge' },
+      ],
+    } as ConfigResponse);
+    vi.mocked(sessionFetch).mockImplementation(async () =>
+      Response.json({
+        ...data,
+        coverage: { ...data.coverage, comparisonPartial: false },
+        previousTotals: {
+          alerts: 600,
+          remediations: 2,
+          decisions: 3,
+          uniqueIPs: 1,
+          remediatedIPs: 1,
+          repeatAttackers: 1,
+        },
+        increases: [{ value: '["edge","proxy-02"]', label: 'proxy-02', current: 1896, previous: 366, change: 1530 }],
+        decreases: [{ value: '["default","web-01"]', label: 'web-01', current: 50, previous: 200, change: -150 }],
+        quietMachines: [{ value: '["default","dev-bastion"]', label: 'dev-bastion', previous: 120 }],
+      } satisfies StatisticsResponse),
+    );
     mount();
     expect(await screen.findByText(/Machines with unchanged counts are not listed/)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'More alerts' })).toHaveTextContent('proxy-02');
@@ -591,16 +1181,22 @@ describe('Statistics page', () => {
     expect(within(falling).getByText('−75%')).toBeInTheDocument();
     expect(within(falling).getByText('200 → 50')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'No alerts' })).toHaveTextContent('dev-bastion');
-    const increase = await screen.findByRole('button', { name: /^proxy-02: 366 alerts in the preceding period, 1\D?896 in the selected period$/ });
+    const increase = await screen.findByRole('button', {
+      name: /^proxy-02: 366 alerts in the preceding period, 1\D?896 in the selected period$/,
+    });
     expect(within(increase).getByText('+418%')).toBeInTheDocument();
     expect(within(increase).getByText('Edge')).toBeInTheDocument();
     expect(within(increase).getByText(/^366 → 1\D?896$/)).toBeInTheDocument();
     fireEvent.click(increase);
-    const selectedIncrease = await screen.findByRole('button', { name: /^proxy-02: 366 alerts in the preceding period/ });
+    const selectedIncrease = await screen.findByRole('button', {
+      name: /^proxy-02: 366 alerts in the preceding period/,
+    });
     expect(selectedIncrease).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(selectedIncrease);
     await waitFor(() => expect(screen.getByTestId('location').textContent).not.toContain('machine='));
-    const quiet = screen.getByRole('button', { name: 'dev-bastion: 120 alerts in the preceding period, 0 in the selected period' });
+    const quiet = screen.getByRole('button', {
+      name: 'dev-bastion: 120 alerts in the preceding period, 0 in the selected period',
+    });
     expect(quiet).toBeDisabled();
     expect(within(quiet).getByText('−100%')).toBeInTheDocument();
     expect(within(quiet).getByText('120 → 0')).toBeInTheDocument();
@@ -613,7 +1209,9 @@ describe('Statistics page', () => {
   });
 
   test('shows disabled collection and API failures without inventing empty statistics', async () => {
-    vi.mocked(fetchConfig).mockResolvedValue({ statistics: { ...configuration, settings: { ...configuration.settings, enabled: false } } } as ConfigResponse);
+    vi.mocked(fetchConfig).mockResolvedValue({
+      statistics: { ...configuration, settings: { ...configuration.settings, enabled: false } },
+    } as ConfigResponse);
     vi.mocked(sessionFetch).mockResolvedValue(Response.json({ error: 'Unavailable' }, { status: 503 }));
     mount();
     expect(await screen.findByText(/Collection is disabled/)).toBeInTheDocument();
@@ -624,7 +1222,9 @@ describe('Statistics page', () => {
 
 describe('Statistics polling', () => {
   test('recovers when the first archive becomes available', async () => {
-    vi.mocked(fetchConfig).mockResolvedValueOnce({ statistics: { ...configuration, status: { ...configuration.status, revision: 0 } } } as ConfigResponse);
+    vi.mocked(fetchConfig).mockResolvedValueOnce({
+      statistics: { ...configuration, status: { ...configuration.status, revision: 0 } },
+    } as ConfigResponse);
     vi.mocked(sessionFetch).mockResolvedValueOnce(Response.json({ error: 'Unavailable' }, { status: 503 }));
     mount();
     expect(await screen.findByRole('alert')).toHaveTextContent('Statistics are unavailable');
@@ -637,7 +1237,9 @@ describe('Statistics polling', () => {
   test('uses polled collection status even when the archive revision stays the same', async () => {
     mount();
     await screen.findByRole('heading', { name: 'Top IPs' });
-    vi.mocked(fetchConfig).mockResolvedValueOnce({ statistics: { ...configuration, settings: { ...configuration.settings, enabled: false } } } as ConfigResponse);
+    vi.mocked(fetchConfig).mockResolvedValueOnce({
+      statistics: { ...configuration, settings: { ...configuration.settings, enabled: false } },
+    } as ConfigResponse);
 
     fireEvent(document, new Event('visibilitychange'));
     expect(await screen.findByText(/Collection is disabled/)).toBeInTheDocument();
@@ -649,20 +1251,36 @@ describe('Statistics polling', () => {
     mount();
     await screen.findByRole('heading', { name: 'Top IPs' });
     expect(screen.queryByText('Statistics job failed')).not.toBeInTheDocument();
-    vi.mocked(fetchConfig).mockResolvedValueOnce({ statistics: { ...configuration, status: { ...configuration.status, backlog: 55715, error: 'Statistics worker exceeded its 30-second timeout' } } } as ConfigResponse);
+    vi.mocked(fetchConfig).mockResolvedValueOnce({
+      statistics: {
+        ...configuration,
+        status: { ...configuration.status, backlog: 55715, error: 'Statistics worker exceeded its 30-second timeout' },
+      },
+    } as ConfigResponse);
 
     fireEvent(document, new Event('visibilitychange'));
     const warning = await screen.findByText('Statistics job failed');
     const tooltip = screen.getByRole('tooltip');
     expect(warning.closest('[tabindex="0"]')).toHaveAttribute('aria-describedby', tooltip.id);
-    expect(tooltip).toHaveTextContent('Pending observations are kept and processed again at the next scheduled run. Error: Statistics worker exceeded its 30-second timeout');
+    expect(tooltip).toHaveTextContent(
+      'Pending observations are kept and processed again at the next scheduled run. Error: Statistics worker exceeded its 30-second timeout',
+    );
   });
 
   test('refreshes details in an open finding when the archive changes', async () => {
     let revision = 1;
     vi.mocked(sessionFetch).mockImplementation(async (url) => {
       if (String(url).includes('/api/statistics/details')) {
-        const ips = [{ ip: '203.0.113.9', alerts: 7, remediations: 1, remediationTypes: [{ label: 'ban', count: 1 }], machines: 1, firstRemediation: '2026-11-02' }];
+        const ips = [
+          {
+            ip: '203.0.113.9',
+            alerts: 7,
+            remediations: 1,
+            remediationTypes: [{ label: 'ban', count: 1 }],
+            machines: 1,
+            firstRemediation: '2026-11-02',
+          },
+        ];
         if (revision === 2) ips.push({ ...ips[0], ip: '203.0.113.10' });
         return Response.json({ kind: 'returned', ips, total: ips.length });
       }
@@ -674,25 +1292,40 @@ describe('Statistics polling', () => {
     expect(await screen.findByRole('row', { name: '203.0.113.9' })).toBeInTheDocument();
 
     revision = 2;
-    vi.mocked(fetchConfig).mockResolvedValueOnce({ statistics: { ...configuration, status: { ...configuration.status, revision } } } as ConfigResponse);
+    vi.mocked(fetchConfig).mockResolvedValueOnce({
+      statistics: { ...configuration, status: { ...configuration.status, revision } },
+    } as ConfigResponse);
     fireEvent(document, new Event('visibilitychange'));
-    expect(await screen.findByRole('button', { name: /2 IPs attacked again/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByRole('button', { name: /2 IPs attacked again/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     expect(await screen.findByRole('row', { name: '203.0.113.10' })).toBeInTheDocument();
   });
 
   test('refreshes totals and open findings after retention changes without a new archive revision', async () => {
     let settings = { ...configuration.settings, enabled: false };
-    vi.mocked(fetchConfig).mockImplementation(async () => ({ statistics: { ...configuration, settings } } as ConfigResponse));
+    vi.mocked(fetchConfig).mockImplementation(
+      async () => ({ statistics: { ...configuration, settings } }) as ConfigResponse,
+    );
     vi.mocked(sessionFetch).mockImplementation(async (url) => {
       const restricted = settings.retentionDays === 1;
       if (String(url).includes('/api/statistics/details')) {
-        const ips = (restricted ? ['203.0.113.10'] : ['203.0.113.9', '203.0.113.10'])
-          .map((ip) => ({ ip, alerts: 7, remediations: 1, remediationTypes: [{ label: 'ban', count: 1 }], machines: 1, firstRemediation: '2026-11-02' }));
+        const ips = (restricted ? ['203.0.113.10'] : ['203.0.113.9', '203.0.113.10']).map((ip) => ({
+          ip,
+          alerts: 7,
+          remediations: 1,
+          remediationTypes: [{ label: 'ban', count: 1 }],
+          machines: 1,
+          firstRemediation: '2026-11-02',
+        }));
         return Response.json({ kind: 'returned', ips, total: ips.length });
       }
       const data = payload();
       return Response.json({
-        ...data, configuration: { ...configuration, settings }, attackers: restricted ? [] : data.attackers,
+        ...data,
+        configuration: { ...configuration, settings },
+        attackers: restricted ? [] : data.attackers,
         totals: { ...data.totals, returnedAfterRemediation: restricted ? 1 : 2 },
       });
     });
@@ -703,7 +1336,10 @@ describe('Statistics polling', () => {
 
     settings = { ...settings, retentionDays: 1 };
     fireEvent(document, new Event('visibilitychange'));
-    expect(await screen.findByRole('button', { name: /1 IPs attacked again/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByRole('button', { name: /1 IPs attacked again/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     expect(await screen.findByRole('row', { name: '203.0.113.10' })).toBeInTheDocument();
     expect(screen.queryByRole('row', { name: '203.0.113.9' })).not.toBeInTheDocument();
     expect(screen.queryByRole('row', { name: '192.0.2.7' })).not.toBeInTheDocument();
@@ -719,7 +1355,13 @@ describe('Statistics selection', () => {
     await waitFor(() => expect(screen.getByTestId('location').textContent).toContain('range=7'));
     fireEvent.change(screen.getByRole('combobox', { name: 'Mode' }), { target: { value: 'all' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Rankings' }), { target: { value: '20' } });
-    await waitFor(() => expect(JSON.parse(localStorage.getItem('statistics_selection')!)).toEqual({ preset: '7', simulation: 'all', limit: '20' }));
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem('statistics_selection')!)).toEqual({
+        preset: '7',
+        simulation: 'all',
+        limit: '20',
+      }),
+    );
     first.unmount();
 
     vi.mocked(sessionFetch).mockClear();
@@ -740,7 +1382,10 @@ describe('Statistics selection', () => {
   });
 
   test('restores a custom date range and lets the URL override it', async () => {
-    localStorage.setItem('statistics_selection', JSON.stringify({ from: '2026-09-01', to: '2026-09-15', simulation: 'simulated', limit: '50' }));
+    localStorage.setItem(
+      'statistics_selection',
+      JSON.stringify({ from: '2026-09-01', to: '2026-09-15', simulation: 'simulated', limit: '50' }),
+    );
     const first = mount(<Statistics />, '/statistics');
     await waitFor(() => expect(sessionFetch).toHaveBeenCalled());
     expect(lastQuery().get('from')).toBe('2026-09-01');
@@ -754,11 +1399,19 @@ describe('Statistics selection', () => {
     await waitFor(() => expect(sessionFetch).toHaveBeenCalled());
     expect(lastQuery().get('from')).toBe('2026-10-01');
     expect(lastQuery().get('limit')).toBe('50');
-    await waitFor(() => expect(JSON.parse(localStorage.getItem('statistics_selection')!)).toMatchObject({ from: '2026-10-01', to: '2026-10-02' }));
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem('statistics_selection')!)).toMatchObject({
+        from: '2026-10-01',
+        to: '2026-10-02',
+      }),
+    );
   });
 
   test('ignores invalid stored values', async () => {
-    localStorage.setItem('statistics_selection', JSON.stringify({ preset: 'forever', from: 'yesterday', simulation: 'maybe', limit: '7' }));
+    localStorage.setItem(
+      'statistics_selection',
+      JSON.stringify({ preset: 'forever', from: 'yesterday', simulation: 'maybe', limit: '7' }),
+    );
     mount(<Statistics />, '/statistics');
     expect(await screen.findByRole('button', { name: 'Last 30 days' })).toHaveAttribute('aria-pressed', 'true');
     await waitFor(() => expect(sessionFetch).toHaveBeenCalled());
@@ -777,16 +1430,33 @@ describe('Statistics selection', () => {
 
 describe('Statistics settings', () => {
   test('locks managed controls and saves editable settings through the API', async () => {
-    const managed = { ...configuration, managed: { retentionDays: { path: 'statistics.retentionDays', env: 'CONFIG_STATISTICS_RETENTION_DAYS' } } };
+    const managed = {
+      ...configuration,
+      managed: { retentionDays: { path: 'statistics.retentionDays', env: 'CONFIG_STATISTICS_RETENTION_DAYS' } },
+    };
     vi.mocked(sessionFetch).mockResolvedValue(Response.json({ success: true, statistics: managed }));
     const showToast = vi.fn();
-    mount(<StatisticsSettings initial={managed} inputClass="" labelClass="" showToast={showToast} renderManagedLock={(source) => source ? <span>{source.env}</span> : null} />);
+    mount(
+      <StatisticsSettings
+        initial={managed}
+        inputClass=""
+        labelClass=""
+        showToast={showToast}
+        renderManagedLock={(source) => (source ? <span>{source.env}</span> : null)}
+      />,
+    );
     const retention = await screen.findByRole('spinbutton', { name: /Retention/ });
     expect(retention).toBeDisabled();
     expect(screen.getByText(/CONFIG_STATISTICS_RETENTION_DAYS/)).toBeInTheDocument();
     fireEvent.change(screen.getByRole('textbox', { name: /Job interval/ }), { target: { value: '30m' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(showToast).toHaveBeenCalledWith('Settings saved.', 'success'));
-    expect(sessionFetch).toHaveBeenCalledWith('/api/config/statistics', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ enabled: true, jobInterval: '30m', jobTimeBudget: '30s' }) }));
+    expect(sessionFetch).toHaveBeenCalledWith(
+      '/api/config/statistics',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ enabled: true, jobInterval: '30m', jobTimeBudget: '30s' }),
+      }),
+    );
   });
 });

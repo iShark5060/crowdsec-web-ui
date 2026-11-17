@@ -1,7 +1,35 @@
-import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  GripVertical,
+  Plus,
+  Send,
+  SendHorizontal,
+  SquarePen,
+  Trash2,
+  WandSparkles,
+} from 'lucide-react';
+import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import Sortable from 'sortablejs';
-import { Bell, Check, CheckCheck, GripVertical, Plus, Send, SendHorizontal, SquarePen, Trash2, WandSparkles } from 'lucide-react';
+
+import { Badge } from '../components/ui/Badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { Modal } from '../components/ui/Modal';
+import { Switch } from '../components/ui/Switch';
+import { useBranding } from '../contexts/useBranding';
+import { useNotificationUnreadCount } from '../contexts/useNotificationUnreadCount';
+import { useRefresh } from '../contexts/useRefresh';
 import {
   bulkDeleteNotifications,
   createNotificationChannel,
@@ -20,6 +48,8 @@ import {
   updateNotificationRule,
   fetchConfig,
 } from '../lib/api';
+import { useDateTime } from '../lib/dateTime';
+import { useI18n } from '../lib/i18n';
 import {
   APPRISE_TYPES,
   coerceAppriseConfig,
@@ -42,15 +72,6 @@ import {
   type WebhookConfig,
   type WebhookField,
 } from '../lib/notification-config';
-import { useNotificationUnreadCount } from '../contexts/useNotificationUnreadCount';
-import { useDateTime } from '../lib/dateTime';
-import { useRefresh } from '../contexts/useRefresh';
-import { useBranding } from '../contexts/useBranding';
-import { Badge } from '../components/ui/Badge';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { Modal } from '../components/ui/Modal';
-import { Switch } from '../components/ui/Switch';
-import { useI18n } from '../lib/i18n';
 import type {
   AlertMetaValue,
   NotificationChannel,
@@ -173,12 +194,19 @@ function formatGeneratedName(base: string, details: string[]): string {
 
 function generateRuleName(form: RuleFormState, t: (key: string) => string): string {
   const fallback = t(`pages.notifications.ruleNameDefaults.${form.type}`);
-  if (form.type === 'application-update' || form.type === 'crowdsec-update' || form.type === 'lapi-availability') {
+  if (
+    form.type === 'application-update' ||
+    form.type === 'crowdsec-update' ||
+    form.type === 'lapi-availability'
+  ) {
     return fallback;
   }
 
   const firstTwoValues = (value: string) => {
-    const values = value.split(',').map((part) => part.trim()).filter(Boolean);
+    const values = value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
     return values.slice(0, 2).join(', ') + (values.length > 2 ? '…' : '');
   };
   const scopes = [
@@ -193,7 +221,8 @@ function generateRuleName(form: RuleFormState, t: (key: string) => string): stri
 
 function generateChannelName(form: ChannelFormState, t: (key: string) => string): string {
   const fallback = t(`pages.notifications.destinationNameDefaults.${form.type}`);
-  const setting = (key: string) => typeof form.config[key] === 'string' ? String(form.config[key]).trim() : '';
+  const setting = (key: string) =>
+    typeof form.config[key] === 'string' ? String(form.config[key]).trim() : '';
   const hostAndPath = (value: string) => {
     try {
       const url = new URL(value);
@@ -204,7 +233,11 @@ function generateChannelName(form: ChannelFormState, t: (key: string) => string)
   };
   let detail = '';
   if (form.type === 'ntfy') detail = setting('ntfyTopic');
-  if (form.type === 'apprise') detail = setting('appriseMode') === 'urls' ? hostAndPath(setting('appriseUrl')) : setting('appriseKey');
+  if (form.type === 'apprise')
+    detail =
+      setting('appriseMode') === 'urls'
+        ? hostAndPath(setting('appriseUrl'))
+        : setting('appriseKey');
   if (form.type === 'gotify') detail = hostAndPath(setting('gotifyUrl'));
   if (form.type === 'email') detail = setting('emailTo').split(/[;,]/)[0].trim();
   if (form.type === 'mqtt') detail = setting('topic') || hostAndPath(setting('brokerUrl'));
@@ -227,7 +260,9 @@ function readStoredOrder(storageKey: string): string[] {
       return [];
     }
     const parsedValue = JSON.parse(rawValue);
-    return Array.isArray(parsedValue) ? parsedValue.filter((value): value is string => typeof value === 'string') : [];
+    return Array.isArray(parsedValue)
+      ? parsedValue.filter((value): value is string => typeof value === 'string')
+      : [];
   } catch {
     return [];
   }
@@ -265,7 +300,10 @@ function syncStoredOrder(
     const storedOrder = readStoredOrder(storageKey);
     const sourceOrder = storedOrder.length > 0 ? storedOrder : current;
     const nextOrder = mergeStoredOrder(sourceOrder, itemIds);
-    if (nextOrder.length === current.length && nextOrder.every((id, index) => id === current[index])) {
+    if (
+      nextOrder.length === current.length &&
+      nextOrder.every((id, index) => id === current[index])
+    ) {
       return current;
     }
 
@@ -292,7 +330,9 @@ function applyStoredOrder<T>(items: T[], order: string[], getId: (item: T) => st
 }
 
 function sortNotificationsNewestFirst(items: NotificationItem[]): NotificationItem[] {
-  return [...items].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+  return [...items].sort(
+    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+  );
 }
 
 function moveItem<T>(items: T[], oldIndex: number, newIndex: number): T[] {
@@ -318,7 +358,10 @@ function translateSeverity(severity: NotificationSeverity, t: (key: string) => s
   return t(SEVERITY_LABEL_KEYS[severity]);
 }
 
-function translateDeliveryStatus(status: NotificationDeliveryStatus, t: (key: string) => string): string {
+function translateDeliveryStatus(
+  status: NotificationDeliveryStatus,
+  t: (key: string) => string,
+): string {
   return t(DELIVERY_STATUS_LABEL_KEYS[status]);
 }
 
@@ -354,7 +397,12 @@ function localizeNotificationText(
     if (count !== null && minutes !== null && percent !== null && previousCount !== null) {
       return {
         title: t('server.notifications.alertSpike.title', titleValues),
-        message: t('server.notifications.alertSpike.message', { count, minutes, percent, previousCount }),
+        message: t('server.notifications.alertSpike.message', {
+          count,
+          minutes,
+          percent,
+          previousCount,
+        }),
       };
     }
   }
@@ -427,7 +475,9 @@ function localizeNotificationText(
         title: t('server.notifications.ipBan.title', titleValues),
         message: t('server.notifications.ipBan.message', {
           value,
-          scenarioDetail: scenario ? t('server.notifications.ipBan.scenarioDetail', { scenario }) : '',
+          scenarioDetail: scenario
+            ? t('server.notifications.ipBan.scenarioDetail', { scenario })
+            : '',
           stopAtDetail: stopAt ? t('server.notifications.ipBan.stopAtDetail', { stopAt }) : '',
         }),
       };
@@ -458,7 +508,12 @@ function localizeNotificationText(
     if (instanceName && endpointName && currentVersion && targetVersion) {
       return {
         title: t('server.notifications.crowdsecUpdate.title', titleValues),
-        message: t('server.notifications.crowdsecUpdate.message', { instanceName, endpointName, currentVersion, targetVersion }),
+        message: t('server.notifications.crowdsecUpdate.message', {
+          instanceName,
+          endpointName,
+          currentVersion,
+          targetVersion,
+        }),
       };
     }
   }
@@ -468,8 +523,18 @@ function localizeNotificationText(
     if (seconds !== null) {
       const recovered = Boolean(getMetadataString(item, 'recovered_at'));
       return {
-        title: t(recovered ? 'server.notifications.lapiRecovered.title' : 'server.notifications.lapiUnavailable.title', titleValues),
-        message: t(recovered ? 'server.notifications.lapiRecovered.message' : 'server.notifications.lapiUnavailable.message', { seconds }),
+        title: t(
+          recovered
+            ? 'server.notifications.lapiRecovered.title'
+            : 'server.notifications.lapiUnavailable.title',
+          titleValues,
+        ),
+        message: t(
+          recovered
+            ? 'server.notifications.lapiRecovered.message'
+            : 'server.notifications.lapiUnavailable.message',
+          { seconds },
+        ),
       };
     }
   }
@@ -478,11 +543,17 @@ function localizeNotificationText(
 }
 
 function splitIpRangeFilterValues(value: string): string[] {
-  return value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
+  return value
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function splitCountryFilterValues(value: string): string[] {
-  return value.split(/[\s,]+/).map((entry) => entry.trim().toUpperCase()).filter(Boolean);
+  return value
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim().toUpperCase())
+    .filter(Boolean);
 }
 
 function buildRulePayload(ruleForm: RuleFormState): UpsertNotificationRuleRequest {
@@ -495,7 +566,9 @@ function buildRulePayload(ruleForm: RuleFormState): UpsertNotificationRuleReques
   } as const;
   const filters = {
     scenario: ruleForm.filters.scenario.trim(),
-    ...(ruleForm.filters.scenario.trim() && ruleForm.filters.exclude_scenario ? { exclude_scenario: true } : {}),
+    ...(ruleForm.filters.scenario.trim() && ruleForm.filters.exclude_scenario
+      ? { exclude_scenario: true }
+      : {}),
     target: ruleForm.filters.target.trim(),
     include_simulated: ruleForm.filters.include_simulated,
   };
@@ -531,9 +604,10 @@ function buildRulePayload(ruleForm: RuleFormState): UpsertNotificationRuleReques
       type: 'new-alert-decision',
       config: {
         window_minutes: Number(ruleForm.config.window_minutes || '0'),
-        event_type: ruleForm.config.event_type === 'alert' || ruleForm.config.event_type === 'decision'
-          ? ruleForm.config.event_type
-          : 'both',
+        event_type:
+          ruleForm.config.event_type === 'alert' || ruleForm.config.event_type === 'decision'
+            ? ruleForm.config.event_type
+            : 'both',
         filters: {
           ...filters,
           values: splitIpRangeFilterValues(ruleForm.filters.values),
@@ -594,8 +668,12 @@ export function Notifications() {
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [rules, setRules] = useState<NotificationRule[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [channelOrder, setChannelOrder] = useState<string[]>(() => readStoredOrder(CHANNEL_ORDER_STORAGE_KEY));
-  const [ruleOrder, setRuleOrder] = useState<string[]>(() => readStoredOrder(RULE_ORDER_STORAGE_KEY));
+  const [channelOrder, setChannelOrder] = useState<string[]>(() =>
+    readStoredOrder(CHANNEL_ORDER_STORAGE_KEY),
+  );
+  const [ruleOrder, setRuleOrder] = useState<string[]>(() =>
+    readStoredOrder(RULE_ORDER_STORAGE_KEY),
+  );
   const [initialLoading, setInitialLoading] = useState(true);
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -616,7 +694,9 @@ export function Notifications() {
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [selectableNotificationIds, setSelectableNotificationIds] = useState<string[]>([]);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
-  const [pendingDeleteAction, setPendingDeleteAction] = useState<NotificationDeleteAction | null>(null);
+  const [pendingDeleteAction, setPendingDeleteAction] = useState<NotificationDeleteAction | null>(
+    null,
+  );
   const [deleteInProgress, setDeleteInProgress] = useState(false);
   const [canManageSettings, setCanManageSettings] = useState(false);
   const linkedChannelIds = new Set(rules.flatMap((rule) => rule.channel_ids));
@@ -657,99 +737,116 @@ export function Notifications() {
     setCanManageSettings(config.permissions?.can_manage_settings !== false);
   }, []);
 
-  const loadNotifications = useCallback(async ({
-    page = 1,
-    append = false,
-    preserveLoadedPages = false,
-  }: {
-    page?: number;
-    append?: boolean;
-    preserveLoadedPages?: boolean;
-  } = {}) => {
-    const loadKey = JSON.stringify({
-      page,
-      append,
-      preserveLoadedPages,
-      loadedPage: preserveLoadedPages ? currentPageRef.current : undefined,
-    });
-    const lastCompletedLoad = lastCompletedLoadRef.current;
-    if (
-      inFlightLoadKeysRef.current.has(loadKey) ||
-      (lastCompletedLoad?.key === loadKey && Date.now() - lastCompletedLoad.completedAt < 250)
-    ) {
-      return;
-    }
-
-    inFlightLoadKeysRef.current.add(loadKey);
-    let completedSuccessfully = false;
-    const shouldBlockWithInitialLoading = !append && !hasLoadedNotificationsRef.current;
-
-    try {
-      if (append) {
-        setLoadingMore(true);
-      } else if (shouldBlockWithInitialLoading) {
-        setInitialLoading(true);
-      } else {
-        setBackgroundLoading(true);
+  const loadNotifications = useCallback(
+    async ({
+      page = 1,
+      append = false,
+      preserveLoadedPages = false,
+    }: {
+      page?: number;
+      append?: boolean;
+      preserveLoadedPages?: boolean;
+    } = {}) => {
+      const loadKey = JSON.stringify({
+        page,
+        append,
+        preserveLoadedPages,
+        loadedPage: preserveLoadedPages ? currentPageRef.current : undefined,
+      });
+      const lastCompletedLoad = lastCompletedLoadRef.current;
+      if (
+        inFlightLoadKeysRef.current.has(loadKey) ||
+        (lastCompletedLoad?.key === loadKey && Date.now() - lastCompletedLoad.completedAt < 250)
+      ) {
+        return;
       }
 
-      const notificationPage = await fetchNotificationsPaginated(page, PAGE_SIZE);
-      let nextNotifications = notificationPage.data;
-      let nextPage = notificationPage.pagination.page;
+      inFlightLoadKeysRef.current.add(loadKey);
+      let completedSuccessfully = false;
+      const shouldBlockWithInitialLoading = !append && !hasLoadedNotificationsRef.current;
 
-      if (!append && preserveLoadedPages) {
-        const maxPageToRefresh = Math.max(1, Math.min(currentPageRef.current, notificationPage.pagination.total_pages || 1));
-        if (maxPageToRefresh > 1) {
-          const remainingPages = await Promise.all(
-            Array.from({ length: maxPageToRefresh - 1 }, (_, index) =>
-              fetchNotificationsPaginated(index + 2, PAGE_SIZE),
-            ),
+      try {
+        if (append) {
+          setLoadingMore(true);
+        } else if (shouldBlockWithInitialLoading) {
+          setInitialLoading(true);
+        } else {
+          setBackgroundLoading(true);
+        }
+
+        const notificationPage = await fetchNotificationsPaginated(page, PAGE_SIZE);
+        let nextNotifications = notificationPage.data;
+        let nextPage = notificationPage.pagination.page;
+
+        if (!append && preserveLoadedPages) {
+          const maxPageToRefresh = Math.max(
+            1,
+            Math.min(currentPageRef.current, notificationPage.pagination.total_pages || 1),
           );
-          nextNotifications = [notificationPage, ...remainingPages].flatMap((result) => result.data);
-          nextPage = maxPageToRefresh;
+          if (maxPageToRefresh > 1) {
+            const remainingPages = await Promise.all(
+              Array.from({ length: maxPageToRefresh - 1 }, (_, index) =>
+                fetchNotificationsPaginated(index + 2, PAGE_SIZE),
+              ),
+            );
+            nextNotifications = [notificationPage, ...remainingPages].flatMap(
+              (result) => result.data,
+            );
+            nextPage = maxPageToRefresh;
+          }
+        }
+
+        const nextSelectableIds = notificationPage.selectable_ids.map(String);
+        setNotifications((current) =>
+          sortNotificationsNewestFirst(
+            append ? [...current, ...notificationPage.data] : nextNotifications,
+          ),
+        );
+        currentPageRef.current = append ? notificationPage.pagination.page : nextPage;
+        setCurrentPage(currentPageRef.current);
+        setTotalPages(notificationPage.pagination.total_pages);
+        setTotalNotifications(notificationPage.pagination.total);
+        setSelectableNotificationIds(nextSelectableIds);
+        setSelectedNotificationIds((current) =>
+          current.filter((id) => nextSelectableIds.includes(id)),
+        );
+        setUnreadCount(notificationPage.unread_count);
+        hasLoadedNotificationsRef.current = true;
+        completedSuccessfully = true;
+      } finally {
+        inFlightLoadKeysRef.current.delete(loadKey);
+        if (completedSuccessfully) {
+          lastCompletedLoadRef.current = { key: loadKey, completedAt: Date.now() };
+        }
+
+        if (append) {
+          setLoadingMore(false);
+        } else if (shouldBlockWithInitialLoading) {
+          setInitialLoading(false);
+        } else {
+          setBackgroundLoading(false);
         }
       }
+    },
+    [setUnreadCount],
+  );
 
-      const nextSelectableIds = notificationPage.selectable_ids.map(String);
-      setNotifications((current) => sortNotificationsNewestFirst(append ? [...current, ...notificationPage.data] : nextNotifications));
-      currentPageRef.current = append ? notificationPage.pagination.page : nextPage;
-      setCurrentPage(currentPageRef.current);
-      setTotalPages(notificationPage.pagination.total_pages);
-      setTotalNotifications(notificationPage.pagination.total);
-      setSelectableNotificationIds(nextSelectableIds);
-      setSelectedNotificationIds((current) => current.filter((id) => nextSelectableIds.includes(id)));
-      setUnreadCount(notificationPage.unread_count);
-      hasLoadedNotificationsRef.current = true;
-      completedSuccessfully = true;
-    } finally {
-      inFlightLoadKeysRef.current.delete(loadKey);
-      if (completedSuccessfully) {
-        lastCompletedLoadRef.current = { key: loadKey, completedAt: Date.now() };
+  const loadData = useCallback(
+    async ({ preserveLoadedPages = false }: { preserveLoadedPages?: boolean } = {}) => {
+      try {
+        setError(null);
+        await Promise.all([
+          loadPermissions(),
+          loadSettings(),
+          loadNotifications({ preserveLoadedPages }),
+        ]);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : t('pages.notifications.failedToLoad'));
       }
-
-      if (append) {
-        setLoadingMore(false);
-      } else if (shouldBlockWithInitialLoading) {
-        setInitialLoading(false);
-      } else {
-        setBackgroundLoading(false);
-      }
-    }
-  }, [setUnreadCount]);
-
-  const loadData = useCallback(async ({ preserveLoadedPages = false }: { preserveLoadedPages?: boolean } = {}) => {
-    try {
-      setError(null);
-      await Promise.all([
-        loadPermissions(),
-        loadSettings(),
-        loadNotifications({ preserveLoadedPages }),
-      ]);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : t('pages.notifications.failedToLoad'));
-    }
-  }, [loadNotifications, loadPermissions, loadSettings, t]);
+    },
+    [loadNotifications, loadPermissions, loadSettings, t],
+  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -771,36 +868,51 @@ export function Notifications() {
 
   useEffect(() => () => observer.current?.disconnect(), []);
 
-  const lastNotificationElementRef = useCallback((node: HTMLDivElement | null) => {
-    if (loadingMore || initialLoading) {
-      return;
-    }
-
-    observer.current?.disconnect();
-
-    if (!node || !hasMoreNotifications) {
-      return;
-    }
-
-    observer.current = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) {
-        void loadNotifications({ page: currentPageRef.current + 1, append: true }).catch((err) => {
-          console.error(err);
-          setError(err instanceof Error ? err.message : t('pages.notifications.failedToLoadMore'));
-        });
+  const lastNotificationElementRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (loadingMore || initialLoading) {
+        return;
       }
-    }, {
-      root: notificationScrollRef.current,
-      rootMargin: '0px 0px 160px 0px',
-    });
 
-    observer.current.observe(node);
-  }, [hasMoreNotifications, initialLoading, loadingMore, loadNotifications, t]);
+      observer.current?.disconnect();
 
-  const allNotificationsSelected = selectableNotificationIds.length > 0 && selectedNotificationIds.length === selectableNotificationIds.length;
+      if (!node || !hasMoreNotifications) {
+        return;
+      }
+
+      observer.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            void loadNotifications({ page: currentPageRef.current + 1, append: true }).catch(
+              (err) => {
+                console.error(err);
+                setError(
+                  err instanceof Error ? err.message : t('pages.notifications.failedToLoadMore'),
+                );
+              },
+            );
+          }
+        },
+        {
+          root: notificationScrollRef.current,
+          rootMargin: '0px 0px 160px 0px',
+        },
+      );
+
+      observer.current.observe(node);
+    },
+    [hasMoreNotifications, initialLoading, loadingMore, loadNotifications, t],
+  );
+
+  const allNotificationsSelected =
+    selectableNotificationIds.length > 0 &&
+    selectedNotificationIds.length === selectableNotificationIds.length;
   const someNotificationsSelected = selectedNotificationIds.length > 0 && !allNotificationsSelected;
-  const selectedUnreadCount = notifications.filter((item) => selectedNotificationIds.includes(item.id) && !item.read_at).length;
-  const canMarkSelectedRead = selectedUnreadCount > 0 || (allNotificationsSelected && unreadCount > 0);
+  const selectedUnreadCount = notifications.filter(
+    (item) => selectedNotificationIds.includes(item.id) && !item.read_at,
+  ).length;
+  const canMarkSelectedRead =
+    selectedUnreadCount > 0 || (allNotificationsSelected && unreadCount > 0);
   const readNotificationCount = Math.max(0, totalNotifications - unreadCount);
   const tableBusy = initialLoading || backgroundLoading || loadingMore;
   const orderedChannels = applyStoredOrder(channels, channelOrder, (channel) => channel.id);
@@ -813,33 +925,51 @@ export function Notifications() {
   }, [someNotificationsSelected]);
 
   useEffect(() => {
-    syncStoredOrder(CHANNEL_ORDER_STORAGE_KEY, channels.map((channel) => channel.id), setChannelOrder);
+    syncStoredOrder(
+      CHANNEL_ORDER_STORAGE_KEY,
+      channels.map((channel) => channel.id),
+      setChannelOrder,
+    );
   }, [channels]);
 
   useEffect(() => {
-    syncStoredOrder(RULE_ORDER_STORAGE_KEY, rules.map((rule) => rule.id), setRuleOrder);
+    syncStoredOrder(
+      RULE_ORDER_STORAGE_KEY,
+      rules.map((rule) => rule.id),
+      setRuleOrder,
+    );
   }, [rules]);
 
   const reorderChannels = (oldIndex: number, newIndex: number) => {
-    const nextOrder = moveItem(orderedChannels.map((channel) => channel.id), oldIndex, newIndex);
+    const nextOrder = moveItem(
+      orderedChannels.map((channel) => channel.id),
+      oldIndex,
+      newIndex,
+    );
     setChannelOrder(saveStoredOrder(CHANNEL_ORDER_STORAGE_KEY, nextOrder));
   };
 
   const reorderRules = (oldIndex: number, newIndex: number) => {
-    const nextOrder = moveItem(orderedRules.map((rule) => rule.id), oldIndex, newIndex);
+    const nextOrder = moveItem(
+      orderedRules.map((rule) => rule.id),
+      oldIndex,
+      newIndex,
+    );
     setRuleOrder(saveStoredOrder(RULE_ORDER_STORAGE_KEY, nextOrder));
   };
 
   const toggleNotificationSelection = (id: string) => {
     setSelectedNotificationIds((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id],
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
     );
   };
 
   const toggleAllNotifications = () => {
-    setSelectedNotificationIds((current) => (allNotificationsSelected ? current.filter((id) => !selectableNotificationIds.includes(id)) : selectableNotificationIds));
+    setSelectedNotificationIds((current) =>
+      allNotificationsSelected
+        ? current.filter((id) => !selectableNotificationIds.includes(id))
+        : selectableNotificationIds,
+    );
   };
 
   const openCreateChannel = () => {
@@ -867,7 +997,8 @@ export function Notifications() {
 
   const openEditRule = (rule: NotificationRule) => {
     setEditingRule(rule);
-    const filters = 'filters' in rule.config && rule.config.filters ? rule.config.filters : undefined;
+    const filters =
+      'filters' in rule.config && rule.config.filters ? rule.config.filters : undefined;
     setRuleForm({
       name: rule.name,
       type: rule.type,
@@ -895,7 +1026,10 @@ export function Notifications() {
   const saveChannel = async () => {
     try {
       setSaving(true);
-      const validationError = validateNotificationChannelConfig(channelForm.type, channelForm.config);
+      const validationError = validateNotificationChannelConfig(
+        channelForm.type,
+        channelForm.config,
+      );
       if (validationError) {
         throw new Error(validationError);
       }
@@ -916,7 +1050,9 @@ export function Notifications() {
       setChannelModalOpen(false);
       await loadData({ preserveLoadedPages: true });
     } catch (err) {
-      showToast(err instanceof Error ? err.message : t('pages.notifications.failedToSaveDestination'));
+      showToast(
+        err instanceof Error ? err.message : t('pages.notifications.failedToSaveDestination'),
+      );
     } finally {
       setSaving(false);
     }
@@ -943,7 +1079,11 @@ export function Notifications() {
   const sendTestNotification = async (channel: NotificationChannel) => {
     try {
       setTestingChannelId(channel.id);
-      setTestResult({ kind: 'channel', name: channel.name, result: await testNotificationChannel(channel.id) });
+      setTestResult({
+        kind: 'channel',
+        name: channel.name,
+        result: await testNotificationChannel(channel.id),
+      });
     } catch (err) {
       showToast(err instanceof Error ? err.message : t('pages.notifications.failedToSendTest'));
     } finally {
@@ -978,7 +1118,9 @@ export function Notifications() {
       await markNotificationsRead(selectedNotificationIds);
       await loadNotifications({ preserveLoadedPages: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('pages.notifications.failedToMarkSelectedRead'));
+      setError(
+        err instanceof Error ? err.message : t('pages.notifications.failedToMarkSelectedRead'),
+      );
     }
   };
 
@@ -1011,14 +1153,16 @@ export function Notifications() {
     return <div className="p-8 text-center text-gray-500">{t('pages.notifications.loading')}</div>;
   }
 
-  const deleteActionTitle = pendingDeleteAction?.kind === 'single'
-    ? t('pages.notifications.deleteNotificationTitle')
-    : pendingDeleteAction?.kind === 'selected'
-      ? t('pages.notifications.deleteSelectedTitle')
-      : pendingDeleteAction?.kind === 'read'
-        ? t('pages.notifications.deleteReadTitle')
-        : t('common.delete');
-  const pendingSingleNotificationId = pendingDeleteAction?.kind === 'single' ? pendingDeleteAction.id : null;
+  const deleteActionTitle =
+    pendingDeleteAction?.kind === 'single'
+      ? t('pages.notifications.deleteNotificationTitle')
+      : pendingDeleteAction?.kind === 'selected'
+        ? t('pages.notifications.deleteSelectedTitle')
+        : pendingDeleteAction?.kind === 'read'
+          ? t('pages.notifications.deleteReadTitle')
+          : t('common.delete');
+  const pendingSingleNotificationId =
+    pendingDeleteAction?.kind === 'single' ? pendingDeleteAction.id : null;
 
   return (
     <div className="space-y-6">
@@ -1030,18 +1174,26 @@ export function Notifications() {
       )}
 
       <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-        <SummaryCard icon={<Bell className="h-6 w-6" />} label={t('pages.notifications.unreadNotifications')} value={String(unreadCount)} />
+        <SummaryCard
+          icon={<Bell className="h-6 w-6" />}
+          label={t('pages.notifications.unreadNotifications')}
+          value={String(unreadCount)}
+        />
         <SummaryCard
           icon={<Send className="h-6 w-6" />}
           label={t('pages.notifications.destinations')}
           value={String(channels.length)}
-          sublabel={t('pages.notifications.activeCount', { count: channels.filter((channel) => channel.enabled).length })}
+          sublabel={t('pages.notifications.activeCount', {
+            count: channels.filter((channel) => channel.enabled).length,
+          })}
         />
         <SummaryCard
           icon={<CheckCheck className="h-6 w-6" />}
           label={t('pages.notifications.rules')}
           value={String(rules.length)}
-          sublabel={t('pages.notifications.activeCount', { count: rules.filter((rule) => rule.enabled).length })}
+          sublabel={t('pages.notifications.activeCount', {
+            count: rules.filter((rule) => rule.enabled).length,
+          })}
         />
       </div>
 
@@ -1059,7 +1211,7 @@ export function Notifications() {
                 checked={allNotificationsSelected}
                 disabled={selectableNotificationIds.length === 0}
                 onChange={toggleAllNotifications}
-                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="text-primary-600 focus:ring-primary-500 h-4 w-4 rounded border-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
               />
               {t('pages.notifications.selectAllShort')}
             </label>
@@ -1076,7 +1228,9 @@ export function Notifications() {
               <>
                 <button
                   type="button"
-                  onClick={() => setPendingDeleteAction({ kind: 'selected', ids: selectedNotificationIds })}
+                  onClick={() =>
+                    setPendingDeleteAction({ kind: 'selected', ids: selectedNotificationIds })
+                  }
                   disabled={selectedNotificationIds.length === 0 || tableBusy}
                   className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1098,17 +1252,22 @@ export function Notifications() {
               className={`ml-auto inline-flex items-center gap-2 text-xs text-gray-500 transition-opacity dark:text-gray-400 ${backgroundLoading ? 'opacity-100' : 'opacity-0'}`}
               aria-live="polite"
             >
-              <span className="h-2 w-2 animate-pulse rounded-full bg-primary-500" aria-hidden="true" />
+              <span
+                className="bg-primary-500 h-2 w-2 animate-pulse rounded-full"
+                aria-hidden="true"
+              />
               {t('common.refreshing')}
             </span>
           </div>
 
           {notifications.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('pages.notifications.noNotifications')}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('pages.notifications.noNotifications')}
+            </p>
           ) : (
             <div
               ref={notificationScrollRef}
-              className="max-h-[32rem] overflow-y-auto pr-1 [scrollbar-gutter:stable]"
+              className="max-h-[32rem] [scrollbar-gutter:stable] overflow-y-auto pr-1"
               aria-busy={tableBusy}
             >
               <div className="space-y-4">
@@ -1121,10 +1280,16 @@ export function Notifications() {
                     onMarkRead={() => void handleMarkRead(item.id)}
                     onDelete={() => setPendingDeleteAction({ kind: 'single', id: item.id })}
                     canDelete={canManageSettings}
-                    rowRef={index === notifications.length - 1 ? lastNotificationElementRef : undefined}
+                    rowRef={
+                      index === notifications.length - 1 ? lastNotificationElementRef : undefined
+                    }
                   />
                 ))}
-                {loadingMore && <p className="py-2 text-center text-sm text-gray-500 dark:text-gray-400">{t('pages.notifications.loadingMore')}</p>}
+                {loadingMore && (
+                  <p className="py-2 text-center text-sm text-gray-500 dark:text-gray-400">
+                    {t('pages.notifications.loadingMore')}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -1138,25 +1303,47 @@ export function Notifications() {
           onAction={openCreateChannel}
           canManageSettings={canManageSettings}
         >
-          {channels.length === 0
-            ? <p className="text-sm text-gray-500 dark:text-gray-400">{t('pages.notifications.noDestinations')}</p>
-            : (
-              <SortableList className="space-y-4" itemCount={canManageSettings ? orderedChannels.length : 0} onMove={reorderChannels}>
-                {orderedChannels.map((channel) => (
-                  <ChannelRow
-                    key={channel.id}
-                    channel={channel}
-                    dragHandle={canManageSettings ? <DragHandle label={t('pages.notifications.reorderDestination', { name: channel.name })} /> : undefined}
-                    hasAttachedRule={linkedChannelIds.has(channel.id)}
-                    onEdit={() => openEditChannel(channel)}
-                    onTest={() => void sendTestNotification(channel)}
-                    testing={testingChannelId === channel.id}
-                    onDelete={() => void deleteNotificationChannel(channel.id).then(() => loadData({ preserveLoadedPages: true })).catch((err) => setError(err instanceof Error ? err.message : t('pages.notifications.failedToDeleteDestination')))}
-                    canManageSettings={canManageSettings}
-                  />
-                ))}
-              </SortableList>
-            )}
+          {channels.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('pages.notifications.noDestinations')}
+            </p>
+          ) : (
+            <SortableList
+              className="space-y-4"
+              itemCount={canManageSettings ? orderedChannels.length : 0}
+              onMove={reorderChannels}
+            >
+              {orderedChannels.map((channel) => (
+                <ChannelRow
+                  key={channel.id}
+                  channel={channel}
+                  dragHandle={
+                    canManageSettings ? (
+                      <DragHandle
+                        label={t('pages.notifications.reorderDestination', { name: channel.name })}
+                      />
+                    ) : undefined
+                  }
+                  hasAttachedRule={linkedChannelIds.has(channel.id)}
+                  onEdit={() => openEditChannel(channel)}
+                  onTest={() => void sendTestNotification(channel)}
+                  testing={testingChannelId === channel.id}
+                  onDelete={() =>
+                    void deleteNotificationChannel(channel.id)
+                      .then(() => loadData({ preserveLoadedPages: true }))
+                      .catch((err) =>
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : t('pages.notifications.failedToDeleteDestination'),
+                        ),
+                      )
+                  }
+                  canManageSettings={canManageSettings}
+                />
+              ))}
+            </SortableList>
+          )}
         </ResourceCard>
 
         <ResourceCard
@@ -1165,26 +1352,48 @@ export function Notifications() {
           onAction={openCreateRule}
           canManageSettings={canManageSettings}
         >
-          {rules.length === 0
-            ? <p className="text-sm text-gray-500 dark:text-gray-400">{t('pages.notifications.noRules')}</p>
-            : (
-              <SortableList className="space-y-4" itemCount={canManageSettings ? orderedRules.length : 0} onMove={reorderRules}>
-                {orderedRules.map((rule) => (
-                  <RuleRow
-                    key={rule.id}
-                    rule={rule}
-                    dragHandle={canManageSettings ? <DragHandle label={t('pages.notifications.reorderRule', { name: rule.name })} /> : undefined}
-                    channels={channels}
-                    hasDestinations={rule.channel_ids.length > 0}
-                    onEdit={() => openEditRule(rule)}
-                    onTest={() => void sendRuleTest(rule)}
-                    testing={testingRuleId === rule.id}
-                    onDelete={() => void deleteNotificationRule(rule.id).then(() => loadData({ preserveLoadedPages: true })).catch((err) => setError(err instanceof Error ? err.message : t('pages.notifications.failedToDeleteRule')))}
-                    canManageSettings={canManageSettings}
-                  />
-                ))}
-              </SortableList>
-            )}
+          {rules.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('pages.notifications.noRules')}
+            </p>
+          ) : (
+            <SortableList
+              className="space-y-4"
+              itemCount={canManageSettings ? orderedRules.length : 0}
+              onMove={reorderRules}
+            >
+              {orderedRules.map((rule) => (
+                <RuleRow
+                  key={rule.id}
+                  rule={rule}
+                  dragHandle={
+                    canManageSettings ? (
+                      <DragHandle
+                        label={t('pages.notifications.reorderRule', { name: rule.name })}
+                      />
+                    ) : undefined
+                  }
+                  channels={channels}
+                  hasDestinations={rule.channel_ids.length > 0}
+                  onEdit={() => openEditRule(rule)}
+                  onTest={() => void sendRuleTest(rule)}
+                  testing={testingRuleId === rule.id}
+                  onDelete={() =>
+                    void deleteNotificationRule(rule.id)
+                      .then(() => loadData({ preserveLoadedPages: true }))
+                      .catch((err) =>
+                        setError(
+                          err instanceof Error
+                            ? err.message
+                            : t('pages.notifications.failedToDeleteRule'),
+                        ),
+                      )
+                  }
+                  canManageSettings={canManageSettings}
+                />
+              ))}
+            </SortableList>
+          )}
         </ResourceCard>
       </div>
 
@@ -1198,12 +1407,18 @@ export function Notifications() {
         <p className="mb-6 text-gray-600 dark:text-gray-300">
           {pendingSingleNotificationId ? (
             <>
-              {t('pages.notifications.deleteNotificationConfirmPrefix')} <span className="font-mono text-sm font-bold">{pendingSingleNotificationId}</span>? {t('common.actionCannotBeUndone')}
+              {t('pages.notifications.deleteNotificationConfirmPrefix')}{' '}
+              <span className="font-mono text-sm font-bold">{pendingSingleNotificationId}</span>?{' '}
+              {t('common.actionCannotBeUndone')}
             </>
           ) : pendingDeleteAction?.kind === 'read' ? (
             <>{t('pages.notifications.deleteReadConfirm')}</>
           ) : (
-            <>{t('pages.notifications.deleteSelectedConfirm', { count: selectedNotificationIds.length })}</>
+            <>
+              {t('pages.notifications.deleteSelectedConfirm', {
+                count: selectedNotificationIds.length,
+              })}
+            </>
           )}
         </p>
         <div className="flex justify-end gap-3">
@@ -1238,18 +1453,22 @@ export function Notifications() {
       <Modal
         isOpen={testResult !== null}
         onClose={() => setTestResult(null)}
-        title={testResult?.kind === 'channel'
-          ? t('pages.notifications.channelTestResultTitle', { name: testResult.name })
-          : t('pages.notifications.ruleTestResultTitle', { name: testResult?.name || '' })}
+        title={
+          testResult?.kind === 'channel'
+            ? t('pages.notifications.channelTestResultTitle', { name: testResult.name })
+            : t('pages.notifications.ruleTestResultTitle', { name: testResult?.name || '' })
+        }
         maxWidth="max-w-lg"
       >
         {testResult && (
           <div className="space-y-4 text-sm">
             {testResult.kind === 'rule' && (
               <p className="text-gray-600 dark:text-gray-300">
-                {t(testResult.result.source === 'current'
-                  ? 'pages.notifications.ruleTestCurrentHelp'
-                  : 'pages.notifications.ruleTestSampleHelp')}
+                {t(
+                  testResult.result.source === 'current'
+                    ? 'pages.notifications.ruleTestCurrentHelp'
+                    : 'pages.notifications.ruleTestSampleHelp',
+                )}
               </p>
             )}
             <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
@@ -1257,9 +1476,13 @@ export function Notifications() {
               <p className="mt-2 whitespace-pre-wrap">{testResult.result.message}</p>
             </div>
             <div className="space-y-1">
-              {(testResult.kind === 'channel' ? [testResult.result.delivery] : testResult.result.deliveries).map((delivery) => (
+              {(testResult.kind === 'channel'
+                ? [testResult.result.delivery]
+                : testResult.result.deliveries
+              ).map((delivery) => (
                 <p key={delivery.channel_id}>
-                  {delivery.channel_name}: {t(`pages.notifications.deliveryStatuses.${delivery.status}`)}
+                  {delivery.channel_name}:{' '}
+                  {t(`pages.notifications.deliveryStatuses.${delivery.status}`)}
                   {delivery.error ? ` — ${delivery.error}` : ''}
                 </p>
               ))}
@@ -1281,14 +1504,26 @@ export function Notifications() {
   );
 }
 
-function SummaryCard({ icon, label, value, sublabel }: { icon: ReactNode; label: string; value: string; sublabel?: string }) {
+function SummaryCard({
+  icon,
+  label,
+  value,
+  sublabel,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  sublabel?: string;
+}) {
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-2 p-3 text-center sm:flex-row sm:items-center sm:gap-3 sm:p-4 sm:text-left lg:gap-4 lg:p-6">
-        <div className="rounded-full bg-blue-100 p-2 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{icon}</div>
+        <div className="rounded-full bg-blue-100 p-2 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+          {icon}
+        </div>
         <div className="min-w-0">
-          <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">{label}</p>
-          <p className="text-xl font-bold leading-none sm:text-2xl lg:text-3xl">{value}</p>
+          <p className="text-xs text-gray-500 sm:text-sm dark:text-gray-400">{label}</p>
+          <p className="text-xl leading-none font-bold sm:text-2xl lg:text-3xl">{value}</p>
           {sublabel && <p className="text-xs text-gray-500 dark:text-gray-400">{sublabel}</p>}
         </div>
       </CardContent>
@@ -1314,7 +1549,10 @@ function ResourceCard({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{title}</CardTitle>
         {canManageSettings && (
-          <button onClick={onAction} className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">
+          <button
+            onClick={onAction}
+            className="bg-primary-600 hover:bg-primary-700 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white"
+          >
             <Plus className="h-4 w-4" />
             {actionLabel}
           </button>
@@ -1356,11 +1594,7 @@ function SortableList({
       onEnd: (event) => {
         const oldIndex = event.oldIndex;
         const newIndex = event.newIndex;
-        if (
-          oldIndex === undefined ||
-          newIndex === undefined ||
-          oldIndex === newIndex
-        ) {
+        if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) {
           return;
         }
 
@@ -1374,7 +1608,11 @@ function SortableList({
     };
   }, [itemCount, onMove]);
 
-  return <div ref={listRef} className={className}>{children}</div>;
+  return (
+    <div ref={listRef} className={className}>
+      {children}
+    </div>
+  );
 }
 
 function DragHandle({ label }: { label: string }) {
@@ -1413,8 +1651,13 @@ function NotificationRow({
   const { formatDateTime } = useDateTime();
   const { appName } = useBranding();
   const localizedText = localizeNotificationText(item, t, appName);
-  const releaseUrl = item.rule_type === 'crowdsec-update' ? getMetadataString(item, 'release_url') : null;
-  const safeReleaseUrl = releaseUrl?.startsWith('https://github.com/crowdsecurity/crowdsec/releases/') ? releaseUrl : null;
+  const releaseUrl =
+    item.rule_type === 'crowdsec-update' ? getMetadataString(item, 'release_url') : null;
+  const safeReleaseUrl = releaseUrl?.startsWith(
+    'https://github.com/crowdsecurity/crowdsec/releases/',
+  )
+    ? releaseUrl
+    : null;
 
   return (
     <div
@@ -1429,30 +1672,79 @@ function NotificationRow({
             aria-label={t('pages.notifications.selectNotification', { id: item.id })}
             checked={selected}
             onChange={onSelect}
-            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            className="text-primary-600 focus:ring-primary-500 h-4 w-4 rounded border-gray-300"
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-semibold">{localizedText.title}</h3>
-              <Badge variant={item.severity === 'critical' ? 'danger' : item.severity === 'warning' ? 'warning' : 'info'}>{translateSeverity(item.severity, t)}</Badge>
-              {!item.read_at && <Badge variant="secondary">{t('pages.notifications.unread')}</Badge>}
+              <Badge
+                variant={
+                  item.severity === 'critical'
+                    ? 'danger'
+                    : item.severity === 'warning'
+                      ? 'warning'
+                      : 'info'
+                }
+              >
+                {translateSeverity(item.severity, t)}
+              </Badge>
+              {!item.read_at && (
+                <Badge variant="secondary">{t('pages.notifications.unread')}</Badge>
+              )}
             </div>
             <p className="text-sm text-gray-700 dark:text-gray-300">{localizedText.message}</p>
-            {safeReleaseUrl && <a href={safeReleaseUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-700 underline dark:text-blue-300">{t('pages.notifications.viewCrowdsecRelease')}</a>}
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('pages.notifications.ruleWithTime', { rule: item.rule_name, time: formatDateTime(item.created_at) })}</p>
+            {safeReleaseUrl && (
+              <a
+                href={safeReleaseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-700 underline dark:text-blue-300"
+              >
+                {t('pages.notifications.viewCrowdsecRelease')}
+              </a>
+            )}
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('pages.notifications.ruleWithTime', {
+                rule: item.rule_name,
+                time: formatDateTime(item.created_at),
+              })}
+            </p>
             <div className="flex flex-wrap gap-2">
               {item.deliveries.map((delivery, index) => (
-                <Badge key={`${delivery.channel_id}-${index}`} variant={delivery.status === 'delivered' ? 'success' : delivery.status === 'failed' ? 'danger' : 'warning'}>
+                <Badge
+                  key={`${delivery.channel_id}-${index}`}
+                  variant={
+                    delivery.status === 'delivered'
+                      ? 'success'
+                      : delivery.status === 'failed'
+                        ? 'danger'
+                        : 'warning'
+                  }
+                >
                   {delivery.channel_name}: {translateDeliveryStatus(delivery.status, t)}
                 </Badge>
               ))}
             </div>
           </div>
           <div className="flex flex-wrap gap-2 md:self-start">
-            {!item.read_at && <ActionIconButton label={t('pages.notifications.markRead')} icon={<Check className="h-4 w-4" />} onClick={onMarkRead} variant="accent" />}
-            {canDelete && <ActionIconButton label={t('pages.notifications.deleteNotification')} icon={<Trash2 className="h-4 w-4" />} onClick={onDelete} variant="danger" />}
+            {!item.read_at && (
+              <ActionIconButton
+                label={t('pages.notifications.markRead')}
+                icon={<Check className="h-4 w-4" />}
+                onClick={onMarkRead}
+                variant="accent"
+              />
+            )}
+            {canDelete && (
+              <ActionIconButton
+                label={t('pages.notifications.deleteNotification')}
+                icon={<Trash2 className="h-4 w-4" />}
+                onClick={onDelete}
+                variant="danger"
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1487,25 +1779,49 @@ function ChannelRow({
       <div className="flex gap-3">
         {dragHandle}
         <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold">{channel.name}</h3>
-            <Badge variant={channel.enabled ? 'success' : 'secondary'}>{channel.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
-            <Badge variant="outline">{channel.type}</Badge>
-            {!hasAttachedRule && <Badge variant="warning">{t('pages.notifications.noRuleAttached')}</Badge>}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-semibold">{channel.name}</h3>
+              <Badge variant={channel.enabled ? 'success' : 'secondary'}>
+                {channel.enabled ? t('common.enabled') : t('common.disabled')}
+              </Badge>
+              <Badge variant="outline">{channel.type}</Badge>
+              {!hasAttachedRule && (
+                <Badge variant="warning">{t('pages.notifications.noRuleAttached')}</Badge>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('pages.notifications.updatedAt', { time: formatDateTime(channel.updated_at) })}
+            </p>
+            {channel.configured_secrets.length > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('pages.notifications.savedSecrets', {
+                  secrets: channel.configured_secrets.join(', '),
+                })}
+              </p>
+            )}
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t('pages.notifications.updatedAt', { time: formatDateTime(channel.updated_at) })}</p>
-          {channel.configured_secrets.length > 0 && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">{t('pages.notifications.savedSecrets', { secrets: channel.configured_secrets.join(', ') })}</p>
+          {canManageSettings && (
+            <div className="flex flex-wrap gap-2 md:self-start">
+              <ActionIconButton
+                label={t('pages.notifications.sendTest')}
+                icon={<SendHorizontal className="h-4 w-4" />}
+                onClick={onTest}
+                disabled={testing || !channel.enabled}
+              />
+              <ActionIconButton
+                label={t('pages.notifications.editDestination')}
+                icon={<SquarePen className="h-4 w-4" />}
+                onClick={onEdit}
+              />
+              <ActionIconButton
+                label={t('pages.notifications.deleteDestination')}
+                icon={<Trash2 className="h-4 w-4" />}
+                onClick={onDelete}
+                variant="danger"
+              />
+            </div>
           )}
-        </div>
-        {canManageSettings && (
-          <div className="flex flex-wrap gap-2 md:self-start">
-            <ActionIconButton label={t('pages.notifications.sendTest')} icon={<SendHorizontal className="h-4 w-4" />} onClick={onTest} disabled={testing || !channel.enabled} />
-            <ActionIconButton label={t('pages.notifications.editDestination')} icon={<SquarePen className="h-4 w-4" />} onClick={onEdit} />
-            <ActionIconButton label={t('pages.notifications.deleteDestination')} icon={<Trash2 className="h-4 w-4" />} onClick={onDelete} variant="danger" />
-          </div>
-        )}
         </div>
       </div>
     </div>
@@ -1540,25 +1856,58 @@ function RuleRow({
       <div className="flex gap-3">
         {dragHandle}
         <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold">{rule.name}</h3>
-            <Badge variant={rule.enabled ? 'success' : 'secondary'}>{rule.enabled ? t('common.enabled') : t('common.disabled')}</Badge>
-            <Badge variant="outline">{translateRuleType(rule.type, t)}</Badge>
-            <Badge variant={rule.severity === 'critical' ? 'danger' : rule.severity === 'warning' ? 'warning' : 'info'}>{translateSeverity(rule.severity, t)}</Badge>
-            {!hasDestinations && <Badge variant="warning">{t('pages.notifications.noDestinationsBadge')}</Badge>}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-semibold">{rule.name}</h3>
+              <Badge variant={rule.enabled ? 'success' : 'secondary'}>
+                {rule.enabled ? t('common.enabled') : t('common.disabled')}
+              </Badge>
+              <Badge variant="outline">{translateRuleType(rule.type, t)}</Badge>
+              <Badge
+                variant={
+                  rule.severity === 'critical'
+                    ? 'danger'
+                    : rule.severity === 'warning'
+                      ? 'warning'
+                      : 'info'
+                }
+              >
+                {translateSeverity(rule.severity, t)}
+              </Badge>
+              {!hasDestinations && (
+                <Badge variant="warning">{t('pages.notifications.noDestinationsBadge')}</Badge>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('pages.notifications.channels', {
+                channels:
+                  rule.channel_ids
+                    .map((id) => channels.find((channel) => channel.id === id)?.name || id)
+                    .join(', ') || t('pages.notifications.inAppOnly'),
+              })}
+            </p>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {t('pages.notifications.channels', { channels: rule.channel_ids.map((id) => channels.find((channel) => channel.id === id)?.name || id).join(', ') || t('pages.notifications.inAppOnly') })}
-          </p>
-        </div>
-        {canManageSettings && (
-          <div className="flex flex-wrap gap-2 md:self-start">
-            <ActionIconButton label={t('pages.notifications.sendRuleTest')} icon={<SendHorizontal className="h-4 w-4" />} onClick={onTest} disabled={!hasDestinations || testing} />
-            <ActionIconButton label={t('pages.notifications.editRule')} icon={<SquarePen className="h-4 w-4" />} onClick={onEdit} />
-            <ActionIconButton label={t('pages.notifications.deleteRule')} icon={<Trash2 className="h-4 w-4" />} onClick={onDelete} variant="danger" />
-          </div>
-        )}
+          {canManageSettings && (
+            <div className="flex flex-wrap gap-2 md:self-start">
+              <ActionIconButton
+                label={t('pages.notifications.sendRuleTest')}
+                icon={<SendHorizontal className="h-4 w-4" />}
+                onClick={onTest}
+                disabled={!hasDestinations || testing}
+              />
+              <ActionIconButton
+                label={t('pages.notifications.editRule')}
+                icon={<SquarePen className="h-4 w-4" />}
+                onClick={onEdit}
+              />
+              <ActionIconButton
+                label={t('pages.notifications.deleteRule')}
+                icon={<Trash2 className="h-4 w-4" />}
+                onClick={onDelete}
+                variant="danger"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1579,9 +1928,12 @@ function ActionIconButton({
   disabled?: boolean;
 }) {
   const styles = {
-    neutral: 'text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700/60',
-    danger: 'text-red-600 hover:text-red-900 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20',
-    accent: 'text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20',
+    neutral:
+      'text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700/60',
+    danger:
+      'text-red-600 hover:text-red-900 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20',
+    accent:
+      'text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20',
   } satisfies Record<'neutral' | 'danger' | 'accent', string>;
 
   return (
@@ -1599,15 +1951,22 @@ function ActionIconButton({
 }
 
 function ToastBanner({ toast, onClose }: { toast: NonNullable<ToastState>; onClose: () => void }) {
-  const styles = toast.tone === 'success'
-    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/60 dark:text-emerald-200'
-    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/40 dark:bg-red-950/60 dark:text-red-200';
+  const styles =
+    toast.tone === 'success'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/60 dark:text-emerald-200'
+      : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/40 dark:bg-red-950/60 dark:text-red-200';
 
   return createPortal(
-    <div className="pointer-events-none fixed right-4 top-4 z-[11000]">
-      <div className={`pointer-events-auto flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl ${styles}`}>
+    <div className="pointer-events-none fixed top-4 right-4 z-[11000]">
+      <div
+        className={`pointer-events-auto flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl ${styles}`}
+      >
         <p className="flex-1">{toast.message}</p>
-        <button type="button" onClick={onClose} className="rounded-md px-1 text-current/70 hover:bg-black/5 hover:text-current dark:hover:bg-white/10">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-md px-1 text-current/70 hover:bg-black/5 hover:text-current dark:hover:bg-white/10"
+        >
           ×
         </button>
       </div>
@@ -1637,7 +1996,9 @@ function GeneratedNameInput({
   const id = useId();
   return (
     <div className="space-y-2 text-sm">
-      <label htmlFor={id} className="block leading-5 font-medium">{t('common.name')}</label>
+      <label htmlFor={id} className="block leading-5 font-medium">
+        {t('common.name')}
+      </label>
       <div className="flex gap-2">
         <input
           id={id}
@@ -1655,7 +2016,7 @@ function GeneratedNameInput({
           aria-label={generateLabel}
           title={generateLabel}
           onClick={onGenerate}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 text-primary-600 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
+          className="text-primary-600 hover:bg-primary-50 focus-visible:outline-primary-600 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800"
         >
           <WandSparkles className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -1686,22 +2047,43 @@ function ChannelModal({
   const channelTypeId = useId();
 
   return (
-    <Modal isOpen={open} onClose={onClose} title={editingChannel ? t('pages.notifications.editDestinationTitle') : t('pages.notifications.newDestinationTitle')} maxWidth="max-w-4xl">
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      title={
+        editingChannel
+          ? t('pages.notifications.editDestinationTitle')
+          : t('pages.notifications.newDestinationTitle')
+      }
+      maxWidth="max-w-4xl"
+    >
       <div className="space-y-5">
         <div className="grid gap-4 md:grid-cols-2">
           <GeneratedNameInput
             value={form.name}
             onChange={(value) => onSetForm((current) => ({ ...current, name: value }))}
-            onGenerate={() => onSetForm((current) => ({ ...current, name: generateChannelName(current, t) }))}
+            onGenerate={() =>
+              onSetForm((current) => ({ ...current, name: generateChannelName(current, t) }))
+            }
             generateLabel={t('pages.notifications.generateRuleName')}
             disabled={saving}
           />
           <div className="space-y-2 text-sm">
-            <label htmlFor={channelTypeId} className="block leading-5 font-medium">{t('tableColumns.type')}</label>
+            <label htmlFor={channelTypeId} className="block leading-5 font-medium">
+              {t('tableColumns.type')}
+            </label>
             <select
               id={channelTypeId}
               value={form.type}
-              onChange={(event) => onSetForm((current) => ({ ...current, type: event.target.value as NotificationChannelType, config: cloneConfig(defaultChannelConfig(event.target.value as NotificationChannelType)) }))}
+              onChange={(event) =>
+                onSetForm((current) => ({
+                  ...current,
+                  type: event.target.value as NotificationChannelType,
+                  config: cloneConfig(
+                    defaultChannelConfig(event.target.value as NotificationChannelType),
+                  ),
+                }))
+              }
               className="h-10 w-full rounded-lg border border-gray-300 px-3 dark:border-gray-700 dark:bg-gray-900"
             >
               <option value="ntfy">ntfy</option>
@@ -1715,15 +2097,32 @@ function ChannelModal({
         </div>
 
         <div className="flex items-center gap-3">
-          <Switch id="channel-enabled" checked={form.enabled} onCheckedChange={(checked) => onSetForm((current) => ({ ...current, enabled: checked }))} />
-          <label htmlFor="channel-enabled" className="text-sm font-medium">{t('common.enabled')}</label>
+          <Switch
+            id="channel-enabled"
+            checked={form.enabled}
+            onCheckedChange={(checked) =>
+              onSetForm((current) => ({ ...current, enabled: checked }))
+            }
+          />
+          <label htmlFor="channel-enabled" className="text-sm font-medium">
+            {t('common.enabled')}
+          </label>
         </div>
 
         <ChannelConfigFields form={form} onSetForm={onSetForm} />
 
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700">{t('common.cancel')}</button>
-          <button onClick={onSave} disabled={saving} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700"
+          >
+            {t('common.cancel')}
+          </button>
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="bg-primary-600 hover:bg-primary-700 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          >
             {saving ? t('common.saving') : t('pages.notifications.saveDestination')}
           </button>
         </div>
@@ -1753,117 +2152,244 @@ function RuleModal({
 }) {
   const { t } = useI18n();
   const ruleTypeId = useId();
-  const supportsAlertFilters = form.type !== 'application-update' && form.type !== 'crowdsec-update' && form.type !== 'lapi-availability';
-  const simulatedFilterLabel = form.type === 'ip-ban'
-    ? t('pages.notifications.includeSimulatedDecisions')
-    : form.type === 'new-alert-decision'
-      ? t('pages.notifications.includeSimulatedAlertsAndDecisions')
-      : t('pages.notifications.includeSimulatedAlerts');
+  const supportsAlertFilters =
+    form.type !== 'application-update' &&
+    form.type !== 'crowdsec-update' &&
+    form.type !== 'lapi-availability';
+  const simulatedFilterLabel =
+    form.type === 'ip-ban'
+      ? t('pages.notifications.includeSimulatedDecisions')
+      : form.type === 'new-alert-decision'
+        ? t('pages.notifications.includeSimulatedAlertsAndDecisions')
+        : t('pages.notifications.includeSimulatedAlerts');
 
   return (
-    <Modal isOpen={open} onClose={onClose} title={editingRule ? t('pages.notifications.editRuleTitle') : t('pages.notifications.newRuleTitle')} maxWidth="max-w-3xl">
+    <Modal
+      isOpen={open}
+      onClose={onClose}
+      title={
+        editingRule ? t('pages.notifications.editRuleTitle') : t('pages.notifications.newRuleTitle')
+      }
+      maxWidth="max-w-3xl"
+    >
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <GeneratedNameInput
             value={form.name}
             onChange={(value) => onSetForm((current) => ({ ...current, name: value }))}
-            onGenerate={() => onSetForm((current) => ({ ...current, name: generateRuleName(current, t) }))}
+            onGenerate={() =>
+              onSetForm((current) => ({ ...current, name: generateRuleName(current, t) }))
+            }
             generateLabel={t('pages.notifications.generateRuleName')}
             placeholder={t(`pages.notifications.ruleNameExamples.${form.type}`)}
             help={t('pages.notifications.ruleNameHelp')}
             disabled={saving}
           />
           <div className="space-y-2 text-sm">
-            <label htmlFor={ruleTypeId} className="block leading-5 font-medium">{t('pages.notifications.ruleType')}</label>
+            <label htmlFor={ruleTypeId} className="block leading-5 font-medium">
+              {t('pages.notifications.ruleType')}
+            </label>
             <select
               id={ruleTypeId}
               value={form.type}
-              onChange={(event) => onSetForm((current) => ({ ...current, type: event.target.value as NotificationRuleType, config: { ...RULE_DEFAULTS[event.target.value as NotificationRuleType] } }))}
+              onChange={(event) =>
+                onSetForm((current) => ({
+                  ...current,
+                  type: event.target.value as NotificationRuleType,
+                  config: { ...RULE_DEFAULTS[event.target.value as NotificationRuleType] },
+                }))
+              }
               className="h-10 w-full rounded-lg border border-gray-300 px-3 dark:border-gray-700 dark:bg-gray-900"
             >
               <option value="alert-spike">{t('pages.notifications.ruleTypes.alertSpike')}</option>
-              <option value="alert-threshold">{t('pages.notifications.ruleTypes.alertThreshold')}</option>
-              <option value="new-alert-decision">{t('pages.notifications.ruleTypes.newAlertDecision')}</option>
+              <option value="alert-threshold">
+                {t('pages.notifications.ruleTypes.alertThreshold')}
+              </option>
+              <option value="new-alert-decision">
+                {t('pages.notifications.ruleTypes.newAlertDecision')}
+              </option>
               <option value="new-cve">{t('pages.notifications.ruleTypes.recentCve')}</option>
               <option value="ip-ban">{t('pages.notifications.ruleTypes.ipBan')}</option>
-              <option value="application-update">{t('pages.notifications.ruleTypes.applicationUpdate')}</option>
-              <option value="crowdsec-update">{t('pages.notifications.ruleTypes.crowdsecUpdate')}</option>
-              <option value="lapi-availability">{t('pages.notifications.ruleTypes.lapiAvailability')}</option>
+              <option value="application-update">
+                {t('pages.notifications.ruleTypes.applicationUpdate')}
+              </option>
+              <option value="crowdsec-update">
+                {t('pages.notifications.ruleTypes.crowdsecUpdate')}
+              </option>
+              <option value="lapi-availability">
+                {t('pages.notifications.ruleTypes.lapiAvailability')}
+              </option>
             </select>
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm">
             <span className="font-medium">{t('pages.notifications.severity')}</span>
-            <select value={form.severity} onChange={(event) => onSetForm((current) => ({ ...current, severity: event.target.value as NotificationSeverity }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+            <select
+              value={form.severity}
+              onChange={(event) =>
+                onSetForm((current) => ({
+                  ...current,
+                  severity: event.target.value as NotificationSeverity,
+                }))
+              }
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+            >
               <option value="info">{t('pages.notifications.severityInfo')}</option>
               <option value="warning">{t('pages.notifications.severityWarning')}</option>
               <option value="critical">{t('pages.notifications.severityCritical')}</option>
             </select>
           </label>
           <div className="flex items-center gap-3 pt-7">
-            <Switch id="rule-enabled" checked={form.enabled} onCheckedChange={(checked) => onSetForm((current) => ({ ...current, enabled: checked }))} />
-            <label htmlFor="rule-enabled" className="text-sm font-medium">{t('common.enabled')}</label>
+            <Switch
+              id="rule-enabled"
+              checked={form.enabled}
+              onCheckedChange={(checked) =>
+                onSetForm((current) => ({ ...current, enabled: checked }))
+              }
+            />
+            <label htmlFor="rule-enabled" className="text-sm font-medium">
+              {t('common.enabled')}
+            </label>
           </div>
         </div>
         <div className="space-y-3">
           <p className="text-sm font-medium">{t('pages.notifications.outboundDestinations')}</p>
-          {channels.length === 0
-            ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-amber-200">
-                {t('pages.notifications.noOutboundDestinationsHelp')}
+          {channels.length === 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-amber-200">
+              {t('pages.notifications.noOutboundDestinationsHelp')}
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('pages.notifications.selectDestinationsHelp')}
+              </p>
+              <div className="grid gap-2 md:grid-cols-2">
+                {channels.map((channel) => (
+                  <label
+                    key={channel.id}
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={form.channel_ids.includes(channel.id)}
+                      onChange={(event) =>
+                        onSetForm((current) => ({
+                          ...current,
+                          channel_ids: event.target.checked
+                            ? [...current.channel_ids, channel.id]
+                            : current.channel_ids.filter((value) => value !== channel.id),
+                        }))
+                      }
+                    />
+                    <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                    <Badge variant="outline" className="shrink-0">
+                      {channel.type}
+                    </Badge>
+                  </label>
+                ))}
               </div>
-            )
-            : (
-              <>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {t('pages.notifications.selectDestinationsHelp')}
-                </p>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {channels.map((channel) => (
-                    <label key={channel.id} className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={form.channel_ids.includes(channel.id)}
-                        onChange={(event) => onSetForm((current) => ({ ...current, channel_ids: event.target.checked ? [...current.channel_ids, channel.id] : current.channel_ids.filter((value) => value !== channel.id) }))}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{channel.name}</span>
-                      <Badge variant="outline" className="shrink-0">{channel.type}</Badge>
-                    </label>
-                  ))}
-                </div>
-              </>
-            )}
+            </>
+          )}
         </div>
         {supportsAlertFilters && (
           <div className="space-y-3">
-            <div className={`grid gap-4 ${form.type === 'new-alert-decision' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            <div
+              className={`grid gap-4 ${form.type === 'new-alert-decision' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}
+            >
               {(form.type === 'ip-ban' || form.type === 'new-alert-decision') && (
-                <LabeledInput label={t('pages.notifications.ipRangeFilter')} value={form.filters.values} onChange={(value) => onSetForm((current) => ({ ...current, filters: { ...current.filters, values: value } }))} />
+                <LabeledInput
+                  label={t('pages.notifications.ipRangeFilter')}
+                  value={form.filters.values}
+                  onChange={(value) =>
+                    onSetForm((current) => ({
+                      ...current,
+                      filters: { ...current.filters, values: value },
+                    }))
+                  }
+                />
               )}
               {form.type === 'ip-ban' && (
-                <LabeledInput label={t('pages.notifications.countryFilter')} value={form.filters.countries} onChange={(value) => onSetForm((current) => ({ ...current, filters: { ...current.filters, countries: value } }))} />
+                <LabeledInput
+                  label={t('pages.notifications.countryFilter')}
+                  value={form.filters.countries}
+                  onChange={(value) =>
+                    onSetForm((current) => ({
+                      ...current,
+                      filters: { ...current.filters, countries: value },
+                    }))
+                  }
+                />
               )}
-              <LabeledInput label={t('pages.notifications.scenarioContains')} value={form.filters.scenario} onChange={(value) => onSetForm((current) => ({ ...current, filters: { ...current.filters, scenario: value } }))} />
-              <LabeledInput label={t('pages.notifications.targetContains')} value={form.filters.target} onChange={(value) => onSetForm((current) => ({ ...current, filters: { ...current.filters, target: value } }))} />
+              <LabeledInput
+                label={t('pages.notifications.scenarioContains')}
+                value={form.filters.scenario}
+                onChange={(value) =>
+                  onSetForm((current) => ({
+                    ...current,
+                    filters: { ...current.filters, scenario: value },
+                  }))
+                }
+              />
+              <LabeledInput
+                label={t('pages.notifications.targetContains')}
+                value={form.filters.target}
+                onChange={(value) =>
+                  onSetForm((current) => ({
+                    ...current,
+                    filters: { ...current.filters, target: value },
+                  }))
+                }
+              />
             </div>
-            <div className={`grid items-center gap-x-4 gap-y-3 ${form.type === 'new-alert-decision' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-              <label className={`flex items-center gap-2 text-sm ${form.type === 'new-alert-decision' ? 'md:col-start-2' : ''}`}>
+            <div
+              className={`grid items-center gap-x-4 gap-y-3 ${form.type === 'new-alert-decision' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}
+            >
+              <label
+                className={`flex items-center gap-2 text-sm ${form.type === 'new-alert-decision' ? 'md:col-start-2' : ''}`}
+              >
                 <input
                   type="checkbox"
                   checked={form.filters.exclude_scenario}
-                  onChange={(event) => onSetForm((current) => ({ ...current, filters: { ...current.filters, exclude_scenario: event.target.checked } }))}
+                  onChange={(event) =>
+                    onSetForm((current) => ({
+                      ...current,
+                      filters: { ...current.filters, exclude_scenario: event.target.checked },
+                    }))
+                  }
                 />
                 <span>{t('pages.notifications.excludeMatchingScenarios')}</span>
               </label>
               <div className="flex items-center gap-3">
-                <Switch id="rule-include-simulated" checked={form.filters.include_simulated} onCheckedChange={(checked) => onSetForm((current) => ({ ...current, filters: { ...current.filters, include_simulated: checked } }))} />
-                <label htmlFor="rule-include-simulated" className="text-sm font-medium">{simulatedFilterLabel}</label>
+                <Switch
+                  id="rule-include-simulated"
+                  checked={form.filters.include_simulated}
+                  onCheckedChange={(checked) =>
+                    onSetForm((current) => ({
+                      ...current,
+                      filters: { ...current.filters, include_simulated: checked },
+                    }))
+                  }
+                />
+                <label htmlFor="rule-include-simulated" className="text-sm font-medium">
+                  {simulatedFilterLabel}
+                </label>
               </div>
               {form.type === 'ip-ban' && (
                 <div className="flex items-center gap-3">
-                  <Switch id="rule-exclude-countries" checked={form.filters.exclude_countries} onCheckedChange={(checked) => onSetForm((current) => ({ ...current, filters: { ...current.filters, exclude_countries: checked } }))} />
-                  <label htmlFor="rule-exclude-countries" className="text-sm font-medium">{t('pages.notifications.excludeCountries')}</label>
+                  <Switch
+                    id="rule-exclude-countries"
+                    checked={form.filters.exclude_countries}
+                    onCheckedChange={(checked) =>
+                      onSetForm((current) => ({
+                        ...current,
+                        filters: { ...current.filters, exclude_countries: checked },
+                      }))
+                    }
+                  />
+                  <label htmlFor="rule-exclude-countries" className="text-sm font-medium">
+                    {t('pages.notifications.excludeCountries')}
+                  </label>
                 </div>
               )}
             </div>
@@ -1871,12 +2397,25 @@ function RuleModal({
         )}
         <RuleConfigFields
           form={form}
-          onChange={(key, value) => onSetForm((current) => ({ ...current, config: { ...current.config, [key]: value } }))}
+          onChange={(key, value) =>
+            onSetForm((current) => ({ ...current, config: { ...current.config, [key]: value } }))
+          }
           onSetForm={onSetForm}
         />
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700">{t('common.cancel')}</button>
-          <button onClick={onSave} disabled={saving} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60">{saving ? t('common.saving') : t('pages.notifications.saveRule')}</button>
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium dark:border-gray-700"
+          >
+            {t('common.cancel')}
+          </button>
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="bg-primary-600 hover:bg-primary-700 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {saving ? t('common.saving') : t('pages.notifications.saveRule')}
+          </button>
         </div>
       </div>
     </Modal>
@@ -1899,7 +2438,11 @@ function LabeledInput({
   autoComplete?: string;
 }) {
   const id = useId();
-  const name = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || id.replace(/:/g, '');
+  const name =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || id.replace(/:/g, '');
 
   return (
     <label className="space-y-2 text-sm" htmlFor={id}>
@@ -1934,7 +2477,11 @@ function LabeledTextArea({
   autoComplete?: string;
 }) {
   const id = useId();
-  const name = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || id.replace(/:/g, '');
+  const name =
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || id.replace(/:/g, '');
 
   return (
     <label className="space-y-2 text-sm" htmlFor={id}>
@@ -1971,7 +2518,9 @@ function SecretInput({
       value={hasStoredSecret(value) ? '' : value}
       placeholder={hasStoredSecret(value) ? t('pages.notifications.unchanged') : undefined}
       autoComplete="new-password"
-      onChange={(next) => onChange(next || (hasStoredSecret(value) ? STORED_SECRET_SENTINEL : next))}
+      onChange={(next) =>
+        onChange(next || (hasStoredSecret(value) ? STORED_SECRET_SENTINEL : next))
+      }
     />
   );
 }
@@ -1982,7 +2531,10 @@ function updateChannelConfig<T>(
 ) {
   onSetForm((current) => ({
     ...current,
-    config: buildNext(cloneConfig(current.config) as T) as unknown as Record<string, AlertMetaValue>,
+    config: buildNext(cloneConfig(current.config) as T) as unknown as Record<
+      string,
+      AlertMetaValue
+    >,
   }));
 }
 
@@ -2017,30 +2569,119 @@ function ChannelConfigFields({
   return <NtfyChannelFields config={ntfy} onSetForm={onSetForm} />;
 }
 
-function EmailChannelFields({ config, onSetForm }: { config: EmailConfig; onSetForm: Dispatch<SetStateAction<ChannelFormState>> }) {
+function EmailChannelFields({
+  config,
+  onSetForm,
+}: {
+  config: EmailConfig;
+  onSetForm: Dispatch<SetStateAction<ChannelFormState>>;
+}) {
   const { t } = useI18n();
 
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
       <div className="grid gap-4 md:grid-cols-2">
-        <LabeledInput label={t('pages.notifications.smtpHost')} value={config.smtpHost} onChange={(value) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), smtpHost: value }))} />
-        <LabeledInput label={t('pages.notifications.smtpPort')} type="number" value={config.smtpPort} onChange={(value) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), smtpPort: Number(value || '0') }))} />
+        <LabeledInput
+          label={t('pages.notifications.smtpHost')}
+          value={config.smtpHost}
+          onChange={(value) =>
+            updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+              ...coerceEmailConfig(current),
+              smtpHost: value,
+            }))
+          }
+        />
+        <LabeledInput
+          label={t('pages.notifications.smtpPort')}
+          type="number"
+          value={config.smtpPort}
+          onChange={(value) =>
+            updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+              ...coerceEmailConfig(current),
+              smtpPort: Number(value || '0'),
+            }))
+          }
+        />
         <label className="space-y-2 text-sm">
           <span className="font-medium">{t('pages.notifications.smtpSecurity')}</span>
-          <select value={config.smtpTlsMode} onChange={(event) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), smtpTlsMode: event.target.value as EmailConfig['smtpTlsMode'] }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+          <select
+            value={config.smtpTlsMode}
+            onChange={(event) =>
+              updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+                ...coerceEmailConfig(current),
+                smtpTlsMode: event.target.value as EmailConfig['smtpTlsMode'],
+              }))
+            }
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          >
             <option value="plain">Plain SMTP</option>
             <option value="starttls">STARTTLS</option>
             <option value="tls">SMTPS / Implicit TLS</option>
           </select>
         </label>
-        <LabeledInput label={t('pages.notifications.smtpUser')} value={config.smtpUser} onChange={(value) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), smtpUser: value }))} />
-        <SecretInput label={t('pages.notifications.smtpPassword')} value={config.smtpPassword} onChange={(value) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), smtpPassword: value || current.smtpPassword }))} />
-        <LabeledInput label={t('pages.notifications.fromAddress')} value={config.smtpFrom} onChange={(value) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), smtpFrom: value }))} />
-        <LabeledInput label={t('pages.notifications.toAddresses')} value={config.emailTo} onChange={(value) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), emailTo: value }))} />
-        <LabeledInput label={t('pages.notifications.subjectPrefix')} value={config.subjectPrefix} onChange={(value) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), subjectPrefix: value }))} />
+        <LabeledInput
+          label={t('pages.notifications.smtpUser')}
+          value={config.smtpUser}
+          onChange={(value) =>
+            updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+              ...coerceEmailConfig(current),
+              smtpUser: value,
+            }))
+          }
+        />
+        <SecretInput
+          label={t('pages.notifications.smtpPassword')}
+          value={config.smtpPassword}
+          onChange={(value) =>
+            updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+              ...coerceEmailConfig(current),
+              smtpPassword: value || current.smtpPassword,
+            }))
+          }
+        />
+        <LabeledInput
+          label={t('pages.notifications.fromAddress')}
+          value={config.smtpFrom}
+          onChange={(value) =>
+            updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+              ...coerceEmailConfig(current),
+              smtpFrom: value,
+            }))
+          }
+        />
+        <LabeledInput
+          label={t('pages.notifications.toAddresses')}
+          value={config.emailTo}
+          onChange={(value) =>
+            updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+              ...coerceEmailConfig(current),
+              emailTo: value,
+            }))
+          }
+        />
+        <LabeledInput
+          label={t('pages.notifications.subjectPrefix')}
+          value={config.subjectPrefix}
+          onChange={(value) =>
+            updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+              ...coerceEmailConfig(current),
+              subjectPrefix: value,
+            }))
+          }
+        />
         <label className="space-y-2 text-sm">
           <span className="font-medium">{t('pages.notifications.importance')}</span>
-          <select value={config.emailImportanceOverride} onChange={(event) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), emailImportanceOverride: event.target.value as EmailConfig['emailImportanceOverride'] }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+          <select
+            value={config.emailImportanceOverride}
+            onChange={(event) =>
+              updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+                ...coerceEmailConfig(current),
+                emailImportanceOverride: event.target
+                  .value as EmailConfig['emailImportanceOverride'],
+              }))
+            }
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          >
             <option value="auto">Auto</option>
             <option value="normal">Normal</option>
             <option value="important">Important</option>
@@ -2049,7 +2690,16 @@ function EmailChannelFields({ config, onSetForm }: { config: EmailConfig; onSetF
       </div>
       {config.smtpTlsMode !== 'plain' && (
         <label className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800/60 dark:bg-amber-950/20">
-          <Switch id="email-allow-insecure-tls" checked={config.allowInsecureTls} onCheckedChange={(checked) => updateChannelConfig<EmailConfig>(onSetForm, (current) => ({ ...coerceEmailConfig(current), allowInsecureTls: checked }))} />
+          <Switch
+            id="email-allow-insecure-tls"
+            checked={config.allowInsecureTls}
+            onCheckedChange={(checked) =>
+              updateChannelConfig<EmailConfig>(onSetForm, (current) => ({
+                ...coerceEmailConfig(current),
+                allowInsecureTls: checked,
+              }))
+            }
+          />
           <span className="font-medium">{t('pages.notifications.allowInsecureSmtpTls')}</span>
         </label>
       )}
@@ -2057,118 +2707,426 @@ function EmailChannelFields({ config, onSetForm }: { config: EmailConfig; onSetF
   );
 }
 
-function AppriseChannelFields({ config, onSetForm }: { config: AppriseConfig; onSetForm: Dispatch<SetStateAction<ChannelFormState>> }) {
+function AppriseChannelFields({
+  config,
+  onSetForm,
+}: {
+  config: AppriseConfig;
+  onSetForm: Dispatch<SetStateAction<ChannelFormState>>;
+}) {
   const { t } = useI18n();
 
   return (
     <div className="grid gap-4 rounded-xl border border-gray-200 p-4 md:grid-cols-2 dark:border-gray-700">
-      <LabeledInput label={t('pages.notifications.appriseUrl')} value={config.appriseUrl} onChange={(value) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), appriseUrl: value }))} placeholder="http://apprise:8000" />
+      <LabeledInput
+        label={t('pages.notifications.appriseUrl')}
+        value={config.appriseUrl}
+        onChange={(value) =>
+          updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+            ...coerceAppriseConfig(current),
+            appriseUrl: value,
+          }))
+        }
+        placeholder="http://apprise:8000"
+      />
       <label className="space-y-2 text-sm">
         <span className="font-medium">{t('pages.notifications.appriseMode')}</span>
-        <select value={config.appriseMode} onChange={(event) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), appriseMode: event.target.value === 'urls' ? 'urls' : 'key' }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+        <select
+          value={config.appriseMode}
+          onChange={(event) =>
+            updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+              ...coerceAppriseConfig(current),
+              appriseMode: event.target.value === 'urls' ? 'urls' : 'key',
+            }))
+          }
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+        >
           <option value="key">{t('pages.notifications.appriseModeKey')}</option>
           <option value="urls">{t('pages.notifications.appriseModeUrls')}</option>
         </select>
       </label>
       {config.appriseMode === 'urls' ? (
         <div className="md:col-span-2">
-          <SecretInput label={t('pages.notifications.appriseUrls')} value={config.appriseUrls} onChange={(value) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), appriseUrls: value || current.appriseUrls }))} />
+          <SecretInput
+            label={t('pages.notifications.appriseUrls')}
+            value={config.appriseUrls}
+            onChange={(value) =>
+              updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+                ...coerceAppriseConfig(current),
+                appriseUrls: value || current.appriseUrls,
+              }))
+            }
+          />
         </div>
       ) : (
         <>
-          <LabeledInput label={t('pages.notifications.appriseKey')} value={config.appriseKey} onChange={(value) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), appriseKey: value }))} />
-          <LabeledInput label={t('pages.notifications.tags')} value={config.appriseTags} onChange={(value) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), appriseTags: value }))} />
+          <LabeledInput
+            label={t('pages.notifications.appriseKey')}
+            value={config.appriseKey}
+            onChange={(value) =>
+              updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+                ...coerceAppriseConfig(current),
+                appriseKey: value,
+              }))
+            }
+          />
+          <LabeledInput
+            label={t('pages.notifications.tags')}
+            value={config.appriseTags}
+            onChange={(value) =>
+              updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+                ...coerceAppriseConfig(current),
+                appriseTags: value,
+              }))
+            }
+          />
         </>
       )}
-      <LabeledInput label={t('pages.notifications.username')} value={config.appriseUsername} onChange={(value) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), appriseUsername: value }))} />
-      <SecretInput label={t('pages.notifications.password')} value={config.apprisePassword} onChange={(value) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), apprisePassword: value || current.apprisePassword }))} />
-      <LabeledInput label={t('pages.notifications.titlePrefix')} value={config.titlePrefix} onChange={(value) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), titlePrefix: value }))} />
+      <LabeledInput
+        label={t('pages.notifications.username')}
+        value={config.appriseUsername}
+        onChange={(value) =>
+          updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+            ...coerceAppriseConfig(current),
+            appriseUsername: value,
+          }))
+        }
+      />
+      <SecretInput
+        label={t('pages.notifications.password')}
+        value={config.apprisePassword}
+        onChange={(value) =>
+          updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+            ...coerceAppriseConfig(current),
+            apprisePassword: value || current.apprisePassword,
+          }))
+        }
+      />
+      <LabeledInput
+        label={t('pages.notifications.titlePrefix')}
+        value={config.titlePrefix}
+        onChange={(value) =>
+          updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+            ...coerceAppriseConfig(current),
+            titlePrefix: value,
+          }))
+        }
+      />
       <label className="space-y-2 text-sm">
         <span className="font-medium">{t('pages.notifications.appriseType')}</span>
-        <select value={config.appriseTypeOverride} onChange={(event) => updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({ ...coerceAppriseConfig(current), appriseTypeOverride: event.target.value as AppriseConfig['appriseTypeOverride'] }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
-          {APPRISE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+        <select
+          value={config.appriseTypeOverride}
+          onChange={(event) =>
+            updateChannelConfig<AppriseConfig>(onSetForm, (current) => ({
+              ...coerceAppriseConfig(current),
+              appriseTypeOverride: event.target.value as AppriseConfig['appriseTypeOverride'],
+            }))
+          }
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+        >
+          {APPRISE_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
         </select>
       </label>
     </div>
   );
 }
 
-function GotifyChannelFields({ config, onSetForm }: { config: GotifyConfig; onSetForm: Dispatch<SetStateAction<ChannelFormState>> }) {
+function GotifyChannelFields({
+  config,
+  onSetForm,
+}: {
+  config: GotifyConfig;
+  onSetForm: Dispatch<SetStateAction<ChannelFormState>>;
+}) {
   const { t } = useI18n();
 
   return (
     <div className="grid gap-4 rounded-xl border border-gray-200 p-4 md:grid-cols-2 dark:border-gray-700">
-      <LabeledInput label={t('pages.notifications.gotifyUrl')} value={config.gotifyUrl} onChange={(value) => updateChannelConfig<GotifyConfig>(onSetForm, (current) => ({ ...coerceGotifyConfig(current), gotifyUrl: value }))} />
+      <LabeledInput
+        label={t('pages.notifications.gotifyUrl')}
+        value={config.gotifyUrl}
+        onChange={(value) =>
+          updateChannelConfig<GotifyConfig>(onSetForm, (current) => ({
+            ...coerceGotifyConfig(current),
+            gotifyUrl: value,
+          }))
+        }
+      />
       <label className="space-y-2 text-sm">
         <span className="font-medium">{t('pages.notifications.priority')}</span>
-        <select value={config.gotifyPriorityOverride} onChange={(event) => updateChannelConfig<GotifyConfig>(onSetForm, (current) => ({ ...coerceGotifyConfig(current), gotifyPriorityOverride: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+        <select
+          value={config.gotifyPriorityOverride}
+          onChange={(event) =>
+            updateChannelConfig<GotifyConfig>(onSetForm, (current) => ({
+              ...coerceGotifyConfig(current),
+              gotifyPriorityOverride: event.target.value,
+            }))
+          }
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+        >
           <option value="auto">Auto</option>
-          {Array.from({ length: 11 }, (_, value) => <option key={value} value={String(value)}>{value}</option>)}
+          {Array.from({ length: 11 }, (_, value) => (
+            <option key={value} value={String(value)}>
+              {value}
+            </option>
+          ))}
         </select>
       </label>
       <div className="md:col-span-2">
-        <SecretInput label={t('pages.notifications.appToken')} value={config.gotifyToken} onChange={(value) => updateChannelConfig<GotifyConfig>(onSetForm, (current) => ({ ...coerceGotifyConfig(current), gotifyToken: value || current.gotifyToken }))} />
+        <SecretInput
+          label={t('pages.notifications.appToken')}
+          value={config.gotifyToken}
+          onChange={(value) =>
+            updateChannelConfig<GotifyConfig>(onSetForm, (current) => ({
+              ...coerceGotifyConfig(current),
+              gotifyToken: value || current.gotifyToken,
+            }))
+          }
+        />
       </div>
     </div>
   );
 }
 
-function NtfyChannelFields({ config, onSetForm }: { config: NtfyConfig; onSetForm: Dispatch<SetStateAction<ChannelFormState>> }) {
+function NtfyChannelFields({
+  config,
+  onSetForm,
+}: {
+  config: NtfyConfig;
+  onSetForm: Dispatch<SetStateAction<ChannelFormState>>;
+}) {
   const { t } = useI18n();
 
   return (
     <div className="grid gap-4 rounded-xl border border-gray-200 p-4 md:grid-cols-2 dark:border-gray-700">
-      <LabeledInput label={t('pages.notifications.serverUrl')} value={config.ntfyUrl} onChange={(value) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), ntfyUrl: value }))} />
-      <LabeledInput label={t('pages.notifications.topic')} value={config.ntfyTopic} onChange={(value) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), ntfyTopic: value }))} />
-      <SecretInput label={t('pages.notifications.accessToken')} value={config.ntfyToken} onChange={(value) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), ntfyToken: value || current.ntfyToken }))} />
-      <LabeledInput label={t('pages.notifications.username')} value={config.ntfyUsername} onChange={(value) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), ntfyUsername: value }))} />
-      <SecretInput label={t('pages.notifications.password')} value={config.ntfyPassword} onChange={(value) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), ntfyPassword: value || current.ntfyPassword }))} />
-      <LabeledInput label={t('pages.notifications.titlePrefix')} value={config.titlePrefix} onChange={(value) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), titlePrefix: value }))} />
-      <LabeledInput label={t('pages.notifications.tags')} value={config.tags} onChange={(value) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), tags: value }))} />
+      <LabeledInput
+        label={t('pages.notifications.serverUrl')}
+        value={config.ntfyUrl}
+        onChange={(value) =>
+          updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+            ...coerceNtfyConfig(current),
+            ntfyUrl: value,
+          }))
+        }
+      />
+      <LabeledInput
+        label={t('pages.notifications.topic')}
+        value={config.ntfyTopic}
+        onChange={(value) =>
+          updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+            ...coerceNtfyConfig(current),
+            ntfyTopic: value,
+          }))
+        }
+      />
+      <SecretInput
+        label={t('pages.notifications.accessToken')}
+        value={config.ntfyToken}
+        onChange={(value) =>
+          updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+            ...coerceNtfyConfig(current),
+            ntfyToken: value || current.ntfyToken,
+          }))
+        }
+      />
+      <LabeledInput
+        label={t('pages.notifications.username')}
+        value={config.ntfyUsername}
+        onChange={(value) =>
+          updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+            ...coerceNtfyConfig(current),
+            ntfyUsername: value,
+          }))
+        }
+      />
+      <SecretInput
+        label={t('pages.notifications.password')}
+        value={config.ntfyPassword}
+        onChange={(value) =>
+          updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+            ...coerceNtfyConfig(current),
+            ntfyPassword: value || current.ntfyPassword,
+          }))
+        }
+      />
+      <LabeledInput
+        label={t('pages.notifications.titlePrefix')}
+        value={config.titlePrefix}
+        onChange={(value) =>
+          updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+            ...coerceNtfyConfig(current),
+            titlePrefix: value,
+          }))
+        }
+      />
+      <LabeledInput
+        label={t('pages.notifications.tags')}
+        value={config.tags}
+        onChange={(value) =>
+          updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+            ...coerceNtfyConfig(current),
+            tags: value,
+          }))
+        }
+      />
       <label className="space-y-2 text-sm">
         <span className="font-medium">{t('pages.notifications.priority')}</span>
-        <select value={config.ntfyPriorityOverride} onChange={(event) => updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({ ...coerceNtfyConfig(current), ntfyPriorityOverride: event.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
-          {['auto', 'min', 'low', 'default', 'high', 'urgent'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+        <select
+          value={config.ntfyPriorityOverride}
+          onChange={(event) =>
+            updateChannelConfig<NtfyConfig>(onSetForm, (current) => ({
+              ...coerceNtfyConfig(current),
+              ntfyPriorityOverride: event.target.value,
+            }))
+          }
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+        >
+          {['auto', 'min', 'low', 'default', 'high', 'urgent'].map((priority) => (
+            <option key={priority} value={priority}>
+              {priority}
+            </option>
+          ))}
         </select>
       </label>
     </div>
   );
 }
 
-function MqttChannelFields({ config, onSetForm }: { config: MqttConfig; onSetForm: Dispatch<SetStateAction<ChannelFormState>> }) {
+function MqttChannelFields({
+  config,
+  onSetForm,
+}: {
+  config: MqttConfig;
+  onSetForm: Dispatch<SetStateAction<ChannelFormState>>;
+}) {
   const { t } = useI18n();
 
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <LabeledInput label={t('pages.notifications.brokerUrl')} value={config.brokerUrl} onChange={(value) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), brokerUrl: value }))} placeholder="mqtt://broker.example.com:1883" />
+          <LabeledInput
+            label={t('pages.notifications.brokerUrl')}
+            value={config.brokerUrl}
+            onChange={(value) =>
+              updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+                ...coerceMqttConfig(current),
+                brokerUrl: value,
+              }))
+            }
+            placeholder="mqtt://broker.example.com:1883"
+          />
         </div>
-        <LabeledInput label={t('pages.notifications.username')} value={config.username} onChange={(value) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), username: value }))} />
-        <SecretInput label={t('pages.notifications.password')} value={config.password} onChange={(value) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), password: value || current.password }))} />
-        <LabeledInput label={t('pages.notifications.clientId')} value={config.clientId} onChange={(value) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), clientId: value }))} />
+        <LabeledInput
+          label={t('pages.notifications.username')}
+          value={config.username}
+          onChange={(value) =>
+            updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+              ...coerceMqttConfig(current),
+              username: value,
+            }))
+          }
+        />
+        <SecretInput
+          label={t('pages.notifications.password')}
+          value={config.password}
+          onChange={(value) =>
+            updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+              ...coerceMqttConfig(current),
+              password: value || current.password,
+            }))
+          }
+        />
+        <LabeledInput
+          label={t('pages.notifications.clientId')}
+          value={config.clientId}
+          onChange={(value) =>
+            updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+              ...coerceMqttConfig(current),
+              clientId: value,
+            }))
+          }
+        />
         <label className="space-y-2 text-sm">
           <span className="font-medium">QoS</span>
-          <select value={String(config.qos)} onChange={(event) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), qos: event.target.value === '0' ? 0 : 1 }))} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+          <select
+            value={String(config.qos)}
+            onChange={(event) =>
+              updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+                ...coerceMqttConfig(current),
+                qos: event.target.value === '0' ? 0 : 1,
+              }))
+            }
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          >
             <option value="0">0</option>
             <option value="1">1</option>
           </select>
         </label>
-        <LabeledInput label={t('pages.notifications.keepaliveSeconds')} type="number" value={config.keepaliveSeconds} onChange={(value) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), keepaliveSeconds: Number(value || '0') }))} />
-        <LabeledInput label={t('pages.notifications.connectTimeoutMs')} type="number" value={config.connectTimeoutMs} onChange={(value) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), connectTimeoutMs: Number(value || '0') }))} />
+        <LabeledInput
+          label={t('pages.notifications.keepaliveSeconds')}
+          type="number"
+          value={config.keepaliveSeconds}
+          onChange={(value) =>
+            updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+              ...coerceMqttConfig(current),
+              keepaliveSeconds: Number(value || '0'),
+            }))
+          }
+        />
+        <LabeledInput
+          label={t('pages.notifications.connectTimeoutMs')}
+          type="number"
+          value={config.connectTimeoutMs}
+          onChange={(value) =>
+            updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+              ...coerceMqttConfig(current),
+              connectTimeoutMs: Number(value || '0'),
+            }))
+          }
+        />
         <div className="md:col-span-2">
-          <LabeledInput label={t('pages.notifications.topic')} value={config.topic} onChange={(value) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), topic: value }))} placeholder="crowdsec/notifications" />
+          <LabeledInput
+            label={t('pages.notifications.topic')}
+            value={config.topic}
+            onChange={(value) =>
+              updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+                ...coerceMqttConfig(current),
+                topic: value,
+              }))
+            }
+            placeholder="crowdsec/notifications"
+          />
         </div>
       </div>
       <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-700">
-        <Switch id="mqtt-retain-events" checked={config.retainEvents} onCheckedChange={(checked) => updateChannelConfig<MqttConfig>(onSetForm, (current) => ({ ...coerceMqttConfig(current), retainEvents: checked }))} />
+        <Switch
+          id="mqtt-retain-events"
+          checked={config.retainEvents}
+          onCheckedChange={(checked) =>
+            updateChannelConfig<MqttConfig>(onSetForm, (current) => ({
+              ...coerceMqttConfig(current),
+              retainEvents: checked,
+            }))
+          }
+        />
         <span className="font-medium">{t('pages.notifications.retainMqttPayloads')}</span>
       </label>
     </div>
   );
 }
 
-function WebhookChannelFields({ config, onSetForm }: { config: WebhookConfig; onSetForm: Dispatch<SetStateAction<ChannelFormState>> }) {
+function WebhookChannelFields({
+  config,
+  onSetForm,
+}: {
+  config: WebhookConfig;
+  onSetForm: Dispatch<SetStateAction<ChannelFormState>>;
+}) {
   const { t } = useI18n();
   const bearerAuth = config.auth.mode === 'bearer' ? config.auth : null;
   const basicAuth = config.auth.mode === 'basic' ? config.auth : null;
@@ -2203,26 +3161,58 @@ function WebhookChannelFields({ config, onSetForm }: { config: WebhookConfig; on
       <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-2 text-sm">
           <span className="font-medium">{t('pages.notifications.method')}</span>
-          <select value={config.method} onChange={(event) => setWebhookConfig({ ...config, method: event.target.value as WebhookConfig['method'] })} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+          <select
+            value={config.method}
+            onChange={(event) =>
+              setWebhookConfig({ ...config, method: event.target.value as WebhookConfig['method'] })
+            }
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          >
             <option value="POST">POST</option>
             <option value="PUT">PUT</option>
             <option value="PATCH">PATCH</option>
           </select>
         </label>
-        <LabeledInput label={t('pages.notifications.url')} value={config.url} onChange={(value) => setWebhookConfig({ ...config, url: value })} />
+        <LabeledInput
+          label={t('pages.notifications.url')}
+          value={config.url}
+          onChange={(value) => setWebhookConfig({ ...config, url: value })}
+        />
       </div>
 
       <SectionHeader
         title={t('pages.notifications.queryParameters')}
         actionLabel={t('pages.notifications.addQuery')}
-        onAction={() => setWebhookConfig({ ...config, query: [...config.query, { name: '', value: '' }] })}
+        onAction={() =>
+          setWebhookConfig({ ...config, query: [...config.query, { name: '', value: '' }] })
+        }
       />
       <div className="space-y-3">
-        {config.query.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">{t('pages.notifications.noQueryParameters')}</p>}
+        {config.query.length === 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t('pages.notifications.noQueryParameters')}
+          </p>
+        )}
         {config.query.map((entry, index) => (
-          <RowEditor key={`query-${index}`} onRemove={() => setWebhookConfig({ ...config, query: config.query.filter((_, currentIndex) => currentIndex !== index) })}>
-            <LabeledInput label={t('common.name')} value={entry.name} onChange={(value) => updateQuery(index, { name: value })} />
-            <LabeledInput label={t('pages.notifications.value')} value={entry.value} onChange={(value) => updateQuery(index, { value })} />
+          <RowEditor
+            key={`query-${index}`}
+            onRemove={() =>
+              setWebhookConfig({
+                ...config,
+                query: config.query.filter((_, currentIndex) => currentIndex !== index),
+              })
+            }
+          >
+            <LabeledInput
+              label={t('common.name')}
+              value={entry.name}
+              onChange={(value) => updateQuery(index, { name: value })}
+            />
+            <LabeledInput
+              label={t('pages.notifications.value')}
+              value={entry.value}
+              onChange={(value) => updateQuery(index, { value })}
+            />
           </RowEditor>
         ))}
       </div>
@@ -2230,16 +3220,45 @@ function WebhookChannelFields({ config, onSetForm }: { config: WebhookConfig; on
       <SectionHeader
         title={t('pages.notifications.headers')}
         actionLabel={t('pages.notifications.addHeader')}
-        onAction={() => setWebhookConfig({ ...config, headers: [...config.headers, { name: '', value: '', sensitive: false }] })}
+        onAction={() =>
+          setWebhookConfig({
+            ...config,
+            headers: [...config.headers, { name: '', value: '', sensitive: false }],
+          })
+        }
       />
       <div className="space-y-3">
-        {config.headers.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">{t('pages.notifications.noHeaders')}</p>}
+        {config.headers.length === 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t('pages.notifications.noHeaders')}
+          </p>
+        )}
         {config.headers.map((header, index) => (
-          <RowEditor key={`header-${index}`} onRemove={() => setWebhookConfig({ ...config, headers: config.headers.filter((_, currentIndex) => currentIndex !== index) })}>
-            <LabeledInput label={t('common.name')} value={header.name} onChange={(value) => updateHeader(index, { name: value })} />
-            <SecretInput label={t('pages.notifications.value')} value={header.value} onChange={(value) => updateHeader(index, { value: value || header.value })} />
+          <RowEditor
+            key={`header-${index}`}
+            onRemove={() =>
+              setWebhookConfig({
+                ...config,
+                headers: config.headers.filter((_, currentIndex) => currentIndex !== index),
+              })
+            }
+          >
+            <LabeledInput
+              label={t('common.name')}
+              value={header.name}
+              onChange={(value) => updateHeader(index, { name: value })}
+            />
+            <SecretInput
+              label={t('pages.notifications.value')}
+              value={header.value}
+              onChange={(value) => updateHeader(index, { value: value || header.value })}
+            />
             <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-700">
-              <Switch id={`header-sensitive-${index}`} checked={header.sensitive} onCheckedChange={(checked) => updateHeader(index, { sensitive: checked })} />
+              <Switch
+                id={`header-sensitive-${index}`}
+                checked={header.sensitive}
+                onCheckedChange={(checked) => updateHeader(index, { sensitive: checked })}
+              />
               <span className="font-medium">{t('pages.notifications.sensitive')}</span>
             </label>
           </RowEditor>
@@ -2249,16 +3268,23 @@ function WebhookChannelFields({ config, onSetForm }: { config: WebhookConfig; on
       <div className="grid gap-4 md:grid-cols-3">
         <label className="space-y-2 text-sm">
           <span className="font-medium">{t('pages.notifications.authentication')}</span>
-          <select value={config.auth.mode} onChange={(event) => {
-            const mode = event.target.value as WebhookAuthConfig['mode'];
-            if (mode === 'bearer') {
-              setWebhookConfig({ ...config, auth: { mode: 'bearer', token: '' } });
-            } else if (mode === 'basic') {
-              setWebhookConfig({ ...config, auth: { mode: 'basic', username: '', password: '' } });
-            } else {
-              setWebhookConfig({ ...config, auth: { mode: 'none' } });
-            }
-          }} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+          <select
+            value={config.auth.mode}
+            onChange={(event) => {
+              const mode = event.target.value as WebhookAuthConfig['mode'];
+              if (mode === 'bearer') {
+                setWebhookConfig({ ...config, auth: { mode: 'bearer', token: '' } });
+              } else if (mode === 'basic') {
+                setWebhookConfig({
+                  ...config,
+                  auth: { mode: 'basic', username: '', password: '' },
+                });
+              } else {
+                setWebhookConfig({ ...config, auth: { mode: 'none' } });
+              }
+            }}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          >
             <option value="none">None</option>
             <option value="bearer">Bearer</option>
             <option value="basic">Basic</option>
@@ -2266,13 +3292,44 @@ function WebhookChannelFields({ config, onSetForm }: { config: WebhookConfig; on
         </label>
         {bearerAuth && (
           <div className="md:col-span-2">
-            <SecretInput label={t('pages.notifications.bearerToken')} value={bearerAuth.token} onChange={(value) => setWebhookConfig({ ...config, auth: { mode: 'bearer', token: value || bearerAuth.token } })} />
+            <SecretInput
+              label={t('pages.notifications.bearerToken')}
+              value={bearerAuth.token}
+              onChange={(value) =>
+                setWebhookConfig({
+                  ...config,
+                  auth: { mode: 'bearer', token: value || bearerAuth.token },
+                })
+              }
+            />
           </div>
         )}
         {basicAuth && (
           <>
-            <LabeledInput label={t('pages.notifications.username')} value={basicAuth.username} onChange={(value) => setWebhookConfig({ ...config, auth: { mode: 'basic', username: value, password: basicAuth.password } })} />
-            <SecretInput label={t('pages.notifications.password')} value={basicAuth.password} onChange={(value) => setWebhookConfig({ ...config, auth: { mode: 'basic', username: basicAuth.username, password: value || basicAuth.password } })} />
+            <LabeledInput
+              label={t('pages.notifications.username')}
+              value={basicAuth.username}
+              onChange={(value) =>
+                setWebhookConfig({
+                  ...config,
+                  auth: { mode: 'basic', username: value, password: basicAuth.password },
+                })
+              }
+            />
+            <SecretInput
+              label={t('pages.notifications.password')}
+              value={basicAuth.password}
+              onChange={(value) =>
+                setWebhookConfig({
+                  ...config,
+                  auth: {
+                    mode: 'basic',
+                    username: basicAuth.username,
+                    password: value || basicAuth.password,
+                  },
+                })
+              }
+            />
           </>
         )}
       </div>
@@ -2280,14 +3337,24 @@ function WebhookChannelFields({ config, onSetForm }: { config: WebhookConfig; on
       <div className="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
         <label className="space-y-2 text-sm">
           <span className="font-medium">{t('pages.notifications.bodyMode')}</span>
-          <select value={config.body.mode} onChange={(event) => {
-            const mode = event.target.value as WebhookBodyConfig['mode'];
-            if (mode === 'form') {
-              setWebhookConfig({ ...config, body: { mode: 'form', fields: [] } });
-            } else {
-              setWebhookConfig({ ...config, body: { mode: mode === 'json' ? 'json' : 'text', template: config.body.mode === 'form' ? '' : config.body.template } });
-            }
-          }} className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+          <select
+            value={config.body.mode}
+            onChange={(event) => {
+              const mode = event.target.value as WebhookBodyConfig['mode'];
+              if (mode === 'form') {
+                setWebhookConfig({ ...config, body: { mode: 'form', fields: [] } });
+              } else {
+                setWebhookConfig({
+                  ...config,
+                  body: {
+                    mode: mode === 'json' ? 'json' : 'text',
+                    template: config.body.mode === 'form' ? '' : config.body.template,
+                  },
+                });
+              }
+            }}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          >
             <option value="json">JSON</option>
             <option value="text">Text</option>
             <option value="form">Form</option>
@@ -2297,40 +3364,118 @@ function WebhookChannelFields({ config, onSetForm }: { config: WebhookConfig; on
         {formBody ? (
           <div className="space-y-3">
             <div className="pt-2">
-              <SectionHeader title={t('pages.notifications.formFields')} actionLabel={t('pages.notifications.addField')} onAction={() => setWebhookConfig({ ...config, body: { mode: 'form', fields: [...formBody.fields, { name: '', value: '', sensitive: false }] } })} />
+              <SectionHeader
+                title={t('pages.notifications.formFields')}
+                actionLabel={t('pages.notifications.addField')}
+                onAction={() =>
+                  setWebhookConfig({
+                    ...config,
+                    body: {
+                      mode: 'form',
+                      fields: [...formBody.fields, { name: '', value: '', sensitive: false }],
+                    },
+                  })
+                }
+              />
             </div>
-            {formBody.fields.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">{t('pages.notifications.noFormFields')}</p>}
+            {formBody.fields.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t('pages.notifications.noFormFields')}
+              </p>
+            )}
             {formBody.fields.map((field, index) => (
-              <RowEditor key={`form-field-${index}`} onRemove={() => setWebhookConfig({ ...config, body: { mode: 'form', fields: formBody.fields.filter((_, currentIndex: number) => currentIndex !== index) } })}>
-                <LabeledInput label={t('common.name')} value={field.name} onChange={(value) => updateFormField(index, { name: value })} />
-                <SecretInput label={t('pages.notifications.value')} value={field.value} onChange={(value) => updateFormField(index, { value: value || field.value })} />
+              <RowEditor
+                key={`form-field-${index}`}
+                onRemove={() =>
+                  setWebhookConfig({
+                    ...config,
+                    body: {
+                      mode: 'form',
+                      fields: formBody.fields.filter(
+                        (_, currentIndex: number) => currentIndex !== index,
+                      ),
+                    },
+                  })
+                }
+              >
+                <LabeledInput
+                  label={t('common.name')}
+                  value={field.name}
+                  onChange={(value) => updateFormField(index, { name: value })}
+                />
+                <SecretInput
+                  label={t('pages.notifications.value')}
+                  value={field.value}
+                  onChange={(value) => updateFormField(index, { value: value || field.value })}
+                />
                 <label className="flex items-center gap-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-700">
-                  <Switch id={`body-field-sensitive-${index}`} checked={field.sensitive} onCheckedChange={(checked) => updateFormField(index, { sensitive: checked })} />
+                  <Switch
+                    id={`body-field-sensitive-${index}`}
+                    checked={field.sensitive}
+                    onCheckedChange={(checked) => updateFormField(index, { sensitive: checked })}
+                  />
                   <span className="font-medium">{t('pages.notifications.sensitive')}</span>
                 </label>
               </RowEditor>
             ))}
           </div>
         ) : (
-          <LabeledTextArea label={t('pages.notifications.bodyTemplate')} rows={8} value={templateBody?.template || ''} onChange={(value) => setWebhookConfig({ ...config, body: { mode: templateBody?.mode === 'json' ? 'json' : 'text', template: value } })} />
+          <LabeledTextArea
+            label={t('pages.notifications.bodyTemplate')}
+            rows={8}
+            value={templateBody?.template || ''}
+            onChange={(value) =>
+              setWebhookConfig({
+                ...config,
+                body: { mode: templateBody?.mode === 'json' ? 'json' : 'text', template: value },
+              })
+            }
+          />
         )}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <LabeledInput label={t('pages.notifications.timeoutMs')} type="number" value={config.timeoutMs} onChange={(value) => setWebhookConfig({ ...config, timeoutMs: Number(value || '0') })} />
-        <LabeledInput label={t('pages.notifications.retryAttempts')} type="number" value={config.retryAttempts} onChange={(value) => setWebhookConfig({ ...config, retryAttempts: Number(value || '0') })} />
-        <LabeledInput label={t('pages.notifications.retryDelayMs')} type="number" value={config.retryDelayMs} onChange={(value) => setWebhookConfig({ ...config, retryDelayMs: Number(value || '0') })} />
+        <LabeledInput
+          label={t('pages.notifications.timeoutMs')}
+          type="number"
+          value={config.timeoutMs}
+          onChange={(value) => setWebhookConfig({ ...config, timeoutMs: Number(value || '0') })}
+        />
+        <LabeledInput
+          label={t('pages.notifications.retryAttempts')}
+          type="number"
+          value={config.retryAttempts}
+          onChange={(value) => setWebhookConfig({ ...config, retryAttempts: Number(value || '0') })}
+        />
+        <LabeledInput
+          label={t('pages.notifications.retryDelayMs')}
+          type="number"
+          value={config.retryDelayMs}
+          onChange={(value) => setWebhookConfig({ ...config, retryDelayMs: Number(value || '0') })}
+        />
       </div>
 
       <label className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-800/60 dark:bg-amber-950/20">
-        <Switch id="webhook-allow-insecure-tls" checked={config.allowInsecureTls} onCheckedChange={(checked) => setWebhookConfig({ ...config, allowInsecureTls: checked })} />
+        <Switch
+          id="webhook-allow-insecure-tls"
+          checked={config.allowInsecureTls}
+          onCheckedChange={(checked) => setWebhookConfig({ ...config, allowInsecureTls: checked })}
+        />
         <span className="font-medium">{t('pages.notifications.allowInsecureWebhookTls')}</span>
       </label>
     </div>
   );
 }
 
-function SectionHeader({ title, actionLabel, onAction }: { title: string; actionLabel: string; onAction: () => void }) {
+function SectionHeader({
+  title,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
   return (
     <div className="flex items-center justify-between gap-3">
       <p className="text-sm font-medium">{title}</p>
@@ -2373,27 +3518,38 @@ function RuleConfigFields({
 }) {
   const { t } = useI18n();
   const { appName } = useBranding();
-  const input = (key: string, label: string) => <LabeledInput key={key} label={label} value={form.config[key] || ''} onChange={(value) => onChange(key, value)} />;
-  const windowHelp = (key: string) => <p className="text-xs text-gray-500 dark:text-gray-400">{t(key)}</p>;
-  if (form.type === 'alert-spike') return (
-    <div className="space-y-2">
-      <div className="grid gap-4 md:grid-cols-3">
-        {input('window_minutes', t('pages.notifications.windowMinutes'))}
-        {input('percent_increase', t('pages.notifications.percentIncrease'))}
-        {input('minimum_current_alerts', t('pages.notifications.minimumAlerts'))}
-      </div>
-      {windowHelp('pages.notifications.alertSpikeWindowHelp')}
-    </div>
+  const input = (key: string, label: string) => (
+    <LabeledInput
+      key={key}
+      label={label}
+      value={form.config[key] || ''}
+      onChange={(value) => onChange(key, value)}
+    />
   );
-  if (form.type === 'alert-threshold') return (
-    <div className="space-y-2">
-      <div className="grid gap-4 md:grid-cols-2">
-        {input('window_minutes', t('pages.notifications.windowMinutes'))}
-        {input('alert_threshold', t('pages.notifications.alertThreshold'))}
-      </div>
-      {windowHelp('pages.notifications.alertThresholdWindowHelp')}
-    </div>
+  const windowHelp = (key: string) => (
+    <p className="text-xs text-gray-500 dark:text-gray-400">{t(key)}</p>
   );
+  if (form.type === 'alert-spike')
+    return (
+      <div className="space-y-2">
+        <div className="grid gap-4 md:grid-cols-3">
+          {input('window_minutes', t('pages.notifications.windowMinutes'))}
+          {input('percent_increase', t('pages.notifications.percentIncrease'))}
+          {input('minimum_current_alerts', t('pages.notifications.minimumAlerts'))}
+        </div>
+        {windowHelp('pages.notifications.alertSpikeWindowHelp')}
+      </div>
+    );
+  if (form.type === 'alert-threshold')
+    return (
+      <div className="space-y-2">
+        <div className="grid gap-4 md:grid-cols-2">
+          {input('window_minutes', t('pages.notifications.windowMinutes'))}
+          {input('alert_threshold', t('pages.notifications.alertThreshold'))}
+        </div>
+        {windowHelp('pages.notifications.alertThresholdWindowHelp')}
+      </div>
+    );
   if (form.type === 'new-alert-decision') {
     const eventType = form.config.event_type || 'both';
     const includesAlerts = eventType !== 'decision';
@@ -2444,18 +3600,24 @@ function RuleConfigFields({
       </div>
     );
   }
-  if (form.type === 'ip-ban') return (
-    <div className="space-y-2">
-      <div className="grid gap-4 md:grid-cols-2">
-        {input('window_minutes', t('pages.notifications.windowMinutes'))}
+  if (form.type === 'ip-ban')
+    return (
+      <div className="space-y-2">
+        <div className="grid gap-4 md:grid-cols-2">
+          {input('window_minutes', t('pages.notifications.windowMinutes'))}
+        </div>
+        {windowHelp('pages.notifications.ipBanWindowHelp')}
       </div>
-      {windowHelp('pages.notifications.ipBanWindowHelp')}
-    </div>
-  );
+    );
   if (form.type === 'application-update' || form.type === 'crowdsec-update') {
     return (
       <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
-        {t(form.type === 'crowdsec-update' ? 'pages.notifications.crowdsecUpdateHelp' : 'pages.notifications.applicationUpdateHelp', { appName })}
+        {t(
+          form.type === 'crowdsec-update'
+            ? 'pages.notifications.crowdsecUpdateHelp'
+            : 'pages.notifications.applicationUpdateHelp',
+          { appName },
+        )}
       </div>
     );
   }
@@ -2469,18 +3631,24 @@ function RuleConfigFields({
           <Switch
             id="rule-notify-on-recovery"
             checked={form.config.notify_on_recovery === 'true'}
-            onCheckedChange={(checked) => onSetForm((current) => ({
-              ...current,
-              config: {
-                ...current.config,
-                notify_on_recovery: checked ? 'true' : 'false',
-              },
-            }))}
+            onCheckedChange={(checked) =>
+              onSetForm((current) => ({
+                ...current,
+                config: {
+                  ...current.config,
+                  notify_on_recovery: checked ? 'true' : 'false',
+                },
+              }))
+            }
           />
           <span className="font-medium">{t('pages.notifications.sendRecoveryNotification')}</span>
         </label>
       </div>
     );
   }
-  return <div className="grid gap-4 md:grid-cols-2">{input('max_cve_age_days', t('pages.notifications.maximumCveAgeDays'))}</div>;
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {input('max_cve_age_days', t('pages.notifications.maximumCveAgeDays'))}
+    </div>
+  );
 }

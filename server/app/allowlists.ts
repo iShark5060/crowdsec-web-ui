@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+
 import type { Hono } from 'hono';
+
 import type {
   AllowlistCheckInstanceResult,
   AllowlistSyncProgress,
@@ -12,7 +14,11 @@ import type {
   AllowlistSummary,
 } from '../../shared/contracts';
 import type { RuntimeConfig } from '../config';
-import { ALLOWLIST_SYNC_META_PREFIX, type CachedAllowlist, type CrowdsecDatabase } from '../database';
+import {
+  ALLOWLIST_SYNC_META_PREFIX,
+  type CachedAllowlist,
+  type CrowdsecDatabase,
+} from '../database';
 import type { LapiAllowlist, LapiClient } from '../lapi';
 import type { DatabaseQueryWorker } from '../query-worker-client';
 import type { DatabaseSyncWorker } from '../sync-worker-client';
@@ -61,7 +67,9 @@ const INSTANCE_ID_SEPARATOR = '\u001f';
 function normalizeTimestamp(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value) return undefined;
   const time = Date.parse(value);
-  return Number.isFinite(time) && new Date(time).getUTCFullYear() > 1 ? new Date(time).toISOString() : undefined;
+  return Number.isFinite(time) && new Date(time).getUTCFullYear() > 1
+    ? new Date(time).toISOString()
+    : undefined;
 }
 
 function normalizeAllowlists(allowlists: LapiAllowlist[]): CachedAllowlist[] {
@@ -122,11 +130,21 @@ export function createAllowlistService(options: {
   /** Notifies open pages after cached allowlists or their status changed. */
   onChange: (instanceIds: string[]) => void;
 }) {
-  const { config, lapiClients, database, queryWorker, syncWorker, runConsistentDatabaseRefresh, onChange } = options;
+  const {
+    config,
+    lapiClients,
+    database,
+    queryWorker,
+    syncWorker,
+    runConsistentDatabaseRefresh,
+    onChange,
+  } = options;
   const syncs = new Map<string, Promise<void>>();
   const progress = new Map<string, AllowlistSyncProgress>();
-  const instanceOrder = (instanceId: string) => config.instances.findIndex((instance) => instance.id === instanceId);
-  const byInstanceOrder = (left: string, right: string) => instanceOrder(left) - instanceOrder(right);
+  const instanceOrder = (instanceId: string) =>
+    config.instances.findIndex((instance) => instance.id === instanceId);
+  const byInstanceOrder = (left: string, right: string) =>
+    instanceOrder(left) - instanceOrder(right);
 
   function resolveScope(scope: string | undefined): ConfiguredInstance[] | null {
     if (!scope || scope === 'all') return config.instances;
@@ -154,7 +172,10 @@ export function createAllowlistService(options: {
     let next: AllowlistSyncState;
     try {
       snapshot = normalizeAllowlists(await client.fetchAllowlists());
-      next = { status: 'available', hash: crypto.createHash('sha256').update(JSON.stringify(snapshot)).digest('hex') };
+      next = {
+        status: 'available',
+        hash: crypto.createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),
+      };
     } catch (error) {
       // A failed read keeps the cached allowlists, like a failed alert refresh.
       const status = failureStatus(error);
@@ -181,16 +202,22 @@ export function createAllowlistService(options: {
     }
 
     const changedSnapshot = snapshotChanged ? snapshot : null;
-    const committed = await runConsistentDatabaseRefresh(async () => (syncWorker.replaceAllowlists
-      ? syncWorker.replaceAllowlists(instanceId, changedSnapshot, JSON.stringify(next))
-      // Injected test workers without this operation write through the main connection.
-      : database.replaceAllowlists(instanceId, changedSnapshot, JSON.stringify(next))));
+    const committed = await runConsistentDatabaseRefresh(async () =>
+      syncWorker.replaceAllowlists
+        ? syncWorker.replaceAllowlists(instanceId, changedSnapshot, JSON.stringify(next))
+        : // Injected test workers without this operation write through the main connection.
+          database.replaceAllowlists(instanceId, changedSnapshot, JSON.stringify(next)),
+    );
     committed.releasePublishedRevision();
     progress.set(instanceId, finished);
     if (snapshotChanged) {
-      console.log(`[allowlists] Cached ${finished.allowlists} allowlists with ${finished.entries} entries for ${instance.name}.`);
+      console.log(
+        `[allowlists] Cached ${finished.allowlists} allowlists with ${finished.entries} entries for ${instance.name}.`,
+      );
     } else if (next.status !== 'available') {
-      console.warn(`[allowlists] Could not refresh allowlists for ${instance.name}: ${next.error || 'not supported by this LAPI'}.`);
+      console.warn(
+        `[allowlists] Could not refresh allowlists for ${instance.name}: ${next.error || 'not supported by this LAPI'}.`,
+      );
     }
     // Nothing could show this instance's allowlists before its first sync.
     if (previous) onChange([instanceId]);
@@ -216,7 +243,9 @@ export function createAllowlistService(options: {
 
   // Readers only wait for instances that were never synchronized.
   async function ensureSynced(instances: ConfiguredInstance[]): Promise<void> {
-    await syncInstances(instances.filter((instance) => !readSyncState(instance.id)).map((instance) => instance.id));
+    await syncInstances(
+      instances.filter((instance) => !readSyncState(instance.id)).map((instance) => instance.id),
+    );
   }
 
   function instanceStatuses(instances: ConfiguredInstance[]): AllowlistInstanceStatus[] {
@@ -235,21 +264,31 @@ export function createAllowlistService(options: {
   function entryFilter(query: string): { sql: string; params: string[] } {
     if (!query) return { sql: '', params: [] };
     const pattern = likePattern(query);
-    return { sql: `(value LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')`, params: [pattern, pattern] };
+    return {
+      sql: `(value LIKE ? ESCAPE '\\' OR description LIKE ? ESCAPE '\\')`,
+      params: [pattern, pattern],
+    };
   }
 
-  async function querySummaries(instances: ConfiguredInstance[], query: string, name?: string): Promise<AllowlistSummary[]> {
+  async function querySummaries(
+    instances: ConfiguredInstance[],
+    query: string,
+    name?: string,
+  ): Promise<AllowlistSummary[]> {
     const ids = instances.map((instance) => instance.id);
     const placeholders = ids.map(() => '?').join(', ');
     const nameFilter = name === undefined ? '' : 'AND name = ?';
     const itemNameFilter = name === undefined ? '' : 'AND allowlist_name = ?';
     const nameParams = name === undefined ? [] : [name];
     const now = new Date().toISOString();
-    const rows = await queryWorker.all<AllowlistRow>(`
+    const rows = await queryWorker.all<AllowlistRow>(
+      `
       SELECT instance_id, name, description, created_at, updated_at, console_managed
       FROM allowlists
       WHERE instance_id IN (${placeholders}) ${nameFilter}
-    `, [...ids, ...nameParams]);
+    `,
+      [...ids, ...nameParams],
+    );
     const countSql = (filter: string) => `
       SELECT allowlist_name AS name, COUNT(DISTINCT value) AS count
       FROM allowlist_items
@@ -257,16 +296,33 @@ export function createAllowlistService(options: {
         AND (expiration IS NULL OR expiration > ?) ${filter ? `AND ${filter}` : ''}
       GROUP BY allowlist_name
     `;
-    const totals = new Map((await queryWorker.all<{ name: string; count: number }>(countSql(''), [...ids, ...nameParams, now]))
-      .map((row) => [row.name, row.count]));
+    const totals = new Map(
+      (
+        await queryWorker.all<{ name: string; count: number }>(countSql(''), [
+          ...ids,
+          ...nameParams,
+          now,
+        ])
+      ).map((row) => [row.name, row.count]),
+    );
     const filter = entryFilter(query);
     const matches = query
-      ? new Map((await queryWorker.all<{ name: string; count: number }>(countSql(filter.sql), [...ids, ...nameParams, now, ...filter.params]))
-        .map((row) => [row.name, row.count]))
+      ? new Map(
+          (
+            await queryWorker.all<{ name: string; count: number }>(countSql(filter.sql), [
+              ...ids,
+              ...nameParams,
+              now,
+              ...filter.params,
+            ])
+          ).map((row) => [row.name, row.count]),
+        )
       : totals;
 
     const summaries = new Map<string, AllowlistSummary>();
-    for (const row of rows.sort((left, right) => byInstanceOrder(left.instance_id, right.instance_id))) {
+    for (const row of rows.sort((left, right) =>
+      byInstanceOrder(left.instance_id, right.instance_id),
+    )) {
       let summary = summaries.get(row.name);
       if (!summary) {
         summary = {
@@ -282,20 +338,28 @@ export function createAllowlistService(options: {
       }
       summary.instance_ids.push(row.instance_id);
       summary.console_managed ||= row.console_managed === 1;
-      if (row.updated_at && (!summary.updated_at || row.updated_at > summary.updated_at)) summary.updated_at = row.updated_at;
+      if (row.updated_at && (!summary.updated_at || row.updated_at > summary.updated_at))
+        summary.updated_at = row.updated_at;
     }
     return Array.from(summaries.values())
       .flatMap((summary) => {
         // A filter matching the allowlist itself keeps every entry.
-        const listMatches = textMatches(summary.name, query) || textMatches(summary.description, query);
-        const matching = !query || listMatches ? summary.entry_count : matches.get(summary.name) ?? 0;
+        const listMatches =
+          textMatches(summary.name, query) || textMatches(summary.description, query);
+        const matching =
+          !query || listMatches ? summary.entry_count : (matches.get(summary.name) ?? 0);
         // A requested allowlist stays listed so its page can report zero matches.
-        return name === undefined && query && !listMatches && matching === 0 ? [] : [{ ...summary, matching_entries: matching }];
+        return name === undefined && query && !listMatches && matching === 0
+          ? []
+          : [{ ...summary, matching_entries: matching }];
       })
       .sort((left, right) => left.name.localeCompare(right.name));
   }
 
-  async function listAllowlists(instances: ConfiguredInstance[], query = ''): Promise<AllowlistsResponse> {
+  async function listAllowlists(
+    instances: ConfiguredInstance[],
+    query = '',
+  ): Promise<AllowlistsResponse> {
     const statuses = instanceStatuses(instances);
     return {
       instances: statuses,
@@ -313,12 +377,14 @@ export function createAllowlistService(options: {
     const query = rawQuery.trim();
     const [allowlist] = await querySummaries(instances, query, name);
     if (!allowlist) return null;
-    const keepsEveryEntry = textMatches(allowlist.name, query) || textMatches(allowlist.description, query);
+    const keepsEveryEntry =
+      textMatches(allowlist.name, query) || textMatches(allowlist.description, query);
     const filter = entryFilter(keepsEveryEntry ? '' : query);
     const ids = instances.map((instance) => instance.id);
     const placeholders = ids.map(() => '?').join(', ');
     // Match after grouping so every active copy contributes membership and metadata.
-    const rows = await queryWorker.all<EntryRow>(`
+    const rows = await queryWorker.all<EntryRow>(
+      `
       SELECT
         value,
         MAX(description) AS description,
@@ -332,16 +398,18 @@ export function createAllowlistService(options: {
       ${filter.sql ? `HAVING MAX(${filter.sql}) = 1` : ''}
       ORDER BY MIN(created_at) DESC, value
       LIMIT ? OFFSET ?
-    `, [
-      NEVER_EXPIRES,
-      INSTANCE_ID_SEPARATOR,
-      name,
-      ...ids,
-      new Date().toISOString(),
-      ...filter.params,
-      page.pageSize,
-      (page.page - 1) * page.pageSize,
-    ]);
+    `,
+      [
+        NEVER_EXPIRES,
+        INSTANCE_ID_SEPARATOR,
+        name,
+        ...ids,
+        new Date().toISOString(),
+        ...filter.params,
+        page.pageSize,
+        (page.page - 1) * page.pageSize,
+      ],
+    );
     const data: AllowlistEntry[] = rows.map((row) => ({
       value: row.value,
       ...(row.description ? { description: row.description } : {}),
@@ -363,22 +431,32 @@ export function createAllowlistService(options: {
     };
   }
 
-  async function checkValue(instances: ConfiguredInstance[], value: string): Promise<AllowlistCheckResponse> {
+  async function checkValue(
+    instances: ConfiguredInstance[],
+    value: string,
+  ): Promise<AllowlistCheckResponse> {
     // Checks stay live: LAPI matches ranges, and the decision guard needs the current state.
-    const results = await Promise.all(instances.map(async (instance): Promise<AllowlistCheckInstanceResult> => {
-      const base = {
-        instance_id: instance.id,
-        instance_name: instance.name,
-        ...(instance.icon ? { instance_icon: instance.icon } : {}),
-      };
-      try {
-        const result = await lapiClients.get(instance.id)!.checkAllowlist(value);
-        return { ...base, status: 'available', ...result };
-      } catch (error) {
-        const status = failureStatus(error);
-        return { ...base, status, allowlisted: false, ...(status === 'unavailable' ? { error: errorMessage(error) } : {}) };
-      }
-    }));
+    const results = await Promise.all(
+      instances.map(async (instance): Promise<AllowlistCheckInstanceResult> => {
+        const base = {
+          instance_id: instance.id,
+          instance_name: instance.name,
+          ...(instance.icon ? { instance_icon: instance.icon } : {}),
+        };
+        try {
+          const result = await lapiClients.get(instance.id)!.checkAllowlist(value);
+          return { ...base, status: 'available', ...result };
+        } catch (error) {
+          const status = failureStatus(error);
+          return {
+            ...base,
+            status,
+            allowlisted: false,
+            ...(status === 'unavailable' ? { error: errorMessage(error) } : {}),
+          };
+        }
+      }),
+    );
     return {
       value,
       allowlisted: results.some((result) => result.allowlisted),
@@ -391,7 +469,16 @@ export function createAllowlistService(options: {
     return { ...(progress.get(instanceId) ?? { state: 'pending' }) };
   }
 
-  return { resolveScope, ensureSynced, getSyncProgress, syncInstance, syncInstances, listAllowlists, listEntries, checkValue };
+  return {
+    resolveScope,
+    ensureSynced,
+    getSyncProgress,
+    syncInstance,
+    syncInstances,
+    listAllowlists,
+    listEntries,
+    checkValue,
+  };
 }
 
 export function registerAllowlistRoutes(options: {
@@ -402,10 +489,16 @@ export function registerAllowlistRoutes(options: {
   allowlistService: AllowlistService;
   isValidIpOrRange: (value: string) => boolean;
 }): void {
-  const { app, basePath, ensureAuth, ensurePublishedRevisionRead, allowlistService, isValidIpOrRange } = options;
-  const unknownScope = (context: HonoContext, scope: string | undefined) => (
-    context.json({ error: `Unknown CrowdSec instance scope "${scope}"` }, 404)
-  );
+  const {
+    app,
+    basePath,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    allowlistService,
+    isValidIpOrRange,
+  } = options;
+  const unknownScope = (context: HonoContext, scope: string | undefined) =>
+    context.json({ error: `Unknown CrowdSec instance scope "${scope}"` }, 404);
 
   // Syncing writes the cache, so it must finish before the published-revision read starts.
   const ensureScopeSynced: HonoMiddleware = async (context, next) => {
@@ -415,29 +508,49 @@ export function registerAllowlistRoutes(options: {
   };
 
   // Allowlists are read-only through LAPI, so read-only users may view them too.
-  app.get(`${basePath}/api/allowlists`, ensureAuth, ensureScopeSynced, ensurePublishedRevisionRead, async (context) => {
-    const scope = context.req.query('instance');
-    const instances = allowlistService.resolveScope(scope);
-    if (!instances) return unknownScope(context, scope);
-    return context.json(await allowlistService.listAllowlists(instances, context.req.query('q') || ''));
-  });
+  app.get(
+    `${basePath}/api/allowlists`,
+    ensureAuth,
+    ensureScopeSynced,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      const scope = context.req.query('instance');
+      const instances = allowlistService.resolveScope(scope);
+      if (!instances) return unknownScope(context, scope);
+      return context.json(
+        await allowlistService.listAllowlists(instances, context.req.query('q') || ''),
+      );
+    },
+  );
 
   app.get(`${basePath}/api/allowlists/check`, ensureAuth, async (context) => {
     const value = context.req.query('value')?.trim() || '';
-    if (!isValidIpOrRange(value)) return context.json({ error: 'A valid IP address or range is required' }, 400);
+    if (!isValidIpOrRange(value))
+      return context.json({ error: 'A valid IP address or range is required' }, 400);
     const scope = context.req.query('instance');
     const instances = allowlistService.resolveScope(scope);
     if (!instances) return unknownScope(context, scope);
     return context.json(await allowlistService.checkValue(instances, value));
   });
 
-  app.get(`${basePath}/api/allowlists/:name/entries`, ensureAuth, ensureScopeSynced, ensurePublishedRevisionRead, async (context) => {
-    const scope = context.req.query('instance');
-    const instances = allowlistService.resolveScope(scope);
-    if (!instances) return unknownScope(context, scope);
-    const page = getPageRequest(context) ?? { page: 1, pageSize: 50 };
-    const response = await allowlistService.listEntries(instances, context.req.param('name'), page, context.req.query('q') || '');
-    if (!response) return context.json({ error: 'Unknown allowlist' }, 404);
-    return context.json(response);
-  });
+  app.get(
+    `${basePath}/api/allowlists/:name/entries`,
+    ensureAuth,
+    ensureScopeSynced,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      const scope = context.req.query('instance');
+      const instances = allowlistService.resolveScope(scope);
+      if (!instances) return unknownScope(context, scope);
+      const page = getPageRequest(context) ?? { page: 1, pageSize: 50 };
+      const response = await allowlistService.listEntries(
+        instances,
+        context.req.param('name'),
+        page,
+        context.req.query('q') || '',
+      );
+      if (!response) return context.json({ error: 'Unknown allowlist' }, 404);
+      return context.json(response);
+    },
+  );
 }

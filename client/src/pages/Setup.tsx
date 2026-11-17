@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
 import { ShieldPlus } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+
 import { AppLogo } from '../components/AppLogo';
+import { useAuth } from '../contexts/AuthContext';
 import { useBranding } from '../contexts/useBranding';
 
 function validatePassword(password: string): string | null {
@@ -45,11 +46,11 @@ export function Setup() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-950 p-4 text-gray-100">
-      <div className="w-full max-w-sm rounded-xl border border-gray-800 bg-gray-900 p-8 shadow-2xl">
+    <div className="flex min-h-screen items-center justify-center p-4 text-gray-900 dark:text-gray-100">
+      <div className="acrylic w-full max-w-sm rounded-xl border p-8">
         <div className="mb-6 text-center">
           <AppLogo className="mx-auto h-14 w-14" />
-          <p className="mt-4 break-words text-sm font-medium text-gray-400">{appName}</p>
+          <p className="mt-4 text-sm font-medium break-words text-gray-400">{appName}</p>
           <h1 className="mt-1 text-2xl font-bold">Initial setup</h1>
           <p className="mt-1 text-sm text-gray-400">Create your administrator account</p>
         </div>
@@ -62,7 +63,10 @@ export function Setup() {
 
         <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="setup-username" className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <label
+              htmlFor="setup-username"
+              className="block text-xs font-semibold tracking-wide text-gray-400 uppercase"
+            >
               Username
             </label>
             <input
@@ -71,12 +75,15 @@ export function Setup() {
               onChange={(event) => setUsername(event.target.value)}
               required
               autoComplete="username"
-              className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/40"
+              className="focus:border-primary-500 focus:ring-primary-500/40 w-full rounded-lg border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 dark:border-white/15 dark:bg-black/25 dark:text-gray-100"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="setup-password" className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <label
+              htmlFor="setup-password"
+              className="block text-xs font-semibold tracking-wide text-gray-400 uppercase"
+            >
               Password
             </label>
             <input
@@ -87,15 +94,17 @@ export function Setup() {
               required
               autoComplete="new-password"
               minLength={8}
-              className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/40"
+              className="focus:border-primary-500 focus:ring-primary-500/40 w-full rounded-lg border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 dark:border-white/15 dark:bg-black/25 dark:text-gray-100"
             />
-            <p className="text-xs text-gray-500">Minimum 8 characters with uppercase, lowercase, and a digit.</p>
+            <p className="text-xs text-gray-500">
+              Minimum 8 characters with uppercase, lowercase, and a digit.
+            </p>
           </div>
 
           <button
             type="submit"
             disabled={isLoading}
-            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="bg-primary-600 hover:bg-primary-700 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             <ShieldPlus className="h-4 w-4" />
             Create Account

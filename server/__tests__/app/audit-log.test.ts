@@ -1,14 +1,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+
 import { describe, expect, test, vi, type MockInstance } from 'vitest';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+
+import { createController, destroyTempDir, sampleAlert, sampleSimulatedAlert, seedAlert, tempDir } from './harness';
 
 function auditEntries(logSpy: MockInstance): Array<Record<string, unknown>> {
   return logSpy.mock.calls
@@ -25,36 +20,42 @@ describe('audit log', () => {
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
     });
     try {
-      const setupResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/auth/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'tommy', password: 'Password1' }),
-      }));
+      const setupResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/auth/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'tommy', password: 'Password1' }),
+        }),
+      );
       expect(setupResponse.status).toBe(200);
       const sessionCookie = String(setupResponse.headers.get('set-cookie')).split(';')[0];
 
       await lapiClient.login();
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
-        body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Cookie: sessionCookie },
+          body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
+        }),
+      );
       expect(response.status).toBe(200);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        time: expect.any(String),
-        user: 'tommy',
-        role: 'admin',
-        action: 'decision.add',
-        ip: '5.6.7.8',
-        type: 'ban',
-        scenario: 'manual/web-ui',
-        duration: '4h',
-        reason: 'manual',
-        instances: ['CrowdSec'],
-        instance_results: [{ instance_id: 'default', instance: 'CrowdSec', outcome: 'success' }],
-        outcome: 'success',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          time: expect.any(String),
+          user: 'tommy',
+          role: 'admin',
+          action: 'decision.add',
+          ip: '5.6.7.8',
+          type: 'ban',
+          scenario: 'manual/web-ui',
+          duration: '4h',
+          reason: 'manual',
+          instances: ['CrowdSec'],
+          instance_results: [{ instance_id: 'default', instance: 'CrowdSec', outcome: 'success' }],
+          outcome: 'success',
+        }),
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -70,19 +71,23 @@ describe('audit log', () => {
       seedAlert(database, sampleAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/10', {
-        method: 'DELETE',
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions/10', {
+          method: 'DELETE',
+        }),
+      );
       expect(response.status).toBe(200);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        user: 'disabled-auth',
-        action: 'decision.delete',
-        decision_ids: ['10'],
-        target_results: [{ id: '10', value: '1.2.3.4', outcome: 'success' }],
-        values: ['1.2.3.4'],
-        outcome: 'success',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          user: 'disabled-auth',
+          action: 'decision.delete',
+          decision_ids: ['10'],
+          target_results: [{ id: '10', value: '1.2.3.4', outcome: 'success' }],
+          values: ['1.2.3.4'],
+          outcome: 'success',
+        }),
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -98,22 +103,26 @@ describe('audit log', () => {
       seedAlert(database, sampleAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: ['10'] }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: ['10'] }),
+        }),
+      );
       expect(response.status).toBe(200);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        action: 'decision.delete',
-        decision_ids: ['10'],
-        target_results: [{ id: '10', value: '1.2.3.4', outcome: 'success' }],
-        values: ['1.2.3.4'],
-        requested_decisions: 1,
-        deleted_decisions: 1,
-        outcome: 'success',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'decision.delete',
+          decision_ids: ['10'],
+          target_results: [{ id: '10', value: '1.2.3.4', outcome: 'success' }],
+          values: ['1.2.3.4'],
+          requested_decisions: 1,
+          deleted_decisions: 1,
+          outcome: 'success',
+        }),
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -129,21 +138,25 @@ describe('audit log', () => {
       seedAlert(database, sampleAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', {
-        method: 'DELETE',
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts/1', {
+          method: 'DELETE',
+        }),
+      );
       expect(response.status).toBe(200);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        action: 'alert.delete',
-        alert_ids: ['1'],
-        target_results: [{ id: '1', outcome: 'queued' }],
-        requested_alerts: 1,
-        requested_decisions: 1,
-        deleted_alerts: 1,
-        deleted_decisions: 1,
-        outcome: 'queued',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'alert.delete',
+          alert_ids: ['1'],
+          target_results: [{ id: '1', outcome: 'queued' }],
+          requested_alerts: 1,
+          requested_decisions: 1,
+          deleted_alerts: 1,
+          deleted_decisions: 1,
+          outcome: 'queued',
+        }),
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -159,21 +172,25 @@ describe('audit log', () => {
       seedAlert(database, sampleAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refs: [{ instance_id: 'default', id: '1' }] }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refs: [{ instance_id: 'default', id: '1' }] }),
+        }),
+      );
       expect(response.status).toBe(200);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        action: 'alert.delete',
-        alert_ids: ['default:1'],
-        target_results: [{ id: 'default:1', outcome: 'queued' }],
-        requested_alerts: 1,
-        deleted_alerts: 1,
-        outcome: 'queued',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'alert.delete',
+          alert_ids: ['default:1'],
+          target_results: [{ id: 'default:1', outcome: 'queued' }],
+          requested_alerts: 1,
+          deleted_alerts: 1,
+          outcome: 'queued',
+        }),
+      ]);
       await vi.waitFor(() => expect(database.getAlertDeletionTombstone('default\u00001')?.completed_at).toBeTruthy());
     } finally {
       controller.stopBackgroundTasks();
@@ -190,22 +207,26 @@ describe('audit log', () => {
       seedAlert(database, sampleAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/cleanup/by-ip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: '1.2.3.4' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/cleanup/by-ip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: '1.2.3.4' }),
+        }),
+      );
       expect(response.status).toBe(200);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        action: 'cleanup.by-ip',
-        ip: '1.2.3.4',
-        instances: ['CrowdSec'],
-        instance_results: [{ instance_id: 'default', instance: 'CrowdSec', outcome: 'queued' }],
-        deleted_alerts: 1,
-        deleted_decisions: 1,
-        outcome: 'queued',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'cleanup.by-ip',
+          ip: '1.2.3.4',
+          instances: ['CrowdSec'],
+          instance_results: [{ instance_id: 'default', instance: 'CrowdSec', outcome: 'queued' }],
+          deleted_alerts: 1,
+          deleted_decisions: 1,
+          outcome: 'queued',
+        }),
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -229,24 +250,28 @@ describe('audit log', () => {
       seedAlert(database, sampleSimulatedAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: ['10', '20'] }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: ['10', '20'] }),
+        }),
+      );
       expect(response.status).toBe(200);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        action: 'decision.delete',
-        decision_ids: ['10', '20'],
-        target_results: [
-          { id: '10', value: '1.2.3.4', outcome: 'success' },
-          { id: '20', value: '5.6.7.8', outcome: 'failure' },
-        ],
-        requested_decisions: 2,
-        deleted_decisions: 1,
-        outcome: 'partial',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'decision.delete',
+          decision_ids: ['10', '20'],
+          target_results: [
+            { id: '10', value: '1.2.3.4', outcome: 'success' },
+            { id: '20', value: '5.6.7.8', outcome: 'failure' },
+          ],
+          requested_decisions: 2,
+          deleted_decisions: 1,
+          outcome: 'partial',
+        }),
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -265,19 +290,23 @@ describe('audit log', () => {
       seedAlert(database, sampleAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/10', {
-        method: 'DELETE',
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions/10', {
+          method: 'DELETE',
+        }),
+      );
       expect(response.status).toBe(500);
 
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        action: 'decision.delete',
-        decision_ids: ['10'],
-        target_results: [{ id: '10', value: '1.2.3.4', outcome: 'partial' }],
-        remote_deleted: true,
-        local_cache_updated: false,
-        outcome: 'partial',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'decision.delete',
+          decision_ids: ['10'],
+          target_results: [{ id: '10', value: '1.2.3.4', outcome: 'partial' }],
+          remote_deleted: true,
+          local_cache_updated: false,
+          outcome: 'partial',
+        }),
+      ]);
     } finally {
       deleteSpy.mockRestore();
       controller.stopBackgroundTasks();
@@ -295,11 +324,13 @@ describe('audit log', () => {
     });
     try {
       await lapiClient.login();
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
+        }),
+      );
       expect(response.status).toBe(200);
 
       expect(auditEntries(logSpy)).toEqual([]);
@@ -320,21 +351,25 @@ describe('audit log', () => {
     });
     try {
       await lapiClient.login();
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
+        }),
+      );
       expect(response.status).toBe(200);
 
       const lines = readFileSync(logFile, 'utf8').trimEnd().split('\n');
       expect(lines).toHaveLength(1);
-      expect(JSON.parse(lines[0])).toEqual(expect.objectContaining({
-        user: 'disabled-auth',
-        action: 'decision.add',
-        ip: '5.6.7.8',
-        outcome: 'success',
-      }));
+      expect(JSON.parse(lines[0])).toEqual(
+        expect.objectContaining({
+          user: 'disabled-auth',
+          action: 'decision.add',
+          ip: '5.6.7.8',
+          outcome: 'success',
+        }),
+      );
     } finally {
       controller.stopBackgroundTasks();
       database.close();

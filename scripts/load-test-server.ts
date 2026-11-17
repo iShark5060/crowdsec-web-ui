@@ -1,18 +1,26 @@
-import { serve } from '@hono/node-server';
-import { monitorEventLoopDelay } from 'node:perf_hooks';
 import path from 'node:path';
-import { DEFAULT_MANUAL_DECISION_SCENARIO, type AlertDecision, type AlertRecord } from '../shared/contracts';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+
+import { serve } from '@hono/node-server';
+
 import { createApp } from '../server/app';
-import { CrowdsecDatabase } from '../server/database';
 import { attachCacheUpdateWebSocket } from '../server/cache-update-websocket';
+import { CrowdsecDatabase } from '../server/database';
 import { installTimestampedConsole } from '../server/logging';
 import { parseGoDuration } from '../server/utils/duration';
 import {
-  ensureLoadTestUser,
-  LOAD_TEST_PASSWORD,
-  LOAD_TEST_USERNAME,
-} from './load-test-auth';
+  DEFAULT_MANUAL_DECISION_SCENARIO,
+  type AlertDecision,
+  type AlertRecord,
+} from '../shared/contracts';
+import {
+  buildLoadTestAllowlists,
+  createLoadTestAllowlistMatcher,
+  withoutExpiredLoadTestAllowlistItems,
+} from './load-test-allowlists';
+import { ensureLoadTestUser, LOAD_TEST_PASSWORD, LOAD_TEST_USERNAME } from './load-test-auth';
 import { createLoadTestRuntimeConfig, LOAD_TEST_MULTI_INSTANCE_IDS } from './load-test-config';
+import { buildLoadTestFleetMetrics } from './load-test-metrics';
 import {
   DEFAULT_LOAD_TEST_BLOCKLIST_DECISIONS,
   getLoadTestBatchCreatedAtEnd,
@@ -24,24 +32,22 @@ import {
   normalizeLoadTestBlocklistDecisionCounts,
   withoutLoadTestListAlertAddress,
 } from './load-test-shape';
-import {
-  buildLoadTestAllowlists,
-  createLoadTestAllowlistMatcher,
-  withoutExpiredLoadTestAllowlistItems,
-} from './load-test-allowlists';
-import { buildLoadTestFleetMetrics } from './load-test-metrics';
 import { statisticsAlertShape, statisticsScenarioBans } from './load-test-statistics';
 
 const LOADTEST_SOURCE_TABLE = 'loadtest_alert_source';
 installTimestampedConsole();
-const dbDir = process.env.LOADTEST_DB_DIR || path.join(process.env.TMPDIR || '/tmp', 'crowdsec-web-ui-load-test');
+const dbDir =
+  process.env.LOADTEST_DB_DIR ||
+  path.join(process.env.TMPDIR || '/tmp', 'crowdsec-web-ui-load-test');
 const port = Number(process.env.LOADTEST_BACKEND_PORT || 3000);
 const eventLoopDelay = monitorEventLoopDelay({ resolution: 10 });
 eventLoopDelay.enable();
 const eventLoopDelayReporter = setInterval(() => {
   const maxDelayMs = eventLoopDelay.max / 1_000_000;
   if (maxDelayMs >= 100) {
-    console.warn(`[loadtest event-loop] blocked for up to ${maxDelayMs.toFixed(0)}ms during the last second`);
+    console.warn(
+      `[loadtest event-loop] blocked for up to ${maxDelayMs.toFixed(0)}ms during the last second`,
+    );
   }
   eventLoopDelay.reset();
 }, 1_000);
@@ -50,8 +56,9 @@ const initialDecisionCount = parseIntegerEnv('LOADTEST_DECISIONS', 300_000);
 const initialBlocklistDecisionCounts = normalizeLoadTestBlocklistDecisionCounts(
   initialAlertCount,
   initialDecisionCount,
-  parseIntegerListEnv('LOADTEST_BLOCKLIST_SIZES')
-    ?? [parseIntegerEnv('LOADTEST_BLOCKLIST_DECISIONS', DEFAULT_LOAD_TEST_BLOCKLIST_DECISIONS)],
+  parseIntegerListEnv('LOADTEST_BLOCKLIST_SIZES') ?? [
+    parseIntegerEnv('LOADTEST_BLOCKLIST_DECISIONS', DEFAULT_LOAD_TEST_BLOCKLIST_DECISIONS),
+  ],
 );
 const initialEmptyAlertCount = parseIntegerEnv('LOADTEST_EMPTY_ALERTS', 0);
 const refreshAlertCount = parseIntegerEnv('LOADTEST_REFRESH_ALERTS', 100);
@@ -60,7 +67,9 @@ const refreshDecisionCount = parseIntegerEnv('LOADTEST_REFRESH_DECISIONS', 100);
 const refreshDecisionMinPerAlert = parseIntegerEnv('LOADTEST_REFRESH_DECISIONS_MIN_PER_ALERT', 0);
 const refreshDecisionMaxPerAlert = parseIntegerEnv('LOADTEST_REFRESH_DECISIONS_MAX_PER_ALERT', 0);
 if (refreshDecisionMaxPerAlert > 0 && refreshDecisionMaxPerAlert < refreshDecisionMinPerAlert) {
-  throw new Error('LOADTEST_REFRESH_DECISIONS_MAX_PER_ALERT must be greater than or equal to LOADTEST_REFRESH_DECISIONS_MIN_PER_ALERT.');
+  throw new Error(
+    'LOADTEST_REFRESH_DECISIONS_MAX_PER_ALERT must be greater than or equal to LOADTEST_REFRESH_DECISIONS_MIN_PER_ALERT.',
+  );
 }
 const useVariableRefreshDecisions = refreshDecisionMaxPerAlert > 0;
 const refreshDecisionOrigins = parseOriginListEnv('LOADTEST_REFRESH_DECISION_ORIGINS');
@@ -73,7 +82,8 @@ const metricsFleetMachines = parseIntegerEnv('LOADTEST_METRICS_MACHINES', 0);
 const metricsFleetEnabled = metricsFleetBouncers > 0 || metricsFleetMachines > 0;
 const statisticsProfile = process.env.LOADTEST_STATISTICS === 'true';
 /** Statistics profiles: CrowdSec issues no decision for in-band AppSec blocks or unprofiled scenarios. */
-const receivesDecisions = (alert: AlertRecord) => !statisticsProfile || statisticsScenarioBans(alert.scenario);
+const receivesDecisions = (alert: AlertRecord) =>
+  !statisticsProfile || statisticsScenarioBans(alert.scenario);
 
 const config = createLoadTestRuntimeConfig(process.env, dbDir, {
   CONFIG_SERVER_PORT: String(port),
@@ -98,8 +108,20 @@ if (multiInstanceProfile) {
       icon: '🟦',
       lapiUrl: 'http://loadtest-primary.invalid:8080',
       prometheus: [
-        { id: 'lapi', name: 'Primary LAPI', url: 'http://loadtest-primary.invalid:6060/metrics', auth: { type: 'none' }, tls: {} },
-        { id: 'engine', name: 'Primary Engine', url: 'http://loadtest-primary.invalid:6061/metrics', auth: { type: 'none' }, tls: {} },
+        {
+          id: 'lapi',
+          name: 'Primary LAPI',
+          url: 'http://loadtest-primary.invalid:6060/metrics',
+          auth: { type: 'none' },
+          tls: {},
+        },
+        {
+          id: 'engine',
+          name: 'Primary Engine',
+          url: 'http://loadtest-primary.invalid:6061/metrics',
+          auth: { type: 'none' },
+          tls: {},
+        },
       ],
     },
     {
@@ -109,7 +131,13 @@ if (multiInstanceProfile) {
       icon: '🟩',
       lapiUrl: 'http://loadtest-secondary.invalid:8080',
       prometheus: [
-        { id: 'lapi', name: 'Secondary LAPI', url: 'http://loadtest-secondary.invalid:6060/metrics', auth: { type: 'none' }, tls: {} },
+        {
+          id: 'lapi',
+          name: 'Secondary LAPI',
+          url: 'http://loadtest-secondary.invalid:6060/metrics',
+          auth: { type: 'none' },
+          tls: {},
+        },
       ],
     },
     {
@@ -124,7 +152,13 @@ if (multiInstanceProfile) {
 }
 if (!multiInstanceProfile && metricsFleetEnabled) {
   config.instances[0].prometheus = [
-    { id: 'central', name: 'Central LAPI', url: 'http://loadtest-central.invalid:6060/metrics', auth: { type: 'none' }, tls: {} },
+    {
+      id: 'central',
+      name: 'Central LAPI',
+      url: 'http://loadtest-central.invalid:6060/metrics',
+      auth: { type: 'none' },
+      tls: {},
+    },
   ];
 }
 const authEnabled = config.dashboardAuth.enabled ?? !database.isAuthMigrationDefaultDisabled();
@@ -369,28 +403,38 @@ type NamedDynamicState = {
   nextDecisionId: number;
 };
 const namedDynamicStates = new Map<string, NamedDynamicState>([
-  ['secondary', {
-    alerts: new Map(),
-    generatedBatches: 0,
-    initialAlerts: parseIntegerEnv('LOADTEST_SECONDARY_ALERTS', 100_000),
-    nextAlertId: parseIntegerEnv('LOADTEST_SECONDARY_ALERTS', 100_000) + 1,
-    nextDecisionId: parseIntegerEnv('LOADTEST_SECONDARY_DECISIONS', 100_000) + 1,
-  }],
-  ['edge', {
-    alerts: new Map(),
-    generatedBatches: 0,
-    initialAlerts: parseIntegerEnv('LOADTEST_EDGE_ALERTS', 25_000),
-    nextAlertId: parseIntegerEnv('LOADTEST_EDGE_ALERTS', 25_000) + 1,
-    nextDecisionId: parseIntegerEnv('LOADTEST_EDGE_DECISIONS', 50_000) + 1,
-  }],
+  [
+    'secondary',
+    {
+      alerts: new Map(),
+      generatedBatches: 0,
+      initialAlerts: parseIntegerEnv('LOADTEST_SECONDARY_ALERTS', 100_000),
+      nextAlertId: parseIntegerEnv('LOADTEST_SECONDARY_ALERTS', 100_000) + 1,
+      nextDecisionId: parseIntegerEnv('LOADTEST_SECONDARY_DECISIONS', 100_000) + 1,
+    },
+  ],
+  [
+    'edge',
+    {
+      alerts: new Map(),
+      generatedBatches: 0,
+      initialAlerts: parseIntegerEnv('LOADTEST_EDGE_ALERTS', 25_000),
+      nextAlertId: parseIntegerEnv('LOADTEST_EDGE_ALERTS', 25_000) + 1,
+      nextDecisionId: parseIntegerEnv('LOADTEST_EDGE_DECISIONS', 50_000) + 1,
+    },
+  ],
 ]);
-const getSourceAlertStatement = database.db.prepare(`SELECT raw_data FROM ${LOADTEST_SOURCE_TABLE} WHERE id = ?`);
+const getSourceAlertStatement = database.db.prepare(
+  `SELECT raw_data FROM ${LOADTEST_SOURCE_TABLE} WHERE id = ?`,
+);
 const updateSourceAlertStatement = database.db.prepare(`
   UPDATE ${LOADTEST_SOURCE_TABLE}
   SET scenario = ?, origins = ?, raw_data = ?
   WHERE id = ?
 `);
-const deleteSourceAlertStatement = database.db.prepare(`DELETE FROM ${LOADTEST_SOURCE_TABLE} WHERE id = ?`);
+const deleteSourceAlertStatement = database.db.prepare(
+  `DELETE FROM ${LOADTEST_SOURCE_TABLE} WHERE id = ?`,
+);
 
 const lapiStatus = {
   isConnected: true,
@@ -416,7 +460,7 @@ const countries = [
   ['FR', 48.8566, 2.3522, 'Paris', 'Île-de-France'],
   ['GB', 51.5072, -0.1276, 'London', 'England'],
   ['BR', -23.5505, -46.6333, 'São Paulo', 'São Paulo'],
-  ['IN', 28.6139, 77.2090, 'New Delhi', 'Delhi'],
+  ['IN', 28.6139, 77.209, 'New Delhi', 'Delhi'],
   ['JP', 35.6762, 139.6503, 'Tokyo', 'Tokyo'],
   ['SG', 1.3521, 103.8198, 'Singapore', 'Singapore'],
   ['AU', -33.8688, 151.2093, 'Sydney', 'New South Wales'],
@@ -491,23 +535,43 @@ function parseOriginListEnv(name: string): string[] {
 }
 
 function createLoadTestAllowlistSources() {
-  const instanceIds = multiInstanceProfile ? [...LOAD_TEST_MULTI_INSTANCE_IDS] : [config.instances[0].id];
+  const instanceIds = multiInstanceProfile
+    ? [...LOAD_TEST_MULTI_INSTANCE_IDS]
+    : [config.instances[0].id];
   const startedAt = Date.now();
-  const sources = new Map(instanceIds.map((instanceId, instanceIndex) => {
-    const allowlists = buildLoadTestAllowlists({ sizes: allowlistSizes, seed: loadTestSeed, nowMs: loadTestStartedAt, instanceIndex });
-    return [instanceId, { allowlists, check: createLoadTestAllowlistMatcher(allowlists) }];
-  }));
+  const sources = new Map(
+    instanceIds.map((instanceId, instanceIndex) => {
+      const allowlists = buildLoadTestAllowlists({
+        sizes: allowlistSizes,
+        seed: loadTestSeed,
+        nowMs: loadTestStartedAt,
+        instanceIndex,
+      });
+      return [instanceId, { allowlists, check: createLoadTestAllowlistMatcher(allowlists) }];
+    }),
+  );
   if (allowlistSizes.length > 0) {
-    const entryCount = Array.from(sources.values()).reduce((sum, source) => (
-      sum + source.allowlists.reduce((listSum, allowlist) => listSum + (allowlist.items?.length || 0), 0)
-    ), 0);
-    console.log(`[loadtest] Generated ${allowlistSizes.length} allowlists per instance with ${entryCount.toLocaleString('en-US')} entries in total in ${formatElapsed(Date.now() - startedAt)}.`);
+    const entryCount = Array.from(sources.values()).reduce(
+      (sum, source) =>
+        sum +
+        source.allowlists.reduce(
+          (listSum, allowlist) => listSum + (allowlist.items?.length || 0),
+          0,
+        ),
+      0,
+    );
+    console.log(
+      `[loadtest] Generated ${allowlistSizes.length} allowlists per instance with ${entryCount.toLocaleString('en-US')} entries in total in ${formatElapsed(Date.now() - startedAt)}.`,
+    );
   }
   return sources;
 }
 
 function fetchLoadTestAllowlists(instanceId: string) {
-  return withoutExpiredLoadTestAllowlistItems(loadTestAllowlists.get(instanceId)?.allowlists || [], Date.now());
+  return withoutExpiredLoadTestAllowlistItems(
+    loadTestAllowlists.get(instanceId)?.allowlists || [],
+    Date.now(),
+  );
 }
 
 function checkLoadTestAllowlist(instanceId: string, value: string) {
@@ -525,7 +589,9 @@ function ensureLoadTestSourceTable(database: CrowdsecDatabase): void {
     );
   `);
 
-  const columns = database.db.prepare(`PRAGMA table_info(${LOADTEST_SOURCE_TABLE})`).all() as Array<{ name: string }>;
+  const columns = database.db
+    .prepare(`PRAGMA table_info(${LOADTEST_SOURCE_TABLE})`)
+    .all() as Array<{ name: string }>;
   const names = new Set(columns.map((column) => column.name));
   if (!names.has('scenario')) {
     database.db.exec(`ALTER TABLE ${LOADTEST_SOURCE_TABLE} ADD COLUMN scenario TEXT`);
@@ -580,16 +646,18 @@ function decisionSummary(decision: AlertDecision & { duration: string }) {
 }
 
 function buildEvents(createdAt: string, target: string) {
-  return [{
-    timestamp: createdAt,
-    meta: [
-      { key: 'target_fqdn', value: target },
-      { key: 'service', value: target },
-      { key: 'log_type', value: target === 'ssh' ? 'auth' : 'access' },
-      { key: 'method', value: target === 'ssh' ? 'password' : 'GET' },
-      { key: 'status', value: target === 'ssh' ? 'failed' : '403' },
-    ],
-  }];
+  return [
+    {
+      timestamp: createdAt,
+      meta: [
+        { key: 'target_fqdn', value: target },
+        { key: 'service', value: target },
+        { key: 'log_type', value: target === 'ssh' ? 'auth' : 'access' },
+        { key: 'method', value: target === 'ssh' ? 'password' : 'GET' },
+        { key: 'status', value: target === 'ssh' ? 'failed' : '403' },
+      ],
+    },
+  ];
 }
 
 // Refresh alerts return to a few attackers, so their sessions grow while the
@@ -600,7 +668,11 @@ function generatedAlertIp(alertId: number): string {
   return ipFor(LOAD_TEST_ALERT_SOURCE_IP_BASE + attacker, loadTestSeed);
 }
 
-function buildGeneratedAlert(alertId: number, createdAt: string, decisions: AlertDecision[] = []): AlertRecord {
+function buildGeneratedAlert(
+  alertId: number,
+  createdAt: string,
+  decisions: AlertDecision[] = [],
+): AlertRecord {
   if (statisticsProfile) return buildStatisticsAlert(alertId, createdAt, decisions);
   const scenarioTuple = pick(scenarios, alertId, loadTestSeed, 11);
   const countryTuple = pick(countries, alertId, loadTestSeed, 17);
@@ -608,7 +680,9 @@ function buildGeneratedAlert(alertId: number, createdAt: string, decisions: Aler
   const ip = generatedAlertIp(alertId);
   const target = scenarioTuple[2];
   const machine = pick(machines, alertId, loadTestSeed, 31);
-  const simulated = fraction(alertId, loadTestSeed, 47) < simulationRatio || decisions.some((decision) => decision.simulated === true);
+  const simulated =
+    fraction(alertId, loadTestSeed, 47) < simulationRatio ||
+    decisions.some((decision) => decision.simulated === true);
   const eventsCount = 1 + Math.floor(fraction(alertId, loadTestSeed, 53) * 120);
 
   return {
@@ -634,16 +708,26 @@ function buildGeneratedAlert(alertId: number, createdAt: string, decisions: Aler
       region: countryTuple[4],
       as_name: asTuple[0],
       as_number: asTuple[1],
-      latitude: Number((countryTuple[1] + (fraction(alertId, loadTestSeed, 41) - 0.5) * 4).toFixed(4)),
-      longitude: Number((countryTuple[2] + (fraction(alertId, loadTestSeed, 43) - 0.5) * 4).toFixed(4)),
+      latitude: Number(
+        (countryTuple[1] + (fraction(alertId, loadTestSeed, 41) - 0.5) * 4).toFixed(4),
+      ),
+      longitude: Number(
+        (countryTuple[2] + (fraction(alertId, loadTestSeed, 43) - 0.5) * 4).toFixed(4),
+      ),
     },
   };
 }
 
 // Refresh alerts continue the statistics profile's attack patterns.
-function buildStatisticsAlert(alertId: number, createdAt: string, decisions: AlertDecision[]): AlertRecord {
+function buildStatisticsAlert(
+  alertId: number,
+  createdAt: string,
+  decisions: AlertDecision[],
+): AlertRecord {
   const shape = statisticsAlertShape(alertId, Date.parse(createdAt), Date.now(), loadTestSeed);
-  const countryTuple = countries.find((entry) => entry[0] === shape.country) || pick(countries, alertId, loadTestSeed, 17);
+  const countryTuple =
+    countries.find((entry) => entry[0] === shape.country) ||
+    pick(countries, alertId, loadTestSeed, 17);
   return {
     id: alertId,
     uuid: `loadtest-alert-${alertId}`,
@@ -659,10 +743,20 @@ function buildStatisticsAlert(alertId: number, createdAt: string, decisions: Ale
     target: shape.target,
     simulated: shape.simulated,
     source: {
-      scope: 'ip', value: shape.ip, ip: shape.ip, cn: shape.country, city: countryTuple[3], region: countryTuple[4],
-      as_name: shape.asName, as_number: shape.asNumber,
-      latitude: Number((countryTuple[1] + (fraction(alertId, loadTestSeed, 41) - 0.5) * 4).toFixed(4)),
-      longitude: Number((countryTuple[2] + (fraction(alertId, loadTestSeed, 43) - 0.5) * 4).toFixed(4)),
+      scope: 'ip',
+      value: shape.ip,
+      ip: shape.ip,
+      cn: shape.country,
+      city: countryTuple[3],
+      region: countryTuple[4],
+      as_name: shape.asName,
+      as_number: shape.asNumber,
+      latitude: Number(
+        (countryTuple[1] + (fraction(alertId, loadTestSeed, 41) - 0.5) * 4).toFixed(4),
+      ),
+      longitude: Number(
+        (countryTuple[2] + (fraction(alertId, loadTestSeed, 43) - 0.5) * 4).toFixed(4),
+      ),
     },
   };
 }
@@ -677,16 +771,18 @@ function buildGeneratedDecision(
   const hours = 1 + Math.floor(fraction(decisionId, loadTestSeed, 71) * 168);
   const stopAt = new Date(Date.now() + (active ? hours : -hours) * 3_600_000).toISOString();
   const generatedAlertOffset = Math.max(0, Number(alert.id) - initialAlertBase - 1);
-  const origin = refreshDecisionOrigins.length > 0
-    ? refreshDecisionOrigins[generatedAlertOffset % refreshDecisionOrigins.length]
-    : pick(refreshOrigins, decisionId, loadTestSeed, 37);
+  const origin =
+    refreshDecisionOrigins.length > 0
+      ? refreshDecisionOrigins[generatedAlertOffset % refreshDecisionOrigins.length]
+      : pick(refreshOrigins, decisionId, loadTestSeed, 37);
 
   return {
     id: decisionId,
     type: fraction(decisionId, loadTestSeed, 73) < 0.08 ? 'captcha' : 'ban',
-    value: alert.scenario === 'crowdsecurity/blocklist-import'
-      ? ipFor(20_000_000 + decisionId, loadTestSeed)
-      : alert.source?.value || ipFor(decisionId, loadTestSeed),
+    value:
+      alert.scenario === 'crowdsecurity/blocklist-import'
+        ? ipFor(20_000_000 + decisionId, loadTestSeed)
+        : alert.source?.value || ipFor(decisionId, loadTestSeed),
     duration: `${hours}h`,
     stop_at: stopAt,
     created_at: createdAt,
@@ -725,13 +821,19 @@ type LoadTestFetchFilters = {
 function multiInstanceBatchBase(createdAtEndMs: number, batchIndex: number): number {
   const safeRequestBase = getLoadTestBatchCreatedAtEnd(createdAtEndMs, Date.now());
   if (!multiInstanceProfile || config.refreshIntervalMs <= 0) return safeRequestBase;
-  return Math.min(safeRequestBase, loadTestStartedAt + ((batchIndex + 1) * config.refreshIntervalMs) - 1_000);
+  return Math.min(
+    safeRequestBase,
+    loadTestStartedAt + (batchIndex + 1) * config.refreshIntervalMs - 1_000,
+  );
 }
 
 function generateLoadTestBatch(createdAtEndMs: number, batchIndex = generatedBatches): void {
   const alertSlots = useVariableRefreshDecisions
     ? refreshAlertCount
-    : Math.max(refreshAlertCount, refreshDecisionCount > 0 && refreshAlertCount === 0 ? refreshDecisionCount : 0);
+    : Math.max(
+        refreshAlertCount,
+        refreshDecisionCount > 0 && refreshAlertCount === 0 ? refreshDecisionCount : 0,
+      );
   if (alertSlots === 0 && refreshDecisionCount === 0) return;
 
   // The application constrains the padded LAPI response back to its exact
@@ -743,7 +845,7 @@ function generateLoadTestBatch(createdAtEndMs: number, batchIndex = generatedBat
   const generated: AlertRecord[] = [];
   for (let index = 0; index < alertSlots; index += 1) {
     const alertId = nextGeneratedAlertId++;
-    const createdAt = new Date(createdAtBase - (index * instanceStride)).toISOString();
+    const createdAt = new Date(createdAtBase - index * instanceStride).toISOString();
     const alert = buildGeneratedAlert(alertId, createdAt);
     if (useVariableRefreshDecisions) {
       alert.scenario = 'crowdsecurity/blocklist-import';
@@ -790,7 +892,9 @@ function generateLoadTestBatch(createdAtEndMs: number, batchIndex = generatedBat
   }
 
   if (generated.length > 0 || generatedDecisionCount > 0) {
-    console.log(`[loadtest sync] added ${generated.length} alerts and ${generatedDecisionCount} decisions to fake LAPI`);
+    console.log(
+      `[loadtest sync] added ${generated.length} alerts and ${generatedDecisionCount} decisions to fake LAPI`,
+    );
   }
 }
 
@@ -809,20 +913,32 @@ function generateDueLoadTestData(createdAtEndMs: number, forceBatch = false): vo
   }
 }
 
-function generateNamedLoadTestBatch(instanceId: string, createdAtEndMs: number, batchIndex: number): void {
+function generateNamedLoadTestBatch(
+  instanceId: string,
+  createdAtEndMs: number,
+  batchIndex: number,
+): void {
   const state = namedDynamicStates.get(instanceId);
   if (!state) return;
   const alertSlots = useVariableRefreshDecisions
     ? refreshAlertCount
-    : Math.max(refreshAlertCount, refreshDecisionCount > 0 && refreshAlertCount === 0 ? refreshDecisionCount : 0);
+    : Math.max(
+        refreshAlertCount,
+        refreshDecisionCount > 0 && refreshAlertCount === 0 ? refreshDecisionCount : 0,
+      );
   if (alertSlots === 0 && refreshDecisionCount === 0) return;
 
-  const instanceRank = Math.max(1, config.instances.findIndex((instance) => instance.id === instanceId));
+  const instanceRank = Math.max(
+    1,
+    config.instances.findIndex((instance) => instance.id === instanceId),
+  );
   const createdAtBase = multiInstanceBatchBase(createdAtEndMs, batchIndex);
   const generated: AlertRecord[] = [];
   for (let index = 0; index < alertSlots; index += 1) {
     const alertId = state.nextAlertId++;
-    const createdAt = new Date(createdAtBase - (index * config.instances.length) - instanceRank).toISOString();
+    const createdAt = new Date(
+      createdAtBase - index * config.instances.length - instanceRank,
+    ).toISOString();
     const alert = buildGeneratedAlert(alertId, createdAt);
     if (useVariableRefreshDecisions) {
       alert.scenario = 'crowdsecurity/blocklist-import';
@@ -842,7 +958,12 @@ function generateNamedLoadTestBatch(instanceId: string, createdAtEndMs: number, 
         refreshDecisionMaxPerAlert,
       );
       for (let index = 0; index < decisionsForAlert; index += 1) {
-        const decision = buildGeneratedDecision(state.nextDecisionId++, alert, alert.created_at, state.initialAlerts);
+        const decision = buildGeneratedDecision(
+          state.nextDecisionId++,
+          alert,
+          alert.created_at,
+          state.initialAlerts,
+        );
         (alert.decisions ||= []).push(decisionSummary(decision));
         alert.simulated = alert.simulated === true || decision.simulated === true;
       }
@@ -853,7 +974,12 @@ function generateNamedLoadTestBatch(instanceId: string, createdAtEndMs: number, 
     for (let index = 0; index < refreshDecisionCount; index += 1) {
       if (decisionAlerts.length === 0) break;
       const alert = decisionAlerts[index % decisionAlerts.length];
-      const decision = buildGeneratedDecision(state.nextDecisionId++, alert, alert.created_at, state.initialAlerts);
+      const decision = buildGeneratedDecision(
+        state.nextDecisionId++,
+        alert,
+        alert.created_at,
+        state.initialAlerts,
+      );
       (alert.decisions ||= []).push(decisionSummary(decision));
       alert.simulated = alert.simulated === true || decision.simulated === true;
     }
@@ -897,11 +1023,14 @@ function getSyncWindow(since: string | null, until: string | null): { start: str
 
 function alertOrigins(alert: AlertRecord): string[] {
   return (alert.decisions || [])
-    .map((decision) => typeof decision.origin === 'string' ? decision.origin : '')
+    .map((decision) => (typeof decision.origin === 'string' ? decision.origin : ''))
     .filter((origin) => origin.length > 0);
 }
 
-function matchesLoadTestFilters(alert: AlertRecord, filters: { origin?: string; scenario?: string; includeCapi?: boolean }): boolean {
+function matchesLoadTestFilters(
+  alert: AlertRecord,
+  filters: { origin?: string; scenario?: string; includeCapi?: boolean },
+): boolean {
   if (filters.scenario && alert.scenario !== filters.scenario) return false;
 
   const originsForAlert = alertOrigins(alert);
@@ -909,7 +1038,10 @@ function matchesLoadTestFilters(alert: AlertRecord, filters: { origin?: string; 
     return originsForAlert.some((origin) => origin.toLowerCase() === filters.origin?.toLowerCase());
   }
 
-  if (filters.includeCapi === false && originsForAlert.some((origin) => origin.toUpperCase() === 'CAPI')) {
+  if (
+    filters.includeCapi === false &&
+    originsForAlert.some((origin) => origin.toUpperCase() === 'CAPI')
+  ) {
     return false;
   }
 
@@ -926,7 +1058,9 @@ function parseSourceAlertRow(row: { raw_data?: string } | undefined | null): Ale
 }
 
 function getSourceAlert(alertId: string | number): AlertRecord | null {
-  return parseSourceAlertRow(getSourceAlertStatement.get(String(alertId)) as { raw_data?: string } | undefined);
+  return parseSourceAlertRow(
+    getSourceAlertStatement.get(String(alertId)) as { raw_data?: string } | undefined,
+  );
 }
 
 function updateSourceAlert(alert: AlertRecord): void {
@@ -968,21 +1102,8 @@ function deleteSourceDecision(decisionId: string | number): void {
   updateSourceAlert({
     ...alert,
     decisions: nextDecisions,
-    simulated: alert.simulated === true || nextDecisions.some((decision) => decision.simulated === true),
-  });
-}
-
-function loadAlertsFromSource(start: string, end: string): AlertRecord[] {
-  const rows = database.db.prepare(`
-    SELECT raw_data
-    FROM ${LOADTEST_SOURCE_TABLE}
-    WHERE created_at >= ? AND created_at < ?
-    ORDER BY created_at DESC
-  `).all(start, end) as Array<{ raw_data: string }>;
-
-  return rows.flatMap((row) => {
-    const alert = parseSourceAlertRow(row);
-    return alert ? [alert] : [];
+    simulated:
+      alert.simulated === true || nextDecisions.some((decision) => decision.simulated === true),
   });
 }
 
@@ -1017,12 +1138,14 @@ function loadAlertsFromSourceWithFilters(
     conditions.push("origins NOT LIKE '%\nCAPI\n%'");
   }
 
-  const rows = database.db.prepare(`
+  const rows = database.db
+    .prepare(`
     SELECT raw_data
     FROM ${LOADTEST_SOURCE_TABLE}
     WHERE ${conditions.join(' AND ')}
     ORDER BY created_at DESC
-  `).all(...params) as Array<{ raw_data: string }>;
+  `)
+    .all(...params) as Array<{ raw_data: string }>;
 
   return rows.flatMap((row) => {
     const alert = parseSourceAlertRow(row);
@@ -1049,11 +1172,13 @@ function loadAlertsFromNamedSource(
   } else if (filters.includeCapi === false) {
     conditions.push("origins NOT LIKE '%\nCAPI\n%'");
   }
-  const rows = database.db.prepare(`
+  const rows = database.db
+    .prepare(`
     SELECT raw_data FROM ${tableName}
     WHERE ${conditions.join(' AND ')}
     ORDER BY created_at DESC
-  `).all(...params) as Array<{ raw_data: string }>;
+  `)
+    .all(...params) as Array<{ raw_data: string }>;
   return rows.flatMap((row) => {
     const alert = parseSourceAlertRow(row);
     return alert ? [alert] : [];
@@ -1080,11 +1205,17 @@ function loadNamedSyntheticAlerts(
     merged.set(String(alert.id), alert);
   }
   for (const alert of namedDynamicStates.get(instanceId)?.alerts.values() || []) {
-    if (alert.created_at >= window.start && alert.created_at < window.end && matchesLoadTestFilters(alert, filters)) {
+    if (
+      alert.created_at >= window.start &&
+      alert.created_at < window.end &&
+      matchesLoadTestFilters(alert, filters)
+    ) {
       merged.set(String(alert.id), alert);
     }
   }
-  return Array.from(merged.values()).sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+  return Array.from(merged.values()).sort(
+    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+  );
 }
 
 function createNamedFakeLapiClient(instanceId: string, tableName: string) {
@@ -1098,19 +1229,25 @@ function createNamedFakeLapiClient(instanceId: string, tableName: string) {
       status.isConnected = isConnected;
       status.lastCheck = new Date().toISOString();
       status.lastError = error?.message || null;
-      status.offline_since = isConnected ? null : (status.offline_since || status.lastCheck);
+      status.offline_since = isConnected ? null : status.offline_since || status.lastCheck;
     },
     getStatus: () => ({ ...status }),
     heartbeat: async () => {},
     sendUsageMetrics: async () => {},
-    fetchAlerts: async (since: string | null = null, until: string | null = null, filters: LoadTestFetchFilters = {}) => {
+    fetchAlerts: async (
+      since: string | null = null,
+      until: string | null = null,
+      filters: LoadTestFetchFilters = {},
+    ) => {
       if (shouldFail) throw new Error('Synthetic failing LAPI');
       return loadNamedSyntheticAlerts(instanceId, tableName, since, until, filters);
     },
     getAlertById: async (alertId: string | number) => {
       const dynamicAlert = namedDynamicStates.get(instanceId)?.alerts.get(String(alertId));
       if (dynamicAlert) return dynamicAlert;
-      const row = database.db.prepare(`SELECT raw_data FROM ${tableName} WHERE id = ?`).get(String(alertId)) as { raw_data: string } | undefined;
+      const row = database.db
+        .prepare(`SELECT raw_data FROM ${tableName} WHERE id = ?`)
+        .get(String(alertId)) as { raw_data: string } | undefined;
       return row ? JSON.parse(row.raw_data) : null;
     },
     addDecision: async () => {
@@ -1142,7 +1279,11 @@ function createNamedFakeLapiClient(instanceId: string, tableName: string) {
   };
 }
 
-function loadSyntheticAlerts(since: string | null, until: string | null, filters: LoadTestFetchFilters): AlertRecord[] {
+function loadSyntheticAlerts(
+  since: string | null,
+  until: string | null,
+  filters: LoadTestFetchFilters,
+): AlertRecord[] {
   const window = getSyncWindow(since, until);
   const headSyncEnd = getLoadTestHeadSyncEnd(
     filters.relativeWindow?.endMs,
@@ -1159,12 +1300,18 @@ function loadSyntheticAlerts(since: string | null, until: string | null, filters
   }
 
   for (const alert of dynamicAlerts.values()) {
-    if (alert.created_at >= window.start && alert.created_at < window.end && matchesLoadTestFilters(alert, filters)) {
+    if (
+      alert.created_at >= window.start &&
+      alert.created_at < window.end &&
+      matchesLoadTestFilters(alert, filters)
+    ) {
       merged.set(String(alert.id), alert);
     }
   }
 
-  return Array.from(merged.values()).sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+  return Array.from(merged.values()).sort(
+    (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+  );
 }
 
 const fakeLapiClient = {
@@ -1181,7 +1328,9 @@ const fakeLapiClient = {
     lapiStatus.isConnected = isConnected;
     lapiStatus.lastCheck = new Date().toISOString();
     lapiStatus.lastError = error?.message || null;
-    lapiStatus.offline_since = isConnected ? null : (lapiStatus.offline_since || lapiStatus.lastCheck);
+    lapiStatus.offline_since = isConnected
+      ? null
+      : lapiStatus.offline_since || lapiStatus.lastCheck;
   },
   getStatus: () => ({ ...lapiStatus }),
   heartbeat: async () => {},
@@ -1215,27 +1364,37 @@ const fakeLapiClient = {
     alert.scenario = scenario;
     alert.reason = reason;
     const stopAt = new Date(Date.now() + parseGoDuration(duration)).toISOString();
-    alert.decisions = [{
-      id: nextGeneratedDecisionId++,
-      type,
-      value: ip,
-      duration,
-      stop_at: stopAt,
-      created_at: createdAt,
-      origin: 'cscli',
-      scenario,
-      simulated: false,
-    }];
+    alert.decisions = [
+      {
+        id: nextGeneratedDecisionId++,
+        type,
+        value: ip,
+        duration,
+        stop_at: stopAt,
+        created_at: createdAt,
+        origin: 'cscli',
+        scenario,
+        simulated: false,
+      },
+    ];
     dynamicAlerts.set(String(alert.id), alert);
     return { message: 'Decision added for load-test demo' };
   },
-  async addDecisions(values: string[], type: string, duration: string, reason?: string, scenario?: string) {
+  async addDecisions(
+    values: string[],
+    type: string,
+    duration: string,
+    reason?: string,
+    scenario?: string,
+  ) {
     for (const value of values) await this.addDecision(value, type, duration, reason, scenario);
     return { message: `${values.length} decisions added for load-test demo` };
   },
   deleteDecision: async (decisionId: string | number) => {
     for (const alert of dynamicAlerts.values()) {
-      alert.decisions = (alert.decisions || []).filter((decision) => String(decision.id) !== String(decisionId));
+      alert.decisions = (alert.decisions || []).filter(
+        (decision) => String(decision.id) !== String(decisionId),
+      );
     }
     deleteSourceDecision(decisionId);
     return { message: 'Decision deleted for load-test demo' };
@@ -1259,7 +1418,10 @@ const updateChecker = async () => ({
 const loadTestLapiClients = multiInstanceProfile
   ? new Map([
       ['primary', fakeLapiClient as never],
-      ['secondary', createNamedFakeLapiClient('secondary', `${LOADTEST_SOURCE_TABLE}_secondary`) as never],
+      [
+        'secondary',
+        createNamedFakeLapiClient('secondary', `${LOADTEST_SOURCE_TABLE}_secondary`) as never,
+      ],
       ['edge', createNamedFakeLapiClient('edge', `${LOADTEST_SOURCE_TABLE}_edge`) as never],
     ])
   : undefined;
@@ -1267,7 +1429,9 @@ const loadTestLapiClients = multiInstanceProfile
 const controller = createApp({
   config,
   database,
-  ...(loadTestLapiClients ? { lapiClients: loadTestLapiClients } : { lapiClient: fakeLapiClient as never }),
+  ...(loadTestLapiClients
+    ? { lapiClients: loadTestLapiClients }
+    : { lapiClient: fakeLapiClient as never }),
   startBackgroundTasks: true,
   updateChecker,
   initialCacheState: {
@@ -1278,7 +1442,9 @@ const controller = createApp({
   notificationFetchImpl: async () => new Response('ok', { status: 200 }),
   metricsFetchImpl: async () => {
     if (!multiInstanceProfile && !metricsFleetEnabled) {
-      return new Response('cs_lapi_requests_total{route="/v1/alerts",method="GET"} 100\n', { status: 200 });
+      return new Response('cs_lapi_requests_total{route="/v1/alerts",method="GET"} 100\n', {
+        status: 200,
+      });
     }
 
     const fleetMetrics = buildLoadTestFleetMetrics({
@@ -1306,7 +1472,9 @@ function isApiRequest(pathname: string): boolean {
   return pathname === apiPrefix || pathname.startsWith(`${apiPrefix}/`);
 }
 
-async function fetchWithApiLogging(...args: Parameters<typeof controller.fetch>): Promise<Response> {
+async function fetchWithApiLogging(
+  ...args: Parameters<typeof controller.fetch>
+): Promise<Response> {
   const [request] = args;
   const url = new URL(request.url);
   const startedAt = Date.now();
@@ -1314,12 +1482,16 @@ async function fetchWithApiLogging(...args: Parameters<typeof controller.fetch>)
   try {
     const response = await controller.fetch(...args);
     if (isApiRequest(url.pathname)) {
-      console.log(`[loadtest api] ${request.method} ${url.pathname}${url.search} -> ${response.status} ${formatElapsed(Date.now() - startedAt)}`);
+      console.log(
+        `[loadtest api] ${request.method} ${url.pathname}${url.search} -> ${response.status} ${formatElapsed(Date.now() - startedAt)}`,
+      );
     }
     return response;
   } catch (error) {
     if (isApiRequest(url.pathname)) {
-      console.log(`[loadtest api] ${request.method} ${url.pathname}${url.search} -> error ${formatElapsed(Date.now() - startedAt)}`);
+      console.log(
+        `[loadtest api] ${request.method} ${url.pathname}${url.search} -> error ${formatElapsed(Date.now() - startedAt)}`,
+      );
     }
     throw error;
   }
@@ -1333,8 +1505,12 @@ const cacheUpdateWebSocket = attachCacheUpdateWebSocket(server, controller);
 
 console.log(`Load-test backend running at http://127.0.0.1:${controller.config.port}/`);
 if (authEnabled) {
-  console.log(`Auth is enabled for load-test mode. Default login: ${LOAD_TEST_USERNAME} / ${LOAD_TEST_PASSWORD}`);
-  console.log('A dummy passkey is attached to the load-test user so the passkey login flow can be exercised. Authentication is expected to fail.');
+  console.log(
+    `Auth is enabled for load-test mode. Default login: ${LOAD_TEST_USERNAME} / ${LOAD_TEST_PASSWORD}`,
+  );
+  console.log(
+    'A dummy passkey is attached to the load-test user so the passkey login flow can be exercised. Authentication is expected to fail.',
+  );
 } else {
   console.log(`Auth is disabled for load-test mode.`);
 }

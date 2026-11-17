@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+
+import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici';
+
 import type {
   CrowdsecMetricsAppsecEngine,
   CrowdsecMetricsApiEntity,
@@ -10,8 +14,6 @@ import type {
   CrowdsecMetricsTiming,
   CrowdsecMetricsWhitelist,
 } from '../shared/contracts';
-import fs from 'node:fs';
-import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici';
 import type { EndpointTlsConfig, PrometheusAuthConfig } from './instances-config';
 
 type MetricsRequestInit = RequestInit & { dispatcher?: Dispatcher };
@@ -176,7 +178,9 @@ export function parsePrometheusText(text: string): PrometheusSample[] {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
 
-    const match = trimmed.match(/^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{(.*)\})?\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|NaN|\+?Inf|-Inf)(?:\s+\d+)?$/);
+    const match = trimmed.match(
+      /^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{(.*)\})?\s+([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|NaN|\+?Inf|-Inf)(?:\s+\d+)?$/,
+    );
     if (!match) continue;
 
     const value = Number(match[3]);
@@ -207,10 +211,16 @@ function sortedByValue<T>(items: T[], getValue: (item: T) => number): T[] {
   return [...items].sort((left, right) => getValue(right) - getValue(left));
 }
 
-function sortedEntities(items: CrowdsecMetricsApiEntity[], getValue: (item: CrowdsecMetricsApiEntity) => number): CrowdsecMetricsApiEntity[] {
-  return [...items].sort((left, right) => getValue(right) - getValue(left)
-    || left.name.localeCompare(right.name)
-    || (left.source_id || '').localeCompare(right.source_id || ''));
+function sortedEntities(
+  items: CrowdsecMetricsApiEntity[],
+  getValue: (item: CrowdsecMetricsApiEntity) => number,
+): CrowdsecMetricsApiEntity[] {
+  return [...items].sort(
+    (left, right) =>
+      getValue(right) - getValue(left) ||
+      left.name.localeCompare(right.name) ||
+      (left.source_id || '').localeCompare(right.source_id || ''),
+  );
 }
 
 function routeKey(labels: Record<string, string>): string {
@@ -245,9 +255,15 @@ function sourceKey(sourceId: string | undefined, source: string, type: string): 
   return `${sourceId || ''}\u0000${source}\u0000${type}`;
 }
 
-function sourceMatches(sample: PrometheusSample, sampleSource: string, source: ParserSourceAccumulator): boolean {
-  return sample.source_id === source.source_id
-    && (sampleSource === source.source || `${source.type}:${sampleSource}` === source.source);
+function sourceMatches(
+  sample: PrometheusSample,
+  sampleSource: string,
+  source: ParserSourceAccumulator,
+): boolean {
+  return (
+    sample.source_id === source.source_id &&
+    (sampleSource === source.source || `${source.type}:${sampleSource}` === source.source)
+  );
 }
 
 function aggregateApiEntities(
@@ -303,32 +319,41 @@ function aggregateApiEntities(
     }
   }
 
-  return Array.from(entities.values())
-    .map((entity) => {
-      const topRouteEntry = Array.from(entity.routes.entries()).sort((left, right) => right[1] - left[1])[0];
-      const topRoute = topRouteEntry ? splitRouteKey(topRouteEntry[0]) : null;
-      const allRouteActivity = Array.from(entity.routes.entries())
-        .sort((left, right) => right[1] - left[1])
-        .map(([key, requests]) => ({ ...splitRouteKey(key), requests }));
-      const routeActivity = allRouteActivity.slice(0, MAX_ENTITY_ROUTES);
-      const alertRequests = entityLabel === 'machine'
+  return Array.from(entities.values()).map((entity) => {
+    const topRouteEntry = Array.from(entity.routes.entries()).sort(
+      (left, right) => right[1] - left[1],
+    )[0];
+    const topRoute = topRouteEntry ? splitRouteKey(topRouteEntry[0]) : null;
+    const allRouteActivity = Array.from(entity.routes.entries())
+      .sort((left, right) => right[1] - left[1])
+      .map(([key, requests]) => ({ ...splitRouteKey(key), requests }));
+    const routeActivity = allRouteActivity.slice(0, MAX_ENTITY_ROUTES);
+    const alertRequests =
+      entityLabel === 'machine'
         ? allRouteActivity
-          .filter((route) => route.method === 'POST' && route.route === '/v1/alerts')
-          .reduce((sum, route) => sum + route.requests, 0)
+            .filter((route) => route.method === 'POST' && route.route === '/v1/alerts')
+            .reduce((sum, route) => sum + route.requests, 0)
         : undefined;
-      const heartbeatRequests = entityLabel === 'machine'
+    const heartbeatRequests =
+      entityLabel === 'machine'
         ? allRouteActivity
-          .filter((route) => route.route === '/v1/heartbeat')
-          .reduce((sum, route) => sum + route.requests, 0)
+            .filter((route) => route.route === '/v1/heartbeat')
+            .reduce((sum, route) => sum + route.requests, 0)
         : undefined;
-      const otherRequests = entityLabel === 'machine'
+    const otherRequests =
+      entityLabel === 'machine'
         ? Math.max(entity.requests - (alertRequests || 0) - (heartbeatRequests || 0), 0)
         : undefined;
-      const hasLiveDecisionRoute = entityLabel === 'bouncer'
-        && Array.from(entity.routes.keys()).some((key) => splitRouteKey(key).route === '/v1/decisions');
-      const hasStreamDecisionRoute = entityLabel === 'bouncer'
-        && Array.from(entity.routes.keys()).some((key) => splitRouteKey(key).route === '/v1/decisions/stream');
-      const mode: CrowdsecMetricsBouncerMode | undefined = entityLabel === 'bouncer'
+    const hasLiveDecisionRoute =
+      entityLabel === 'bouncer' &&
+      Array.from(entity.routes.keys()).some((key) => splitRouteKey(key).route === '/v1/decisions');
+    const hasStreamDecisionRoute =
+      entityLabel === 'bouncer' &&
+      Array.from(entity.routes.keys()).some(
+        (key) => splitRouteKey(key).route === '/v1/decisions/stream',
+      );
+    const mode: CrowdsecMetricsBouncerMode | undefined =
+      entityLabel === 'bouncer'
         ? hasLiveDecisionRoute && hasStreamDecisionRoute
           ? 'mixed'
           : hasStreamDecisionRoute
@@ -337,20 +362,25 @@ function aggregateApiEntities(
               ? 'live'
               : 'unknown'
         : undefined;
-      return {
-        ...(entity.source_id ? { source_id: entity.source_id } : {}),
-        name: entity.name,
-        requests: entity.requests,
-        topRoute: topRoute?.route || null,
-        topMethod: topRoute?.method || null,
-        decisionsOk: entity.decisionsOk || undefined,
-        decisionsKo: entity.decisionsKo || undefined,
-        routes: routeActivity,
-        ...(entityLabel === 'machine'
-          ? { alertRequests, heartbeatRequests, lastHeartbeatAt: entity.lastHeartbeatAt, otherRequests }
-          : { mode }),
-      };
-    });
+    return {
+      ...(entity.source_id ? { source_id: entity.source_id } : {}),
+      name: entity.name,
+      requests: entity.requests,
+      topRoute: topRoute?.route || null,
+      topMethod: topRoute?.method || null,
+      decisionsOk: entity.decisionsOk || undefined,
+      decisionsKo: entity.decisionsKo || undefined,
+      routes: routeActivity,
+      ...(entityLabel === 'machine'
+        ? {
+            alertRequests,
+            heartbeatRequests,
+            lastHeartbeatAt: entity.lastHeartbeatAt,
+            otherRequests,
+          }
+        : { mode }),
+    };
+  });
 }
 
 function aggregateParserSources(samples: PrometheusSample[]): CrowdsecMetricsParserSource[] {
@@ -413,20 +443,22 @@ function aggregateParserSources(samples: PrometheusSample[]): CrowdsecMetricsPar
     getSource(sample).whitelisted += sample.value;
   }
 
-  return sortedByValue(Array.from(sources.values()), (source) => source.linesRead ?? (source.processed || source.parsedOk + source.parsedKo))
-    .map((source) => ({
-      ...(source.source_id ? { source_id: source.source_id } : {}),
-      source: source.source,
-      type: source.type,
-      acquisTypes: Array.from(source.acquisTypes).sort(),
-      linesRead: source.linesRead,
-      processed: source.processed,
-      parsedOk: source.parsedOk,
-      parsedKo: source.parsedKo,
-      pouredToBucket: source.pouredToBucket,
-      whitelisted: source.whitelisted,
-      successRate: successRate(source.parsedOk, source.parsedKo, source.processed),
-    }));
+  return sortedByValue(
+    Array.from(sources.values()),
+    (source) => source.linesRead ?? (source.processed || source.parsedOk + source.parsedKo),
+  ).map((source) => ({
+    ...(source.source_id ? { source_id: source.source_id } : {}),
+    source: source.source,
+    type: source.type,
+    acquisTypes: Array.from(source.acquisTypes).sort(),
+    linesRead: source.linesRead,
+    processed: source.processed,
+    parsedOk: source.parsedOk,
+    parsedKo: source.parsedKo,
+    pouredToBucket: source.pouredToBucket,
+    whitelisted: source.whitelisted,
+    successRate: successRate(source.parsedOk, source.parsedKo, source.processed),
+  }));
 }
 
 function aggregateParserNodes(samples: PrometheusSample[]): CrowdsecMetricsParserNode[] {
@@ -441,7 +473,17 @@ function aggregateParserNodes(samples: PrometheusSample[]): CrowdsecMetricsParse
     const key = `${sample.source_id || ''}\u0000${name}\u0000${stage}\u0000${source}\u0000${type}\u0000${acquisType || ''}`;
     let accumulator = nodes.get(key);
     if (!accumulator) {
-      accumulator = { source_id: sample.source_id, name, stage, source, type, acquisType, processed: 0, parsedOk: 0, parsedKo: 0 };
+      accumulator = {
+        source_id: sample.source_id,
+        name,
+        stage,
+        source,
+        type,
+        acquisType,
+        processed: 0,
+        parsedOk: 0,
+        parsedKo: 0,
+      };
       nodes.set(key, accumulator);
     }
     return accumulator;
@@ -459,20 +501,22 @@ function aggregateParserNodes(samples: PrometheusSample[]): CrowdsecMetricsParse
     getNode(sample).parsedKo += sample.value;
   }
 
-  return sortedByValue(Array.from(nodes.values()), (node) => node.processed || node.parsedOk + node.parsedKo)
-    .map((node) => ({
-      ...(node.source_id ? { source_id: node.source_id } : {}),
-      name: node.name,
-      stage: node.stage,
-      source: node.source,
-      type: node.type,
-      acquisType: node.acquisType,
-      isChild: isChildParserNodeName(node.name),
-      processed: node.processed,
-      parsedOk: node.parsedOk,
-      parsedKo: node.parsedKo,
-      successRate: successRate(node.parsedOk, node.parsedKo, node.processed),
-    }));
+  return sortedByValue(
+    Array.from(nodes.values()),
+    (node) => node.processed || node.parsedOk + node.parsedKo,
+  ).map((node) => ({
+    ...(node.source_id ? { source_id: node.source_id } : {}),
+    name: node.name,
+    stage: node.stage,
+    source: node.source,
+    type: node.type,
+    acquisType: node.acquisType,
+    isChild: isChildParserNodeName(node.name),
+    processed: node.processed,
+    parsedOk: node.parsedOk,
+    parsedKo: node.parsedKo,
+    successRate: successRate(node.parsedOk, node.parsedKo, node.processed),
+  }));
 }
 
 function isChildParserNodeName(name: string): boolean {
@@ -502,14 +546,13 @@ function aggregateParserTimings(samples: PrometheusSample[]): CrowdsecMetricsTim
     getTiming(sample).sum += sample.value;
   }
 
-  return sortedByValue(Array.from(timings.values()), (timing) => timing.count)
-    .map((timing) => ({
-      ...(timing.source_id ? { source_id: timing.source_id } : {}),
-      source: timing.source,
-      type: timing.type,
-      count: timing.count,
-      averageSeconds: timing.count > 0 ? timing.sum / timing.count : null,
-    }));
+  return sortedByValue(Array.from(timings.values()), (timing) => timing.count).map((timing) => ({
+    ...(timing.source_id ? { source_id: timing.source_id } : {}),
+    source: timing.source,
+    type: timing.type,
+    count: timing.count,
+    averageSeconds: timing.count > 0 ? timing.sum / timing.count : null,
+  }));
 }
 
 function aggregateAppsecEngines(samples: PrometheusSample[]): AppsecEngineAccumulator[] {
@@ -548,7 +591,14 @@ function aggregateLapiRoutes(samples: PrometheusSample[]): CrowdsecMetricsLapiRo
     const key = `${sample.source_id || ''}\u0000${method}\u0000${route}`;
     let accumulator = routes.get(key);
     if (!accumulator) {
-      accumulator = { source_id: sample.source_id, method, route, requestCount: 0, durationCount: 0, sum: 0 };
+      accumulator = {
+        source_id: sample.source_id,
+        method,
+        route,
+        requestCount: 0,
+        durationCount: 0,
+        sum: 0,
+      };
       routes.set(key, accumulator);
     }
     return accumulator;
@@ -566,14 +616,16 @@ function aggregateLapiRoutes(samples: PrometheusSample[]): CrowdsecMetricsLapiRo
     getRoute(sample).sum += sample.value;
   }
 
-  return sortedByValue(Array.from(routes.values()), (route) => route.requestCount || route.durationCount)
-    .map((route) => ({
-      ...(route.source_id ? { source_id: route.source_id } : {}),
-      method: route.method,
-      route: route.route,
-      requests: route.requestCount || route.durationCount,
-      averageSeconds: route.durationCount > 0 ? route.sum / route.durationCount : null,
-    }));
+  return sortedByValue(
+    Array.from(routes.values()),
+    (route) => route.requestCount || route.durationCount,
+  ).map((route) => ({
+    ...(route.source_id ? { source_id: route.source_id } : {}),
+    method: route.method,
+    route: route.route,
+    requests: route.requestCount || route.durationCount,
+    averageSeconds: route.durationCount > 0 ? route.sum / route.durationCount : null,
+  }));
 }
 
 function mapAppsecEngines(engines: AppsecEngineAccumulator[]): CrowdsecMetricsAppsecEngine[] {
@@ -614,9 +666,12 @@ function aggregateScenarios(samples: PrometheusSample[]): CrowdsecMetricsScenari
     getScenario(sample).current += sample.value;
   }
   const instantiationSamples = metric(samples, 'cs_bucket_instantiation_total');
-  const currentInstantiationSources = new Set(instantiationSamples.map((sample) => sample.source_id || ''));
-  const legacyInstantiationSamples = metric(samples, 'cs_bucket_created_total')
-    .filter((sample) => !currentInstantiationSources.has(sample.source_id || ''));
+  const currentInstantiationSources = new Set(
+    instantiationSamples.map((sample) => sample.source_id || ''),
+  );
+  const legacyInstantiationSamples = metric(samples, 'cs_bucket_created_total').filter(
+    (sample) => !currentInstantiationSources.has(sample.source_id || ''),
+  );
   for (const sample of [...instantiationSamples, ...legacyInstantiationSamples]) {
     getScenario(sample).instantiations += sample.value;
   }
@@ -635,7 +690,13 @@ function aggregateScenarios(samples: PrometheusSample[]): CrowdsecMetricsScenari
 
   return sortedByValue(
     Array.from(scenarios.values()),
-    (scenario) => scenario.current + scenario.instantiations + scenario.overflows + scenario.underflows + scenario.canceled + scenario.poured,
+    (scenario) =>
+      scenario.current +
+      scenario.instantiations +
+      scenario.overflows +
+      scenario.underflows +
+      scenario.canceled +
+      scenario.poured,
   ).map((scenario) => ({
     ...(scenario.source_id ? { source_id: scenario.source_id } : {}),
     name: scenario.name,
@@ -671,32 +732,53 @@ function aggregateWhitelists(samples: PrometheusSample[]): CrowdsecMetricsWhitel
     getWhitelist(sample).whitelisted += sample.value;
   }
 
-  return sortedByValue(Array.from(whitelists.values()), (whitelist) => whitelist.hits || whitelist.whitelisted)
-    .map((whitelist) => ({
-      ...(whitelist.source_id ? { source_id: whitelist.source_id } : {}),
-      name: whitelist.name,
-      reason: whitelist.reason,
-      hits: whitelist.hits,
-      whitelisted: whitelist.whitelisted,
-    }));
+  return sortedByValue(
+    Array.from(whitelists.values()),
+    (whitelist) => whitelist.hits || whitelist.whitelisted,
+  ).map((whitelist) => ({
+    ...(whitelist.source_id ? { source_id: whitelist.source_id } : {}),
+    name: whitelist.name,
+    reason: whitelist.reason,
+    hits: whitelist.hits,
+    whitelisted: whitelist.whitelisted,
+  }));
 }
 
 export function summarizeCrowdsecMetrics(samples: PrometheusSample[]): CrowdsecMetricsResponse {
-  const parserOk = metric(samples, 'cs_parser_hits_ok_total').reduce((sum, sample) => sum + sample.value, 0);
-  const parserKo = metric(samples, 'cs_parser_hits_ko_total').reduce((sum, sample) => sum + sample.value, 0);
-  const parserProcessed = metric(samples, 'cs_parser_hits_total').reduce((sum, sample) => sum + sample.value, 0);
-  const parserTimingCount = metric(samples, 'cs_parsing_time_seconds_count').reduce((sum, sample) => sum + sample.value, 0);
-  const parserTimingSum = metric(samples, 'cs_parsing_time_seconds_sum').reduce((sum, sample) => sum + sample.value, 0);
+  const parserOk = metric(samples, 'cs_parser_hits_ok_total').reduce(
+    (sum, sample) => sum + sample.value,
+    0,
+  );
+  const parserKo = metric(samples, 'cs_parser_hits_ko_total').reduce(
+    (sum, sample) => sum + sample.value,
+    0,
+  );
+  const parserProcessed = metric(samples, 'cs_parser_hits_total').reduce(
+    (sum, sample) => sum + sample.value,
+    0,
+  );
+  const parserTimingCount = metric(samples, 'cs_parsing_time_seconds_count').reduce(
+    (sum, sample) => sum + sample.value,
+    0,
+  );
+  const parserTimingSum = metric(samples, 'cs_parsing_time_seconds_sum').reduce(
+    (sum, sample) => sum + sample.value,
+    0,
+  );
   const activeDecisionSamples = metric(samples, 'cs_active_decisions');
   const alertSamples = metric(samples, 'cs_alerts');
-  const activeDecisions = activeDecisionSamples.length > 0
-    ? activeDecisionSamples.reduce((sum, sample) => sum + sample.value, 0)
-    : undefined;
-  const alerts = alertSamples.length > 0
-    ? alertSamples.reduce((sum, sample) => sum + sample.value, 0)
-    : undefined;
+  const activeDecisions =
+    activeDecisionSamples.length > 0
+      ? activeDecisionSamples.reduce((sum, sample) => sum + sample.value, 0)
+      : undefined;
+  const alerts =
+    alertSamples.length > 0
+      ? alertSamples.reduce((sum, sample) => sum + sample.value, 0)
+      : undefined;
   const versionSample = metric(samples, 'cs_info')[0];
-  const crowdsecStartedAt = prometheusTimestampToIso(metric(samples, 'process_start_time_seconds')[0]);
+  const crowdsecStartedAt = prometheusTimestampToIso(
+    metric(samples, 'process_start_time_seconds')[0],
+  );
 
   const allBouncers = aggregateApiEntities(
     metric(samples, 'cs_lapi_bouncer_requests_total'),
@@ -719,8 +801,14 @@ export function summarizeCrowdsecMetrics(samples: PrometheusSample[]): CrowdsecM
   const appsecEngines = aggregateAppsecEngines(samples);
   const whitelists = aggregateWhitelists(samples);
   const scenarios = aggregateScenarios(samples);
-  const machineAlertRequests = allMachines.reduce((sum, machine) => sum + (machine.alertRequests || 0), 0);
-  const machineHeartbeatRequests = allMachines.reduce((sum, machine) => sum + (machine.heartbeatRequests || 0), 0);
+  const machineAlertRequests = allMachines.reduce(
+    (sum, machine) => sum + (machine.alertRequests || 0),
+    0,
+  );
+  const machineHeartbeatRequests = allMachines.reduce(
+    (sum, machine) => sum + (machine.heartbeatRequests || 0),
+    0,
+  );
 
   return {
     fetched_at: new Date().toISOString(),
@@ -755,11 +843,16 @@ export function summarizeCrowdsecMetrics(samples: PrometheusSample[]): CrowdsecM
   };
 }
 
-export async function fetchCrowdsecMetricsSamples(options: FetchCrowdsecMetricsOptions): Promise<PrometheusSample[]> {
-  const fetchImpl = options.fetchImpl || ((input, init) => undiciFetch(
-    input as Parameters<typeof undiciFetch>[0],
-    init as Parameters<typeof undiciFetch>[1],
-  ) as unknown as Promise<Response>);
+export async function fetchCrowdsecMetricsSamples(
+  options: FetchCrowdsecMetricsOptions,
+): Promise<PrometheusSample[]> {
+  const fetchImpl =
+    options.fetchImpl ||
+    ((input, init) =>
+      undiciFetch(
+        input as Parameters<typeof undiciFetch>[0],
+        init as Parameters<typeof undiciFetch>[1],
+      ) as unknown as Promise<Response>);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
   const headers: Record<string, string> = { Accept: 'text/plain' };
@@ -769,15 +862,16 @@ export async function fetchCrowdsecMetricsSamples(options: FetchCrowdsecMetricsO
     headers.Authorization = `Bearer ${options.auth.token}`;
   }
   const tls = options.tls;
-  const dispatcher = tls && (tls.caFile || tls.certFile || tls.keyFile)
-    ? new Agent({
-        connect: {
-          ...(tls.caFile ? { ca: fs.readFileSync(tls.caFile) } : {}),
-          ...(tls.certFile ? { cert: fs.readFileSync(tls.certFile) } : {}),
-          ...(tls.keyFile ? { key: fs.readFileSync(tls.keyFile) } : {}),
-        },
-      })
-    : undefined;
+  const dispatcher =
+    tls && (tls.caFile || tls.certFile || tls.keyFile)
+      ? new Agent({
+          connect: {
+            ...(tls.caFile ? { ca: fs.readFileSync(tls.caFile) } : {}),
+            ...(tls.certFile ? { cert: fs.readFileSync(tls.certFile) } : {}),
+            ...(tls.keyFile ? { key: fs.readFileSync(tls.keyFile) } : {}),
+          },
+        })
+      : undefined;
 
   try {
     const response = await fetchImpl(options.url, {
@@ -802,6 +896,8 @@ export async function fetchCrowdsecMetricsSamples(options: FetchCrowdsecMetricsO
   }
 }
 
-export async function fetchCrowdsecMetrics(options: FetchCrowdsecMetricsOptions): Promise<CrowdsecMetricsResponse> {
+export async function fetchCrowdsecMetrics(
+  options: FetchCrowdsecMetricsOptions,
+): Promise<CrowdsecMetricsResponse> {
   return summarizeCrowdsecMetrics(await fetchCrowdsecMetricsSamples(options));
 }

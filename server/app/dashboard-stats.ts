@@ -8,10 +8,8 @@ import type {
 import { normalizeMachineId } from '../../shared/machine';
 import { matchesIpSearchValue } from '../../shared/search';
 import { getDateTimeKey, getTimeZoneOffsetMs, getZonedHourlyBucketKeys } from '../utils/date-time';
-import {
-  addDashboardAttackLocation,
-  dashboardAttackLocationData,
-} from '../dashboard-locations';
+import { getCountryName } from './country';
+import { matchesSimulationFilter } from './simulation';
 import type {
   DashboardAlertStatsRecord,
   DashboardDecisionAccumulator,
@@ -19,9 +17,6 @@ import type {
   DashboardStatsAccumulator,
   DashboardStatsFilters,
 } from './types';
-import { parseSimulationBoolean } from './simulation';
-import { matchesSimulationFilter } from './simulation';
-import { getCountryName } from './country';
 
 export function createDashboardStatsAccumulator(): DashboardStatsAccumulator {
   return {
@@ -52,7 +47,10 @@ export function createDashboardDecisionAccumulator(): DashboardDecisionAccumulat
   };
 }
 
-export function matchesDashboardSimulationFilter(isSimulated: boolean, filter: DashboardSimulationFilter): boolean {
+export function matchesDashboardSimulationFilter(
+  isSimulated: boolean,
+  filter: DashboardSimulationFilter,
+): boolean {
   return matchesSimulationFilter(isSimulated, filter);
 }
 
@@ -95,9 +93,9 @@ export function matchesDashboardDecisionFilters(
   // Legacy Dashboard requests supplied only an alert-oriented q. Preserve their
   // alert-to-decision relationship when no explicit decision query is present.
   if (
-    !filters.decisionQ
-    && requiresDashboardAlertIpJoin(filters)
-    && (!decision.value || !alertIps.has(decision.value))
+    !filters.decisionQ &&
+    requiresDashboardAlertIpJoin(filters) &&
+    (!decision.value || !alertIps.has(decision.value))
   ) {
     return false;
   }
@@ -122,9 +120,13 @@ export function matchesDashboardDateRange(
     return true;
   }
 
-  const itemKey = dateTimeKey ?? getDateTimeKey(
+  const itemKey =
+    dateTimeKey ??
+    getDateTimeKey(
       isoString,
-      filters.granularity === 'hour' || filters.dateStart.includes('T') || filters.dateEnd.includes('T'),
+      filters.granularity === 'hour' ||
+        filters.dateStart.includes('T') ||
+        filters.dateEnd.includes('T'),
       filters.timezoneOffsetMinutes,
       filters.timeZone,
     );
@@ -147,7 +149,9 @@ export function addDashboardAlertBuckets(
 ): void {
   accumulator.alerts += 1;
 
-  const bucketMap = alert.simulated ? accumulator.simulatedAlertBuckets : accumulator.liveAlertBuckets;
+  const bucketMap = alert.simulated
+    ? accumulator.simulatedAlertBuckets
+    : accumulator.liveAlertBuckets;
   incrementCount(bucketMap, bucketKey);
 
   if (alert.simulated) {
@@ -167,7 +171,11 @@ export function addDashboardAlert(
 
   // Country codes are stored uppercased, so CrowdSec's "Unknown" arrives as UNKNOWN.
   if (alert.country && alert.country.toUpperCase() !== 'UNKNOWN') {
-    const current = accumulator.countries.get(alert.country) || { count: 0, liveCount: 0, simulatedCount: 0 };
+    const current = accumulator.countries.get(alert.country) || {
+      count: 0,
+      liveCount: 0,
+      simulatedCount: 0,
+    };
     current.count += 1;
     if (alert.simulated) {
       current.simulatedCount += 1;
@@ -219,7 +227,9 @@ export function addDashboardDecision(
   isActive: boolean,
   bucketKey = getDashboardBucketKey(decision.createdAt, filters),
 ): void {
-  const bucketMap = decision.simulated ? accumulator.simulatedDecisionBuckets : accumulator.liveDecisionBuckets;
+  const bucketMap = decision.simulated
+    ? accumulator.simulatedDecisionBuckets
+    : accumulator.liveDecisionBuckets;
   incrementCount(bucketMap, bucketKey);
   if (isActive) {
     const activeBucketMap = decision.simulated
@@ -264,10 +274,16 @@ export function normalizeDashboardCountryCode(country: string | undefined): stri
   return normalized && /^[A-Z]{2}$/.test(normalized) ? normalized : undefined;
 }
 
-export function normalizeDashboardCoordinate(value: unknown, minimum: number, maximum: number): number | undefined {
+export function normalizeDashboardCoordinate(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): number | undefined {
   if (typeof value !== 'number' && typeof value !== 'string') return undefined;
   const coordinate = typeof value === 'number' ? value : Number(value.trim());
-  return Number.isFinite(coordinate) && coordinate >= minimum && coordinate <= maximum ? coordinate : undefined;
+  return Number.isFinite(coordinate) && coordinate >= minimum && coordinate <= maximum
+    ? coordinate
+    : undefined;
 }
 
 export function addDashboardDecisionCountry(
@@ -354,22 +370,21 @@ export function dashboardWorldMapData(
   decisionCountries: DashboardDecisionAccumulator['countries'],
 ): DashboardWorldMapDatum[] {
   const countryCodes = new Set([...countries.keys(), ...decisionCountries.keys()]);
-  return Array.from(countryCodes)
-    .map((code) => {
-      const summary = countries.get(code);
-      const decisionSummary = decisionCountries.get(code);
-      return {
-        label: getCountryName(code) || code,
-        count: summary?.count || 0,
-        countryCode: code,
-        simulatedCount: summary?.simulatedCount || 0,
-        liveCount: summary?.liveCount || 0,
-        liveDecisionCount: decisionSummary?.liveDecisionCount || 0,
-        simulatedDecisionCount: decisionSummary?.simulatedDecisionCount || 0,
-        activeLiveDecisionCount: decisionSummary?.activeLiveDecisionCount || 0,
-        activeSimulatedDecisionCount: decisionSummary?.activeSimulatedDecisionCount || 0,
-      };
-    });
+  return Array.from(countryCodes).map((code) => {
+    const summary = countries.get(code);
+    const decisionSummary = decisionCountries.get(code);
+    return {
+      label: getCountryName(code) || code,
+      count: summary?.count || 0,
+      countryCode: code,
+      simulatedCount: summary?.simulatedCount || 0,
+      liveCount: summary?.liveCount || 0,
+      liveDecisionCount: decisionSummary?.liveDecisionCount || 0,
+      simulatedDecisionCount: decisionSummary?.simulatedDecisionCount || 0,
+      activeLiveDecisionCount: decisionSummary?.activeLiveDecisionCount || 0,
+      activeSimulatedDecisionCount: decisionSummary?.activeSimulatedDecisionCount || 0,
+    };
+  });
 }
 
 export function dashboardBuckets(
@@ -397,7 +412,12 @@ export function getDashboardBucketKeys(
   if (filters.timeZone && filters.granularity === 'hour') {
     const endKey = useExplicitRange
       ? filters.dateEnd
-      : getDateTimeKey(new Date().toISOString(), true, filters.timezoneOffsetMinutes, filters.timeZone);
+      : getDateTimeKey(
+          new Date().toISOString(),
+          true,
+          filters.timezoneOffsetMinutes,
+          filters.timeZone,
+        );
     let startKey = useExplicitRange ? filters.dateStart : endKey;
     if (!useExplicitRange) {
       const startWallDate = parseDashboardWallKey(endKey);
@@ -425,15 +445,17 @@ export function getDashboardBucketKeys(
     filters.timeZone,
   );
   const end = parseDashboardWallKey(nowKey);
-  let cursor = new Date(Date.UTC(
-    end.getUTCFullYear(),
-    end.getUTCMonth(),
-    end.getUTCDate() - (lookbackDays - 1),
-    0,
-    0,
-    0,
-    0,
-  ));
+  let cursor = new Date(
+    Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate() - (lookbackDays - 1),
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
 
   while (cursor <= end) {
     keys.push(formatDashboardClientBucketKey(cursor, filters.granularity));
@@ -444,7 +466,12 @@ export function getDashboardBucketKeys(
 }
 
 export function getDashboardBucketKey(isoString: string, filters: DashboardStatsFilters): string {
-  return getDateTimeKey(isoString, filters.granularity === 'hour', filters.timezoneOffsetMinutes, filters.timeZone);
+  return getDateTimeKey(
+    isoString,
+    filters.granularity === 'hour',
+    filters.timezoneOffsetMinutes,
+    filters.timeZone,
+  );
 }
 
 export function parseDashboardWallKey(key: string): Date {
@@ -454,7 +481,11 @@ export function parseDashboardWallKey(key: string): Date {
   return new Date(Date.UTC(year, month - 1, day, hour, 0, 0, 0));
 }
 
-export function parseDashboardBucketKey(key: string, timezoneOffsetMinutes: number, timeZone: string | null): Date {
+export function parseDashboardBucketKey(
+  key: string,
+  timezoneOffsetMinutes: number,
+  timeZone: string | null,
+): Date {
   const wallDate = parseDashboardWallKey(key);
   if (!timeZone) {
     return new Date(wallDate.getTime() + timezoneOffsetMinutes * 60_000);
@@ -468,7 +499,10 @@ export function parseDashboardBucketKey(key: string, timezoneOffsetMinutes: numb
   return instant;
 }
 
-export function formatDashboardClientBucketKey(date: Date, granularity: DashboardGranularity): string {
+export function formatDashboardClientBucketKey(
+  date: Date,
+  granularity: DashboardGranularity,
+): string {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
   const day = String(date.getUTCDate()).padStart(2, '0');
@@ -488,6 +522,10 @@ export function addDashboardBucketInterval(date: Date, granularity: DashboardGra
   return next;
 }
 
-export function getDashboardBucketFullDate(key: string, timezoneOffsetMinutes: number, timeZone: string | null): string {
+export function getDashboardBucketFullDate(
+  key: string,
+  timezoneOffsetMinutes: number,
+  timeZone: string | null,
+): string {
   return parseDashboardBucketKey(key, timezoneOffsetMinutes, timeZone).toISOString();
 }

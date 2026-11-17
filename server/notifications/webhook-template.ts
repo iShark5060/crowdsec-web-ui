@@ -62,7 +62,9 @@ export function validateTemplate(template: string): string | null {
   return null;
 }
 
-export function buildWebhookTemplateView(event: WebhookTemplateEvent): { event: Record<string, unknown> } {
+export function buildWebhookTemplateView(event: WebhookTemplateEvent): {
+  event: Record<string, unknown>;
+} {
   const ruleIdOrUnknown = fallbackText(event.rule_id);
   const ruleNameOrUnknown = fallbackText(event.rule_name);
   const ruleTypeOrUnknown = fallbackText(event.rule_type);

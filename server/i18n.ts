@@ -14,7 +14,19 @@ import type { CrowdsecDatabase } from './database';
 export const LANGUAGE_SETTING_KEY = 'language';
 export const BROWSER_LANGUAGE_SETTING = 'browser';
 
-export const SUPPORTED_SERVER_LANGUAGES = ['ar', 'en', 'de', 'fr', 'hi', 'ja', 'ko', 'pt', 'es', 'ru', 'zh'] as const;
+export const SUPPORTED_SERVER_LANGUAGES = [
+  'ar',
+  'en',
+  'de',
+  'fr',
+  'hi',
+  'ja',
+  'ko',
+  'pt',
+  'es',
+  'ru',
+  'zh',
+] as const;
 export type SupportedServerLanguage = (typeof SUPPORTED_SERVER_LANGUAGES)[number];
 export type LanguagePreference = SupportedServerLanguage | typeof BROWSER_LANGUAGE_SETTING;
 export type TranslationValues = Record<string, string | number | boolean | null | undefined>;
@@ -36,16 +48,20 @@ const resources: Record<SupportedServerLanguage, Record<string, string>> = {
 
 const supportedLanguageCodes = new Set<string>(SUPPORTED_SERVER_LANGUAGES);
 
-function normalizeLanguageCode(language: string | null | undefined): SupportedServerLanguage | null {
+function normalizeLanguageCode(
+  language: string | null | undefined,
+): SupportedServerLanguage | null {
   if (!language) return null;
   const normalized = language.trim().toLowerCase().replace('_', '-');
   if (supportedLanguageCodes.has(normalized)) return normalized as SupportedServerLanguage;
 
   const base = normalized.split('-')[0];
-  return supportedLanguageCodes.has(base) ? base as SupportedServerLanguage : null;
+  return supportedLanguageCodes.has(base) ? (base as SupportedServerLanguage) : null;
 }
 
-export function normalizeLanguagePreference(preference: string | null | undefined): LanguagePreference {
+export function normalizeLanguagePreference(
+  preference: string | null | undefined,
+): LanguagePreference {
   if (!preference || preference === BROWSER_LANGUAGE_SETTING) return BROWSER_LANGUAGE_SETTING;
   return normalizeLanguageCode(preference) ?? BROWSER_LANGUAGE_SETTING;
 }
@@ -55,7 +71,10 @@ export function getServerLanguage(database: CrowdsecDatabase): SupportedServerLa
   return preference === BROWSER_LANGUAGE_SETTING ? 'en' : preference;
 }
 
-export function saveLanguagePreference(database: CrowdsecDatabase, preference: string | null | undefined): LanguagePreference {
+export function saveLanguagePreference(
+  database: CrowdsecDatabase,
+  preference: string | null | undefined,
+): LanguagePreference {
   const normalizedPreference = normalizeLanguagePreference(preference);
   database.setMeta(LANGUAGE_SETTING_KEY, normalizedPreference);
   return normalizedPreference;

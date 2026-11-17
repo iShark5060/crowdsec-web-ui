@@ -16,8 +16,13 @@ export function formatRemainingDuration(remainingMs: number): string {
   return `${hours > 0 ? `${hours}h` : ''}${minutes > 0 || hours > 0 ? `${minutes}m` : ''}${seconds}s`;
 }
 
-export function getDecisionExpirationState(decision: DecisionListItem, nowMs = Date.now()): DecisionExpirationState {
-  const expiresAtMs = decision.detail.expiration ? Date.parse(decision.detail.expiration) : Number.NaN;
+export function getDecisionExpirationState(
+  decision: DecisionListItem,
+  nowMs = Date.now(),
+): DecisionExpirationState {
+  const expiresAtMs = decision.detail.expiration
+    ? Date.parse(decision.detail.expiration)
+    : Number.NaN;
 
   if (Number.isFinite(expiresAtMs)) {
     const remainingMs = expiresAtMs - nowMs;

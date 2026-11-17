@@ -1,8 +1,20 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect, useState } from 'react';
-import { MemoryRouter, Route, Router, Routes, useLocation, useNavigate, type Location, type NavigateFunction, type Navigator, type To } from 'react-router-dom';
+import {
+  MemoryRouter,
+  Route,
+  Router,
+  Routes,
+  useLocation,
+  useNavigate,
+  type Location,
+  type NavigateFunction,
+  type Navigator,
+  type To,
+} from 'react-router-dom';
 import { describe, expect, test } from 'vitest';
+
 import { useHistoryBackedOverlay } from '../historyOverlay';
 
 function Overlay({ name }: { name: string }) {
@@ -11,8 +23,22 @@ function Overlay({ name }: { name: string }) {
 
   return (
     <div>
-      <button onClick={() => { setOpen(true); overlayHistory.open(); }}>Open {name}</button>
-      <button onClick={() => { setOpen(false); overlayHistory.close(); }}>Close {name}</button>
+      <button
+        onClick={() => {
+          setOpen(true);
+          overlayHistory.open();
+        }}
+      >
+        Open {name}
+      </button>
+      <button
+        onClick={() => {
+          setOpen(false);
+          overlayHistory.close();
+        }}
+      >
+        Close {name}
+      </button>
       {open && <p>{name} is open</p>}
     </div>
   );
@@ -36,7 +62,15 @@ function renderOverlays() {
       <HistoryProbe />
       <Routes>
         <Route path="/" element={<p>Home page</p>} />
-        <Route path="/page" element={<><Overlay name="drawer" /><Overlay name="dialog" /></>} />
+        <Route
+          path="/page"
+          element={
+            <>
+              <Overlay name="drawer" />
+              <Overlay name="dialog" />
+            </>
+          }
+        />
         <Route path="/other" element={<p>Other page</p>} />
       </Routes>
     </MemoryRouter>,
@@ -71,7 +105,12 @@ function renderOverlayWithQueuedNavigation() {
       push: (to, state) => {
         queue.push(() => {
           index += 1;
-          entries.splice(index, entries.length, { ...entries[0], ...(to as object), state, key: `pushed-${nextKey += 1}` });
+          entries.splice(index, entries.length, {
+            ...entries[0],
+            ...(to as object),
+            state,
+            key: `pushed-${(nextKey += 1)}`,
+          });
           setLocation(entries[index]);
         });
       },
@@ -79,7 +118,11 @@ function renderOverlayWithQueuedNavigation() {
         throw new Error('This overlay should pop the entry it pushed');
       },
     }));
-    return <Router location={location} navigator={navigator}><Overlay name="dialog" /></Router>;
+    return (
+      <Router location={location} navigator={navigator}>
+        <Overlay name="dialog" />
+      </Router>
+    );
   }
 
   render(<QueuedRouter />);

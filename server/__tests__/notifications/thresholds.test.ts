@@ -1,6 +1,6 @@
-import { describe, expect, test, vi } from 'vitest';
-import type { LapiStatus } from '../../../shared/contracts';
-import { createAlert, createDecision, createService, insertAlert, insertDecision } from './harness';
+import { describe, expect, test } from 'vitest';
+
+import { createAlert, createService, insertAlert } from './harness';
 
 describe('notification threshold incidents', () => {
   test('threshold rules fire once while active, resolve, and fire again after re-breach', async () => {
@@ -33,20 +33,24 @@ describe('notification threshold incidents', () => {
     expect(service.listNotifications().data).toHaveLength(1);
 
     await service.evaluateRules(new Date('2026-03-28T14:00:00.000Z'));
-    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(expect.objectContaining({
-      incident_key: 'threshold:active',
-      resolved_at: '2026-03-28T14:00:00.000Z',
-    }));
+    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(
+      expect.objectContaining({
+        incident_key: 'threshold:active',
+        resolved_at: '2026-03-28T14:00:00.000Z',
+      }),
+    );
 
     insertAlert(database, createAlert(2, '2026-03-28T14:05:00.000Z'));
     await service.evaluateRules(new Date('2026-03-28T14:06:00.000Z'));
 
     expect(service.listNotifications().data).toHaveLength(2);
-    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(expect.objectContaining({
-      incident_key: 'threshold:active',
-      first_seen_at: '2026-03-28T14:06:00.000Z',
-      resolved_at: null,
-    }));
+    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(
+      expect.objectContaining({
+        incident_key: 'threshold:active',
+        first_seen_at: '2026-03-28T14:06:00.000Z',
+        resolved_at: null,
+      }),
+    );
 
     database.close();
   });
@@ -108,10 +112,12 @@ describe('notification threshold incidents', () => {
     insertAlert(database, createAlert(1, '2026-03-28T11:55:00.000Z'));
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
-    expect(service.listNotifications().data[0]).toEqual(expect.objectContaining({
-      title: 'Schwelle: Schwellenwert überschritten',
-      message: '1 Alarme wurden in den letzten 60 Minuten gefunden und überschreiten den Schwellenwert von 1.',
-    }));
+    expect(service.listNotifications().data[0]).toEqual(
+      expect.objectContaining({
+        title: 'Schwelle: Schwellenwert überschritten',
+        message: '1 Alarme wurden in den letzten 60 Minuten gefunden und überschreiten den Schwellenwert von 1.',
+      }),
+    );
 
     database.close();
   });
@@ -142,10 +148,12 @@ describe('notification threshold incidents', () => {
     expect(service.listNotifications().data).toHaveLength(1);
 
     await service.evaluateRules(new Date('2026-03-28T14:30:00.000Z'));
-    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(expect.objectContaining({
-      incident_key: 'spike:active',
-      resolved_at: '2026-03-28T14:30:00.000Z',
-    }));
+    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(
+      expect.objectContaining({
+        incident_key: 'spike:active',
+        resolved_at: '2026-03-28T14:30:00.000Z',
+      }),
+    );
 
     insertAlert(database, createAlert(5, '2026-03-28T15:10:00.000Z'));
     insertAlert(database, createAlert(6, '2026-03-28T16:10:00.000Z'));
@@ -206,5 +214,4 @@ describe('notification threshold incidents', () => {
 
     database.close();
   });
-
 });

@@ -1,15 +1,19 @@
-import { createDefaultConfigResponse, toPaginatedAlerts } from './harness';
-import { describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import * as api from '../../../lib/api';
-import { Alerts } from '../../Alerts';
-import type { SlimAlert } from '../../../types';
+import { describe, expect, test, vi } from 'vitest';
 
-const renderAlerts = (path = '/alerts') => render(
-  <MemoryRouter initialEntries={[path]}><Alerts /></MemoryRouter>,
-);
+import * as api from '../../../lib/api';
+import type { SlimAlert } from '../../../types';
+import { Alerts } from '../../Alerts';
+import { createDefaultConfigResponse, toPaginatedAlerts } from './harness';
+
+const renderAlerts = (path = '/alerts') =>
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <Alerts />
+    </MemoryRouter>,
+  );
 
 function multiInstanceConfig() {
   const config = createDefaultConfigResponse();
@@ -42,9 +46,15 @@ describe('Add Decision from alerts', () => {
     await userEvent.clear(within(dialog).getByRole('textbox', { name: 'IP / Range' }));
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.7');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenCalledWith({
-      ip: '203.0.113.7', duration: '4h', type: 'ban', reason: 'crowdsecurity/ssh-bf', scenario: 'manual/web-ui',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenCalledWith({
+        ip: '203.0.113.7',
+        duration: '4h',
+        type: 'ban',
+        reason: 'crowdsecurity/ssh-bf',
+        scenario: 'manual/web-ui',
+      }),
+    );
     await waitFor(() => expect(vi.mocked(api.fetchAlertsPaginated).mock.calls.length).toBeGreaterThan(fetchCount));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Manual Decision' })).not.toBeInTheDocument());
 
@@ -68,9 +78,15 @@ describe('Add Decision from alerts', () => {
     expect(screen.getByRole('dialog', { name: 'Alert Details #2' })).toBeInTheDocument();
 
     const decisionFetchCount = vi.mocked(api.fetchDecisionsPaginated).mock.calls.length;
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Alert Details #2' })).getByRole('button', { name: 'Add Decision' }));
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Add Manual Decision' })).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(vi.mocked(api.fetchDecisionsPaginated).mock.calls.length).toBeGreaterThan(decisionFetchCount));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Alert Details #2' })).getByRole('button', { name: 'Add Decision' }),
+    );
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Add Manual Decision' })).getByRole('button', { name: 'Add Decision' }),
+    );
+    await waitFor(() =>
+      expect(vi.mocked(api.fetchDecisionsPaginated).mock.calls.length).toBeGreaterThan(decisionFetchCount),
+    );
     await waitFor(() => expect(screen.getByRole('dialog', { name: 'Alert Details #2' })).toBeInTheDocument());
   });
 
@@ -85,7 +101,9 @@ describe('Add Decision from alerts', () => {
     renderAlerts('/alerts?id=42');
     const details = await screen.findByRole('dialog', { name: 'Alert Details #42' });
     await userEvent.click(within(details).getByRole('button', { name: 'Add Decision' }));
-    expect(within(screen.getByRole('dialog', { name: 'Add Manual Decision' })).getByRole('textbox', { name: 'Reason' })).toHaveValue('manual');
+    expect(
+      within(screen.getByRole('dialog', { name: 'Add Manual Decision' })).getByRole('textbox', { name: 'Reason' }),
+    ).toHaveValue('manual');
   });
 
   test('omits the detail action when the source has no IP', async () => {
@@ -126,19 +144,35 @@ describe('Add Decision from alerts', () => {
       expect(within(dialog).getByRole('checkbox', { name: 'All instances' })).not.toBeChecked();
       expect(within(dialog).getByText('Current instance: EAST')).toBeInTheDocument();
       await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-      await waitFor(() => expect(api.addDecision).toHaveBeenLastCalledWith({
-        ip: '198.51.100.4', duration: '4h', type: 'ban', reason: 'crowdsecurity/ssh-bf', scenario: 'manual/web-ui',
-        scope: 'instance', instance_id: 'east',
-      }));
-      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Manual Decision' })).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(api.addDecision).toHaveBeenLastCalledWith({
+          ip: '198.51.100.4',
+          duration: '4h',
+          type: 'ban',
+          reason: 'crowdsecurity/ssh-bf',
+          scenario: 'manual/web-ui',
+          scope: 'instance',
+          instance_id: 'east',
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Add Manual Decision' })).not.toBeInTheDocument(),
+      );
 
       await userEvent.click(screen.getByRole('button', { name: 'Add Decision' }));
       dialog = screen.getByRole('dialog', { name: 'Add Manual Decision' });
       await userEvent.click(within(dialog).getByRole('checkbox', { name: 'All instances' }));
       await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-      await waitFor(() => expect(api.addDecision).toHaveBeenLastCalledWith({
-        ip: '198.51.100.4', duration: '4h', type: 'ban', reason: 'crowdsecurity/ssh-bf', scenario: 'manual/web-ui', scope: 'all',
-      }));
+      await waitFor(() =>
+        expect(api.addDecision).toHaveBeenLastCalledWith({
+          ip: '198.51.100.4',
+          duration: '4h',
+          type: 'ban',
+          reason: 'crowdsecurity/ssh-bf',
+          scenario: 'manual/web-ui',
+          scope: 'all',
+        }),
+      );
     } finally {
       if (originalImplementation) fetchAlerts.mockImplementation(originalImplementation);
     }

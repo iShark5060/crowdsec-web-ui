@@ -1,7 +1,9 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
 import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { createApp } from '../../app';
 import { createRuntimeConfig } from '../../config';
 import { CrowdsecDatabase } from '../../database';
@@ -24,7 +26,11 @@ function fakeClient(name: string, options: { failAdd?: boolean } = {}) {
     heartbeat: vi.fn(async () => {}),
     sendUsageMetrics: vi.fn(async () => {}),
     fetchAlerts: vi.fn(async (): Promise<any[]> => []),
-    getAlertById: vi.fn(async (id: string) => ({ id: Number(id), created_at: new Date().toISOString(), decisions: [] })),
+    getAlertById: vi.fn(async (id: string) => ({
+      id: Number(id),
+      created_at: new Date().toISOString(),
+      decisions: [],
+    })),
     addDecision: vi.fn(async () => {
       if (options.failAdd) throw new Error(`${name} unavailable`);
       return { message: `${name} added` };
@@ -36,25 +42,30 @@ function fakeClient(name: string, options: { failAdd?: boolean } = {}) {
   };
 }
 
-function createMultiController(options: {
-  secondaryAddFails?: boolean;
-  secondarySyncNeverCompletes?: boolean;
-  secondaryName?: string;
-  manualDecisionScenarios?: string[];
-  secondaryManualDecisionScenarios?: string[];
-  startBackgroundTasks?: boolean;
-  createSyncWorker?: (database: CrowdsecDatabase) => DatabaseSyncWorker;
-} = {}) {
+function createMultiController(
+  options: {
+    secondaryAddFails?: boolean;
+    secondarySyncNeverCompletes?: boolean;
+    secondaryName?: string;
+    manualDecisionScenarios?: string[];
+    secondaryManualDecisionScenarios?: string[];
+    startBackgroundTasks?: boolean;
+    createSyncWorker?: (database: CrowdsecDatabase) => DatabaseSyncWorker;
+  } = {},
+) {
   const dir = mkdtempSync(path.join(tmpdir(), 'crowdsec-web-ui-multi-test-'));
   tempDirs.push(dir);
-  const config = createRuntimeConfig({
-    DB_DIR: dir,
-    CROWDSEC_USER: 'watcher',
-    CROWDSEC_PASSWORD: 'secret',
-    CROWDSEC_REFRESH_INTERVAL: '1h',
-    CROWDSEC_BOUNCER_PROPAGATION_DELAY: '0',
-    AUTH_ENABLED: 'false',
-  }, { defaultConfigFile: path.join(dir, 'config.yaml') });
+  const config = createRuntimeConfig(
+    {
+      DB_DIR: dir,
+      CROWDSEC_USER: 'watcher',
+      CROWDSEC_PASSWORD: 'secret',
+      CROWDSEC_REFRESH_INTERVAL: '1h',
+      CROWDSEC_BOUNCER_PROPAGATION_DELAY: '0',
+      AUTH_ENABLED: 'false',
+    },
+    { defaultConfigFile: path.join(dir, 'config.yaml') },
+  );
   const base = config.instances[0];
   config.manualDecisionScenarios = options.manualDecisionScenarios ?? [];
   config.instances = [
@@ -83,7 +94,14 @@ function createMultiController(options: {
     ]),
     startBackgroundTasks: options.startBackgroundTasks === true,
     initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
-    updateChecker: async () => ({ update_available: false, current_version: 'test', remote_version: 'test', tag: 'test', release_url: '', checked_at: new Date().toISOString() }),
+    updateChecker: async () => ({
+      update_available: false,
+      current_version: 'test',
+      remote_version: 'test',
+      tag: 'test',
+      release_url: '',
+      checked_at: new Date().toISOString(),
+    }),
   });
   return { controller, database, primary, secondary };
 }
@@ -150,7 +168,12 @@ describe('multi-instance heartbeats', () => {
     const { controller, database, primary, secondary } = createMultiController();
     controller.config.heartbeatIntervalMs = 1_000;
     let releaseHeartbeat!: () => void;
-    primary.heartbeat.mockImplementation(() => new Promise<void>((resolve) => { releaseHeartbeat = resolve; }));
+    primary.heartbeat.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseHeartbeat = resolve;
+        }),
+    );
     vi.useFakeTimers();
     try {
       controller.startBackgroundTasks();
@@ -185,7 +208,8 @@ describe('multi-instance heartbeats', () => {
   test('retries failures and tracks warning suppression and recovery per instance', async () => {
     const { controller, database, primary, secondary } = createMultiController();
     controller.config.heartbeatIntervalMs = 1_000;
-    primary.heartbeat.mockRejectedValueOnce(new Error('primary offline'))
+    primary.heartbeat
+      .mockRejectedValueOnce(new Error('primary offline'))
       .mockRejectedValueOnce(new Error('primary offline'));
     secondary.sendUsageMetrics.mockRejectedValue(new Error('secondary metrics offline'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -198,11 +222,12 @@ describe('multi-instance heartbeats', () => {
       expect(primary.sendUsageMetrics).toHaveBeenCalledTimes(2);
       expect(secondary.heartbeat).toHaveBeenCalledTimes(4);
       expect(secondary.sendUsageMetrics).toHaveBeenCalledTimes(4);
-      expect(warnSpy.mock.calls.filter(([message]) => String(message).includes('heartbeat or metrics update failed')))
-        .toEqual([
-          ['[Primary] CrowdSec machine heartbeat or metrics update failed: primary offline'],
-          ['[Secondary] CrowdSec machine heartbeat or metrics update failed: secondary metrics offline'],
-        ]);
+      expect(
+        warnSpy.mock.calls.filter(([message]) => String(message).includes('heartbeat or metrics update failed')),
+      ).toEqual([
+        ['[Primary] CrowdSec machine heartbeat or metrics update failed: primary offline'],
+        ['[Secondary] CrowdSec machine heartbeat or metrics update failed: secondary metrics offline'],
+      ]);
       expect(logSpy).toHaveBeenCalledWith('[Primary] CrowdSec machine heartbeat restored.');
       expect(logSpy).not.toHaveBeenCalledWith('[Secondary] CrowdSec machine heartbeat restored.');
 
@@ -222,13 +247,21 @@ describe('multi-instance heartbeats', () => {
 describe('multi-instance API', () => {
   test('publishes primary reconciliation while a queued secondary transaction remains open', async () => {
     let primaryStarted!: () => void;
-    const primaryFetchStarted = new Promise<void>((resolve) => { primaryStarted = resolve; });
+    const primaryFetchStarted = new Promise<void>((resolve) => {
+      primaryStarted = resolve;
+    });
     let secondaryQueued!: () => void;
-    const secondaryTransactionQueued = new Promise<void>((resolve) => { secondaryQueued = resolve; });
+    const secondaryTransactionQueued = new Promise<void>((resolve) => {
+      secondaryQueued = resolve;
+    });
     let secondaryStarted!: () => void;
-    const secondaryTransactionStarted = new Promise<void>((resolve) => { secondaryStarted = resolve; });
+    const secondaryTransactionStarted = new Promise<void>((resolve) => {
+      secondaryStarted = resolve;
+    });
     let releaseSecondary!: () => void;
-    const secondaryGate = new Promise<void>((resolve) => { releaseSecondary = resolve; });
+    const secondaryGate = new Promise<void>((resolve) => {
+      releaseSecondary = resolve;
+    });
     const { controller, database, primary, secondary } = createMultiController({
       createSyncWorker: (database) => {
         const worker = new DatabaseSyncWorker({ dbPath: database.cachePath });
@@ -269,18 +302,22 @@ describe('multi-instance API', () => {
     const unsubscribe = controller.subscribeCacheUpdates((_revision, instanceIds) => {
       publishedInstances.push(instanceIds);
     });
-    const refresh = controller.fetch(new Request('http://localhost/api/decisions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: '1.2.3.4', duration: '4h', type: 'ban', scope: 'all' }),
-    }));
+    const refresh = controller.fetch(
+      new Request('http://localhost/api/decisions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: '1.2.3.4', duration: '4h', type: 'ban', scope: 'all' }),
+      }),
+    );
 
     try {
       await vi.waitFor(() => expect(publishedInstances).toContainEqual(['primary']));
       expect(primary.updateStatus).toHaveBeenLastCalledWith(true, null);
       expect(secondary.fetchAlerts).toHaveBeenCalled();
       const persisted = JSON.parse(database.getMeta('alert_reconcile_window_state')!.value);
-      expect(persisted.headLastSuccess > 0 || Object.values(persisted.windows).some((value) => Number(value) > 0)).toBe(true);
+      expect(persisted.headLastSuccess > 0 || Object.values(persisted.windows).some((value) => Number(value) > 0)).toBe(
+        true,
+      );
       await new Promise<void>((resolve) => setImmediate(resolve));
       expect((await controller.fetch(new Request('http://localhost/api/config'))).status).toBe(200);
 
@@ -300,16 +337,19 @@ describe('multi-instance API', () => {
   test('runs every historical sync through chunk windows with a global concurrency limit of two', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'crowdsec-web-ui-multi-chunk-test-'));
     tempDirs.push(dir);
-    const config = createRuntimeConfig({
-      DB_DIR: dir,
-      CROWDSEC_USER: 'watcher',
-      CROWDSEC_PASSWORD: 'secret',
-      CROWDSEC_LOOKBACK_PERIOD: '2d',
-      CROWDSEC_ALERT_SYNC_CHUNK: '1d',
-      CROWDSEC_REFRESH_INTERVAL: '1h',
-      CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
-      AUTH_ENABLED: 'false',
-    }, { defaultConfigFile: path.join(dir, 'config.yaml') });
+    const config = createRuntimeConfig(
+      {
+        DB_DIR: dir,
+        CROWDSEC_USER: 'watcher',
+        CROWDSEC_PASSWORD: 'secret',
+        CROWDSEC_LOOKBACK_PERIOD: '2d',
+        CROWDSEC_ALERT_SYNC_CHUNK: '1d',
+        CROWDSEC_REFRESH_INTERVAL: '1h',
+        CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
+        AUTH_ENABLED: 'false',
+      },
+      { defaultConfigFile: path.join(dir, 'config.yaml') },
+    );
     const base = config.instances[0];
     config.instances = [
       { ...base, id: 'primary', name: 'Primary', lapiUrl: 'http://primary:8080' },
@@ -323,13 +363,21 @@ describe('multi-instance API', () => {
     let activeRequests = 0;
     let maxActiveRequests = 0;
     const releases = new Map<string, () => void>();
-    const firstRequestGates = new Map(['primary', 'secondary', 'edge'].map((instanceId) => {
-      let release!: () => void;
-      const gate = new Promise<void>((resolve) => { release = resolve; });
-      releases.set(instanceId, release);
-      return [instanceId, gate] as const;
-    }));
-    for (const [instanceId, client] of [['primary', primary], ['secondary', secondary], ['edge', edge]] as const) {
+    const firstRequestGates = new Map(
+      ['primary', 'secondary', 'edge'].map((instanceId) => {
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        releases.set(instanceId, release);
+        return [instanceId, gate] as const;
+      }),
+    );
+    for (const [instanceId, client] of [
+      ['primary', primary],
+      ['secondary', secondary],
+      ['edge', edge],
+    ] as const) {
       let callCount = 0;
       client.fetchAlerts.mockImplementation(async () => {
         callCount += 1;
@@ -353,27 +401,46 @@ describe('multi-instance API', () => {
       ]),
       startBackgroundTasks: false,
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
-      updateChecker: async () => ({ update_available: false, current_version: 'test', remote_version: 'test', tag: 'test', release_url: '', checked_at: new Date().toISOString() }),
+      updateChecker: async () => ({
+        update_available: false,
+        current_version: 'test',
+        remote_version: 'test',
+        tag: 'test',
+        release_url: '',
+        checked_at: new Date().toISOString(),
+      }),
     });
 
     try {
-      const refresh = controller.fetch(new Request('http://localhost/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'full' }),
-      }));
+      const refresh = controller.fetch(
+        new Request('http://localhost/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'full' }),
+        }),
+      );
       await vi.waitFor(() => {
         expect(primary.fetchAlerts).toHaveBeenCalledTimes(1);
         expect(secondary.fetchAlerts).toHaveBeenCalledTimes(1);
       });
       expect(edge.fetchAlerts).not.toHaveBeenCalled();
 
-      const pending = await (await controller.fetch(new Request('http://localhost/api/config'))).json() as any;
-      expect(pending.sync_status.instances).toEqual(expect.arrayContaining([
-        expect.objectContaining({ instance_id: 'primary', state: 'syncing', message: expect.stringContaining('alerts') }),
-        expect.objectContaining({ instance_id: 'secondary', state: 'syncing', message: expect.stringContaining('alerts') }),
-        expect.objectContaining({ instance_id: 'edge', state: 'idle', progress: 0 }),
-      ]));
+      const pending = (await (await controller.fetch(new Request('http://localhost/api/config'))).json()) as any;
+      expect(pending.sync_status.instances).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            instance_id: 'primary',
+            state: 'syncing',
+            message: expect.stringContaining('alerts'),
+          }),
+          expect.objectContaining({
+            instance_id: 'secondary',
+            state: 'syncing',
+            message: expect.stringContaining('alerts'),
+          }),
+          expect.objectContaining({ instance_id: 'edge', state: 'idle', progress: 0 }),
+        ]),
+      );
 
       releases.get('primary')!();
       await vi.waitFor(() => expect(edge.fetchAlerts).toHaveBeenCalledTimes(1));
@@ -394,15 +461,18 @@ describe('multi-instance API', () => {
   test('a manual full historical refresh synchronizes every configured instance', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'crowdsec-web-ui-multi-full-refresh-test-'));
     tempDirs.push(dir);
-    const config = createRuntimeConfig({
-      DB_DIR: dir,
-      CROWDSEC_USER: 'watcher',
-      CROWDSEC_PASSWORD: 'secret',
-      CROWDSEC_LOOKBACK_PERIOD: '1h',
-      CROWDSEC_REFRESH_INTERVAL: '1h',
-      CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
-      AUTH_ENABLED: 'false',
-    }, { defaultConfigFile: path.join(dir, 'config.yaml') });
+    const config = createRuntimeConfig(
+      {
+        DB_DIR: dir,
+        CROWDSEC_USER: 'watcher',
+        CROWDSEC_PASSWORD: 'secret',
+        CROWDSEC_LOOKBACK_PERIOD: '1h',
+        CROWDSEC_REFRESH_INTERVAL: '1h',
+        CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
+        AUTH_ENABLED: 'false',
+      },
+      { defaultConfigFile: path.join(dir, 'config.yaml') },
+    );
     const base = config.instances[0];
     config.instances = [
       { ...base, id: 'primary', name: 'Primary', lapiUrl: 'http://primary:8080' },
@@ -423,26 +493,37 @@ describe('multi-instance API', () => {
       ]),
       startBackgroundTasks: false,
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
-      updateChecker: async () => ({ update_available: false, current_version: 'test', remote_version: 'test', tag: 'test', release_url: '', checked_at: new Date().toISOString() }),
+      updateChecker: async () => ({
+        update_available: false,
+        current_version: 'test',
+        remote_version: 'test',
+        tag: 'test',
+        release_url: '',
+        checked_at: new Date().toISOString(),
+      }),
     });
 
     try {
-      const response = await controller.fetch(new Request('http://localhost/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'full' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'full' }),
+        }),
+      );
       expect(response.status).toBe(200);
       expect(primary.fetchAlerts).toHaveBeenCalled();
       expect(secondary.fetchAlerts).toHaveBeenCalled();
       expect(edge.fetchAlerts).toHaveBeenCalled();
 
-      const configResponse = await (await controller.fetch(new Request('http://localhost/api/config'))).json() as any;
-      expect(configResponse.sync_status).toEqual(expect.objectContaining({
-        isSyncing: false,
-        progress: 100,
-        state: 'complete',
-      }));
+      const configResponse = (await (await controller.fetch(new Request('http://localhost/api/config'))).json()) as any;
+      expect(configResponse.sync_status).toEqual(
+        expect.objectContaining({
+          isSyncing: false,
+          progress: 100,
+          state: 'complete',
+        }),
+      );
       expect(configResponse.sync_status.instances.map((instance: any) => instance.instance_id)).toEqual([
         'primary',
         'secondary',
@@ -457,16 +538,19 @@ describe('multi-instance API', () => {
   test('historical reconciliation keeps colliding upstream IDs isolated by instance', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'crowdsec-web-ui-multi-reconcile-test-'));
     tempDirs.push(dir);
-    const config = createRuntimeConfig({
-      DB_DIR: dir,
-      CROWDSEC_USER: 'watcher',
-      CROWDSEC_PASSWORD: 'secret',
-      CROWDSEC_LOOKBACK_PERIOD: '1h',
-      CROWDSEC_ALERT_SYNC_CHUNK: '1h',
-      CROWDSEC_REFRESH_INTERVAL: '1h',
-      CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
-      AUTH_ENABLED: 'false',
-    }, { defaultConfigFile: path.join(dir, 'config.yaml') });
+    const config = createRuntimeConfig(
+      {
+        DB_DIR: dir,
+        CROWDSEC_USER: 'watcher',
+        CROWDSEC_PASSWORD: 'secret',
+        CROWDSEC_LOOKBACK_PERIOD: '1h',
+        CROWDSEC_ALERT_SYNC_CHUNK: '1h',
+        CROWDSEC_REFRESH_INTERVAL: '1h',
+        CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
+        AUTH_ENABLED: 'false',
+      },
+      { defaultConfigFile: path.join(dir, 'config.yaml') },
+    );
     const base = config.instances[0];
     config.instances = [
       { ...base, id: 'primary', name: 'Primary', lapiUrl: 'http://primary:8080' },
@@ -480,7 +564,16 @@ describe('multi-instance API', () => {
       uuid: 'shared-alert-uuid',
       created_at: createdAt,
       message: 'Colliding alert',
-      decisions: [{ id: '9', uuid: 'shared-decision-uuid', created_at: createdAt, stop_at: stopAt, value: '192.0.2.7', type: 'ban' }],
+      decisions: [
+        {
+          id: '9',
+          uuid: 'shared-decision-uuid',
+          created_at: createdAt,
+          stop_at: stopAt,
+          value: '192.0.2.7',
+          type: 'ban',
+        },
+      ],
     };
     for (const instanceId of ['primary', 'secondary']) {
       database.insertAlert({
@@ -516,15 +609,24 @@ describe('multi-instance API', () => {
       ]),
       startBackgroundTasks: false,
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: createdAt },
-      updateChecker: async () => ({ update_available: false, current_version: 'test', remote_version: 'test', tag: 'test', release_url: '', checked_at: createdAt }),
+      updateChecker: async () => ({
+        update_available: false,
+        current_version: 'test',
+        remote_version: 'test',
+        tag: 'test',
+        release_url: '',
+        checked_at: createdAt,
+      }),
     });
 
     try {
-      const response = await controller.fetch(new Request('http://localhost/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'full' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'full' }),
+        }),
+      );
       expect(response.status).toBe(200);
       expect(database.db.prepare('SELECT instance_id, upstream_id FROM alerts ORDER BY instance_id').all()).toEqual([
         { instance_id: 'primary', upstream_id: '7' },
@@ -541,13 +643,16 @@ describe('multi-instance API', () => {
   test('keeps Combined dashboard pending until every initial instance sync settles', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'crowdsec-web-ui-multi-dashboard-test-'));
     tempDirs.push(dir);
-    const config = createRuntimeConfig({
-      DB_DIR: dir,
-      CROWDSEC_USER: 'watcher',
-      CROWDSEC_PASSWORD: 'secret',
-      CROWDSEC_REFRESH_INTERVAL: '1h',
-      AUTH_ENABLED: 'false',
-    }, { defaultConfigFile: path.join(dir, 'config.yaml') });
+    const config = createRuntimeConfig(
+      {
+        DB_DIR: dir,
+        CROWDSEC_USER: 'watcher',
+        CROWDSEC_PASSWORD: 'secret',
+        CROWDSEC_REFRESH_INTERVAL: '1h',
+        AUTH_ENABLED: 'false',
+      },
+      { defaultConfigFile: path.join(dir, 'config.yaml') },
+    );
     const base = config.instances[0];
     config.instances = [
       { ...base, id: 'primary', name: 'Primary', lapiUrl: 'http://primary:8080' },
@@ -557,25 +662,31 @@ describe('multi-instance API', () => {
     const createdAt = new Date().toISOString();
 
     let releaseSecondary!: () => void;
-    const secondaryGate = new Promise<void>((resolve) => { releaseSecondary = resolve; });
+    const secondaryGate = new Promise<void>((resolve) => {
+      releaseSecondary = resolve;
+    });
     const primary = fakeClient('primary');
-    primary.fetchAlerts.mockResolvedValue([{
-      id: 1,
-      uuid: 'primary-dashboard-alert',
-      created_at: createdAt,
-      message: 'Primary dashboard alert',
-      decisions: [],
-    }]);
+    primary.fetchAlerts.mockResolvedValue([
+      {
+        id: 1,
+        uuid: 'primary-dashboard-alert',
+        created_at: createdAt,
+        message: 'Primary dashboard alert',
+        decisions: [],
+      },
+    ]);
     const secondary = fakeClient('secondary');
     secondary.fetchAlerts.mockImplementation(async () => {
       await secondaryGate;
-      return [{
-        id: 1,
-        uuid: 'secondary-dashboard-alert',
-        created_at: createdAt,
-        message: 'Secondary dashboard alert',
-        decisions: [],
-      }];
+      return [
+        {
+          id: 1,
+          uuid: 'secondary-dashboard-alert',
+          created_at: createdAt,
+          message: 'Secondary dashboard alert',
+          decisions: [],
+        },
+      ];
     });
 
     const controller = createApp({
@@ -587,7 +698,14 @@ describe('multi-instance API', () => {
       ]),
       startBackgroundTasks: false,
       initialCacheState: { isInitialized: false, isComplete: false, lastUpdate: null },
-      updateChecker: async () => ({ update_available: false, current_version: 'test', remote_version: 'test', tag: 'test', release_url: '', checked_at: createdAt }),
+      updateChecker: async () => ({
+        update_available: false,
+        current_version: 'test',
+        remote_version: 'test',
+        tag: 'test',
+        release_url: '',
+        checked_at: createdAt,
+      }),
     });
     database.insertAlert({
       $id: 1,
@@ -595,7 +713,13 @@ describe('multi-instance API', () => {
       $uuid: 'primary-dashboard-alert',
       $created_at: createdAt,
       $message: 'Primary dashboard alert',
-      $record: { id: 1, uuid: 'primary-dashboard-alert', created_at: createdAt, message: 'Primary dashboard alert', decisions: [] },
+      $record: {
+        id: 1,
+        uuid: 'primary-dashboard-alert',
+        created_at: createdAt,
+        message: 'Primary dashboard alert',
+        decisions: [],
+      },
     });
 
     try {
@@ -610,27 +734,37 @@ describe('multi-instance API', () => {
       controller.startBackgroundTasks();
       const pendingConfigResponse = await controller.fetch(new Request('http://localhost/api/config'));
       expect(pendingConfigResponse.status).toBe(200);
-      const pendingConfig = await pendingConfigResponse.json() as any;
-      expect(pendingConfig.sync_status).toEqual(expect.objectContaining({
-        isSyncing: true,
-        state: 'syncing',
-        instances: expect.arrayContaining([
-          expect.objectContaining({ instance_id: 'primary', instance_name: 'Primary' }),
-          expect.objectContaining({ instance_id: 'secondary', instance_name: 'Secondary' }),
-        ]),
-      }));
+      const pendingConfig = (await pendingConfigResponse.json()) as any;
+      expect(pendingConfig.sync_status).toEqual(
+        expect.objectContaining({
+          isSyncing: true,
+          state: 'syncing',
+          instances: expect.arrayContaining([
+            expect.objectContaining({ instance_id: 'primary', instance_name: 'Primary' }),
+            expect.objectContaining({ instance_id: 'secondary', instance_name: 'Secondary' }),
+          ]),
+        }),
+      );
       const pendingResponse = await controller.fetch(new Request('http://localhost/api/dashboard/stats?instance=all'));
       expect(pendingResponse.status).toBe(200);
-      expect(await pendingResponse.json()).toEqual(expect.objectContaining({
-        pending: true,
-        totals: expect.objectContaining({ alerts: 0 }),
-      }));
-      const secondaryPendingResponse = await controller.fetch(new Request('http://localhost/api/dashboard/stats?instance=secondary'));
+      expect(await pendingResponse.json()).toEqual(
+        expect.objectContaining({
+          pending: true,
+          totals: expect.objectContaining({ alerts: 0 }),
+        }),
+      );
+      const secondaryPendingResponse = await controller.fetch(
+        new Request('http://localhost/api/dashboard/stats?instance=secondary'),
+      );
       expect(await secondaryPendingResponse.json()).toEqual(expect.objectContaining({ pending: true }));
-      const primaryResponse = await controller.fetch(new Request('http://localhost/api/dashboard/stats?instance=primary'));
-      expect(await primaryResponse.json()).toEqual(expect.objectContaining({
-        pending: true,
-      }));
+      const primaryResponse = await controller.fetch(
+        new Request('http://localhost/api/dashboard/stats?instance=primary'),
+      );
+      expect(await primaryResponse.json()).toEqual(
+        expect.objectContaining({
+          pending: true,
+        }),
+      );
 
       releaseSecondary();
       await secondaryPublished;
@@ -641,13 +775,15 @@ describe('multi-instance API', () => {
 
       const response = await controller.fetch(new Request('http://localhost/api/dashboard/stats?instance=all'));
       expect(response.status).toBe(200);
-      expect((await response.json() as { totals: { alerts: number } }).totals.alerts).toBe(2);
-      const completeConfig = await (await controller.fetch(new Request('http://localhost/api/config'))).json() as any;
-      expect(completeConfig.sync_status).toEqual(expect.objectContaining({
-        isSyncing: false,
-        progress: 100,
-        state: 'complete',
-      }));
+      expect(((await response.json()) as { totals: { alerts: number } }).totals.alerts).toBe(2);
+      const completeConfig = (await (await controller.fetch(new Request('http://localhost/api/config'))).json()) as any;
+      expect(completeConfig.sync_status).toEqual(
+        expect.objectContaining({
+          isSyncing: false,
+          progress: 100,
+          state: 'complete',
+        }),
+      );
     } finally {
       releaseSecondary();
       controller.stopBackgroundTasks();
@@ -672,11 +808,15 @@ describe('multi-instance API', () => {
       });
 
       const response = await Promise.race([
-        controller.fetch(new Request('http://localhost/api/alerts?page=1&page_size=50&include_decisions=false&instance=all')),
-        new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('Combined read remained blocked')), 10_000)),
+        controller.fetch(
+          new Request('http://localhost/api/alerts?page=1&page_size=50&include_decisions=false&instance=all'),
+        ),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error('Combined read remained blocked')), 10_000),
+        ),
       ]);
       expect(response.status).toBe(200);
-      expect((await response.json() as any).data).toEqual([
+      expect(((await response.json()) as any).data).toEqual([
         expect.objectContaining({ instance_id: 'primary', message: 'Primary is ready' }),
       ]);
     } finally {
@@ -697,7 +837,13 @@ describe('multi-instance API', () => {
           $uuid: 'shared-alert-uuid',
           $created_at: createdAt,
           $message: `${instanceId} alert`,
-          $record: { id: 7, uuid: 'shared-alert-uuid', created_at: createdAt, message: `${instanceId} alert`, decisions: [] },
+          $record: {
+            id: 7,
+            uuid: 'shared-alert-uuid',
+            created_at: createdAt,
+            message: `${instanceId} alert`,
+            decisions: [],
+          },
         });
         database.insertDecision({
           $id: '9',
@@ -707,38 +853,62 @@ describe('multi-instance API', () => {
           $created_at: createdAt,
           $stop_at: stopAt,
           $value: '1.2.3.4',
-          $record: { id: 9, uuid: 'shared-decision-uuid', alert_id: 7, created_at: createdAt, stop_at: stopAt, value: '1.2.3.4', type: 'ban' },
+          $record: {
+            id: 9,
+            uuid: 'shared-decision-uuid',
+            alert_id: 7,
+            created_at: createdAt,
+            stop_at: stopAt,
+            value: '1.2.3.4',
+            type: 'ban',
+          },
         });
       }
 
-      const combinedAlerts = await controller.fetch(new Request('http://localhost/api/alerts?page=1&page_size=50&include_decisions=false&instance=all'));
+      const combinedAlerts = await controller.fetch(
+        new Request('http://localhost/api/alerts?page=1&page_size=50&include_decisions=false&instance=all'),
+      );
       expect(combinedAlerts.status).toBe(200);
-      expect((await combinedAlerts.json() as any).data.map((row: any) => row.instance_id).sort()).toEqual(['primary', 'secondary']);
+      expect(((await combinedAlerts.json()) as any).data.map((row: any) => row.instance_id).sort()).toEqual([
+        'primary',
+        'secondary',
+      ]);
 
-      const combinedDecisions = await controller.fetch(new Request('http://localhost/api/decisions?page=1&page_size=50&instance=all'));
+      const combinedDecisions = await controller.fetch(
+        new Request('http://localhost/api/decisions?page=1&page_size=50&instance=all'),
+      );
       expect(combinedDecisions.status).toBe(200);
-      expect((await combinedDecisions.json() as any).data.map((row: any) => row.instance_id).sort()).toEqual(['primary', 'secondary']);
+      expect(((await combinedDecisions.json()) as any).data.map((row: any) => row.instance_id).sort()).toEqual([
+        'primary',
+        'secondary',
+      ]);
 
-      const secondaryAlerts = await controller.fetch(new Request('http://localhost/api/alerts?page=1&page_size=50&include_decisions=false&instance=secondary'));
-      expect((await secondaryAlerts.json() as any).data).toEqual([
+      const secondaryAlerts = await controller.fetch(
+        new Request('http://localhost/api/alerts?page=1&page_size=50&include_decisions=false&instance=secondary'),
+      );
+      expect(((await secondaryAlerts.json()) as any).data).toEqual([
         expect.objectContaining({ instance_id: 'secondary', instance_name: 'Secondary' }),
       ]);
 
-      const instanceAlerts = await controller.fetch(new Request(
-        'http://localhost/api/alerts/facets?field=instance&instance=primary&q=instance:primary',
-      ));
-      expect((await instanceAlerts.json() as any).values).toEqual(expect.arrayContaining([
-        { value: 'primary', label: 'Primary', count: 1 },
-        { value: 'secondary', label: 'Secondary', count: 1 },
-      ]));
+      const instanceAlerts = await controller.fetch(
+        new Request('http://localhost/api/alerts/facets?field=instance&instance=primary&q=instance:primary'),
+      );
+      expect(((await instanceAlerts.json()) as any).values).toEqual(
+        expect.arrayContaining([
+          { value: 'primary', label: 'Primary', count: 1 },
+          { value: 'secondary', label: 'Secondary', count: 1 },
+        ]),
+      );
 
-      const instanceDecisions = await controller.fetch(new Request(
-        'http://localhost/api/decisions/facets?field=instance&instance=primary&q=instance:primary',
-      ));
-      expect((await instanceDecisions.json() as any).values).toEqual(expect.arrayContaining([
-        { value: 'primary', label: 'Primary', count: 1 },
-        { value: 'secondary', label: 'Secondary', count: 1 },
-      ]));
+      const instanceDecisions = await controller.fetch(
+        new Request('http://localhost/api/decisions/facets?field=instance&instance=primary&q=instance:primary'),
+      );
+      expect(((await instanceDecisions.json()) as any).values).toEqual(
+        expect.arrayContaining([
+          { value: 'primary', label: 'Primary', count: 1 },
+          { value: 'secondary', label: 'Secondary', count: 1 },
+        ]),
+      );
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -757,7 +927,13 @@ describe('multi-instance API', () => {
           $uuid: `${instanceId}-alert-uuid`,
           $created_at: createdAt,
           $message: `${instanceId} alert`,
-          $record: { id: 7, uuid: `${instanceId}-alert-uuid`, created_at: createdAt, message: `${instanceId} alert`, decisions: [] },
+          $record: {
+            id: 7,
+            uuid: `${instanceId}-alert-uuid`,
+            created_at: createdAt,
+            message: `${instanceId} alert`,
+            decisions: [],
+          },
         });
         database.insertDecision({
           $id: '9',
@@ -767,7 +943,15 @@ describe('multi-instance API', () => {
           $created_at: createdAt,
           $stop_at: stopAt,
           $value: '1.2.3.4',
-          $record: { id: 9, uuid: `${instanceId}-decision-uuid`, alert_id: 7, created_at: createdAt, stop_at: stopAt, value: '1.2.3.4', type: 'ban' },
+          $record: {
+            id: 9,
+            uuid: `${instanceId}-decision-uuid`,
+            alert_id: 7,
+            created_at: createdAt,
+            stop_at: stopAt,
+            value: '1.2.3.4',
+            type: 'ban',
+          },
         });
       }
 
@@ -781,11 +965,11 @@ describe('multi-instance API', () => {
       const decisions = await controller.fetch(new Request(`http://localhost/api/decisions?${query}`));
 
       expect(alerts.status).toBe(200);
-      expect((await alerts.json() as any).data).toEqual([
+      expect(((await alerts.json()) as any).data).toEqual([
         expect.objectContaining({ instance_id: 'secondary', instance_name: 'Branch Office' }),
       ]);
       expect(decisions.status).toBe(200);
-      expect((await decisions.json() as any).data).toEqual([
+      expect(((await decisions.json()) as any).data).toEqual([
         expect.objectContaining({ instance_id: 'secondary', instance_name: 'Branch Office' }),
       ]);
     } finally {
@@ -794,7 +978,7 @@ describe('multi-instance API', () => {
     }
   });
 
-  test('exposes each instance\'s effective manual decision scenarios', async () => {
+  test("exposes each instance's effective manual decision scenarios", async () => {
     const { controller, database } = createMultiController({
       manualDecisionScenarios: ['custom/abuse-report', 'manual/web-ui'],
       secondaryManualDecisionScenarios: [],
@@ -802,9 +986,13 @@ describe('multi-instance API', () => {
     try {
       const expected = [['manual/web-ui', 'custom/abuse-report'], ['manual/web-ui']];
       const config = await controller.fetch(new Request('http://localhost/api/config'));
-      expect((await config.json() as any).instances.map((instance: any) => instance.manual_decision_scenarios)).toEqual(expected);
+      expect(
+        ((await config.json()) as any).instances.map((instance: any) => instance.manual_decision_scenarios),
+      ).toEqual(expected);
       const instances = await controller.fetch(new Request('http://localhost/api/instances'));
-      expect((await instances.json() as any).data.map((instance: any) => instance.manual_decision_scenarios)).toEqual(expected);
+      expect(((await instances.json()) as any).data.map((instance: any) => instance.manual_decision_scenarios)).toEqual(
+        expected,
+      );
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -814,16 +1002,22 @@ describe('multi-instance API', () => {
   test('returns per-instance partial results for Combined decision creation', async () => {
     const { controller, database, primary, secondary } = createMultiController({ secondaryAddFails: true });
     try {
-      const response = await controller.fetch(new Request('http://localhost/api/decisions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: '1.2.3.4', duration: '4h', type: 'ban', scope: 'all' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: '1.2.3.4', duration: '4h', type: 'ban', scope: 'all' }),
+        }),
+      );
       expect(response.status).toBe(207);
-      expect(await response.json()).toMatchObject({ succeeded: 1, failed: 1, results: [
-        { instance_id: 'primary', success: true },
-        { instance_id: 'secondary', success: false },
-      ] });
+      expect(await response.json()).toMatchObject({
+        succeeded: 1,
+        failed: 1,
+        results: [
+          { instance_id: 'primary', success: true },
+          { instance_id: 'secondary', success: false },
+        ],
+      });
       expect(primary.addDecision).toHaveBeenCalledTimes(1);
       expect(secondary.addDecision).toHaveBeenCalledTimes(1);
     } finally {
@@ -847,17 +1041,23 @@ describe('multi-instance API', () => {
         allowlists: [{ name: 'office', instance_ids: ['primary'], entry_count: 1 }],
       });
 
-      const entries = await controller.fetch(new Request('http://localhost/api/allowlists/office/entries?instance=all'));
-      expect((await entries.json() as any).data).toEqual([{ value: '10.0.0.0/8', expiration: null, instance_ids: ['primary'] }]);
+      const entries = await controller.fetch(
+        new Request('http://localhost/api/allowlists/office/entries?instance=all'),
+      );
+      expect(((await entries.json()) as any).data).toEqual([
+        { value: '10.0.0.0/8', expiration: null, instance_ids: ['primary'] },
+      ]);
 
-      const config = await (await controller.fetch(new Request('http://localhost/api/config'))).json() as any;
+      const config = (await (await controller.fetch(new Request('http://localhost/api/config'))).json()) as any;
       expect(config.sync_status.instances.map((instance: any) => instance.allowlists)).toEqual([
         { state: 'complete', allowlists: 1, entries: 1 },
         { state: 'unsupported' },
       ]);
 
       const scoped = await controller.fetch(new Request('http://localhost/api/allowlists?instance=secondary'));
-      expect((await scoped.json() as any).instances.map((instance: any) => instance.instance_id)).toEqual(['secondary']);
+      expect(((await scoped.json()) as any).instances.map((instance: any) => instance.instance_id)).toEqual([
+        'secondary',
+      ]);
       expect(primary.fetchAllowlists).toHaveBeenCalledTimes(1);
     } finally {
       controller.stopBackgroundTasks();
@@ -868,11 +1068,14 @@ describe('multi-instance API', () => {
   test('refuses Combined decision creation when any target instance allowlists the value', async () => {
     const { controller, database, primary, secondary } = createMultiController();
     secondary.checkAllowlist.mockResolvedValue({ allowlisted: true, reason: '1.2.3.4 from partners' });
-    const add = (body: Record<string, unknown>) => controller.fetch(new Request('http://localhost/api/decisions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: '1.2.3.4', duration: '4h', type: 'ban', ...body }),
-    }));
+    const add = (body: Record<string, unknown>) =>
+      controller.fetch(
+        new Request('http://localhost/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: '1.2.3.4', duration: '4h', type: 'ban', ...body }),
+        }),
+      );
     try {
       const refused = await add({ scope: 'all' });
       expect(refused.status).toBe(409);
@@ -899,23 +1102,29 @@ describe('multi-instance API', () => {
   test('bulk row deletion routes colliding IDs only to their owning LAPIs', async () => {
     const { controller, database, primary, secondary } = createMultiController();
     try {
-      const response = await controller.fetch(new Request('http://localhost/api/decisions/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refs: [
-          { instance_id: 'primary', id: 7 },
-          { instance_id: 'secondary', id: 7 },
-        ] }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/api/decisions/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            refs: [
+              { instance_id: 'primary', id: 7 },
+              { instance_id: 'secondary', id: 7 },
+            ],
+          }),
+        }),
+      );
       expect(response.status).toBe(200);
       expect(primary.deleteDecision).toHaveBeenCalledExactlyOnceWith('7');
       expect(secondary.deleteDecision).toHaveBeenCalledExactlyOnceWith('7');
 
-      const ambiguous = await controller.fetch(new Request('http://localhost/api/decisions/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [7] }),
-      }));
+      const ambiguous = await controller.fetch(
+        new Request('http://localhost/api/decisions/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [7] }),
+        }),
+      );
       expect(ambiguous.status).toBe(400);
     } finally {
       controller.stopBackgroundTasks();
@@ -934,11 +1143,13 @@ describe('multi-instance API', () => {
     primary.fetchAlerts.mockResolvedValue([alert]);
     secondary.fetchAlerts.mockResolvedValue([alert]);
     try {
-      const response = await controller.fetch(new Request('http://localhost/api/cleanup/by-ip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: '1.2.3.4', scope: 'all' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/api/cleanup/by-ip', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: '1.2.3.4', scope: 'all' }),
+        }),
+      );
       expect(response.status).toBe(200);
       expect(primary.deleteDecision).toHaveBeenCalledExactlyOnceWith('9');
       expect(primary.deleteAlert).toHaveBeenCalledExactlyOnceWith('7');
@@ -952,51 +1163,90 @@ describe('multi-instance API', () => {
   });
 });
 
-function seedDeletionAlert(database: CrowdsecDatabase, instanceId: string, alertId = 7, decisionId = 9, lifetime = 3_600_000) {
+function seedDeletionAlert(
+  database: CrowdsecDatabase,
+  instanceId: string,
+  alertId = 7,
+  decisionId = 9,
+  lifetime = 3_600_000,
+) {
   const createdAt = new Date().toISOString();
   const stopAt = new Date(Date.now() + lifetime).toISOString();
-  const alert = { id: alertId, uuid: `${instanceId}-${alertId}`, created_at: createdAt, source: { ip: '1.2.3.4', value: '1.2.3.4' }, decisions: [{ id: decisionId, value: '1.2.3.4', type: 'ban', stop_at: stopAt }] };
-  database.insertAlert({ $id: alertId, $instance_id: instanceId, $uuid: alert.uuid, $created_at: createdAt, $message: 'Test alert', $record: alert });
-  database.insertDecision({ $id: String(decisionId), $instance_id: instanceId, $uuid: `${instanceId}-${decisionId}`, $alert_id: alertId, $created_at: createdAt, $stop_at: stopAt, $value: '1.2.3.4', $record: alert.decisions[0] });
+  const alert = {
+    id: alertId,
+    uuid: `${instanceId}-${alertId}`,
+    created_at: createdAt,
+    source: { ip: '1.2.3.4', value: '1.2.3.4' },
+    decisions: [{ id: decisionId, value: '1.2.3.4', type: 'ban', stop_at: stopAt }],
+  };
+  database.insertAlert({
+    $id: alertId,
+    $instance_id: instanceId,
+    $uuid: alert.uuid,
+    $created_at: createdAt,
+    $message: 'Test alert',
+    $record: alert,
+  });
+  database.insertDecision({
+    $id: String(decisionId),
+    $instance_id: instanceId,
+    $uuid: `${instanceId}-${decisionId}`,
+    $alert_id: alertId,
+    $created_at: createdAt,
+    $stop_at: stopAt,
+    $value: '1.2.3.4',
+    $record: alert.decisions[0],
+  });
   return alert;
 }
 
-test.each(['single', 'bulk', 'cleanup'])('%s scoped alert deletion waits for propagation and isolates colliding IDs', async (operation) => {
-  const { controller, database, primary, secondary } = createMultiController();
-  controller.config.instances[1].sync = { ...controller.config.instances[1].sync, bouncerPropagationDelayMs: 15_000 };
-  seedDeletionAlert(database, 'primary');
-  const alert = seedDeletionAlert(database, 'secondary');
-  secondary.fetchAlerts.mockResolvedValue([alert]);
-  database.refreshDecisionDuplicateFlags(new Date().toISOString());
-  vi.useFakeTimers();
-  try {
-    const request = operation === 'single'
-      ? new Request('http://localhost/api/instances/secondary/alerts/7', { method: 'DELETE' })
-      : new Request(`http://localhost/api/${operation === 'bulk' ? 'alerts/bulk-delete' : 'cleanup/by-ip'}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(operation === 'bulk' ? { refs: [{ instance_id: 'secondary', id: 7 }] } : { ip: '1.2.3.4', scope: 'instance', instance_id: 'secondary' }),
-      });
-    const response = await controller.fetch(request);
-    expect(response.status).toBe(200);
-    await vi.waitFor(() => expect(database.getAlertDeletionTombstone('secondary\u00007')?.decisions_deleted_at).toBeTruthy());
-    expect(secondary.deleteDecision).toHaveBeenCalledExactlyOnceWith('9');
-    expect(secondary.deleteAlert).not.toHaveBeenCalled();
-    expect(primary.deleteDecision).not.toHaveBeenCalled();
-    expect(primary.deleteAlert).not.toHaveBeenCalled();
-    expect(database.getAlertInternalId('secondary', 7)).toBeNull();
-    expect(database.getAlertInternalId('primary', 7)).not.toBeNull();
-    seedDeletionAlert(database, 'secondary');
-    expect(database.getAlertInternalId('secondary', 7)).toBeNull();
-    expect(database.getDecisionInternalId('secondary', 9)).toBeNull();
-    await vi.advanceTimersByTimeAsync(15_000);
-    expect(secondary.deleteAlert).toHaveBeenCalledExactlyOnceWith('7');
-    expect(database.getAlertDeletionTombstone('secondary\u00007')?.completed_at).toBeTruthy();
-  } finally {
-    controller.stopBackgroundTasks();
-    database.close();
-    vi.useRealTimers();
-  }
-});
+test.each(['single', 'bulk', 'cleanup'])(
+  '%s scoped alert deletion waits for propagation and isolates colliding IDs',
+  async (operation) => {
+    const { controller, database, primary, secondary } = createMultiController();
+    controller.config.instances[1].sync = { ...controller.config.instances[1].sync, bouncerPropagationDelayMs: 15_000 };
+    seedDeletionAlert(database, 'primary');
+    const alert = seedDeletionAlert(database, 'secondary');
+    secondary.fetchAlerts.mockResolvedValue([alert]);
+    database.refreshDecisionDuplicateFlags(new Date().toISOString());
+    vi.useFakeTimers();
+    try {
+      const request =
+        operation === 'single'
+          ? new Request('http://localhost/api/instances/secondary/alerts/7', { method: 'DELETE' })
+          : new Request(`http://localhost/api/${operation === 'bulk' ? 'alerts/bulk-delete' : 'cleanup/by-ip'}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(
+                operation === 'bulk'
+                  ? { refs: [{ instance_id: 'secondary', id: 7 }] }
+                  : { ip: '1.2.3.4', scope: 'instance', instance_id: 'secondary' },
+              ),
+            });
+      const response = await controller.fetch(request);
+      expect(response.status).toBe(200);
+      await vi.waitFor(() =>
+        expect(database.getAlertDeletionTombstone('secondary\u00007')?.decisions_deleted_at).toBeTruthy(),
+      );
+      expect(secondary.deleteDecision).toHaveBeenCalledExactlyOnceWith('9');
+      expect(secondary.deleteAlert).not.toHaveBeenCalled();
+      expect(primary.deleteDecision).not.toHaveBeenCalled();
+      expect(primary.deleteAlert).not.toHaveBeenCalled();
+      expect(database.getAlertInternalId('secondary', 7)).toBeNull();
+      expect(database.getAlertInternalId('primary', 7)).not.toBeNull();
+      seedDeletionAlert(database, 'secondary');
+      expect(database.getAlertInternalId('secondary', 7)).toBeNull();
+      expect(database.getDecisionInternalId('secondary', 9)).toBeNull();
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(secondary.deleteAlert).toHaveBeenCalledExactlyOnceWith('7');
+      expect(database.getAlertDeletionTombstone('secondary\u00007')?.completed_at).toBeTruthy();
+    } finally {
+      controller.stopBackgroundTasks();
+      database.close();
+      vi.useRealTimers();
+    }
+  },
+);
 
 test('filters decisions by the alert IDs of a secondary instance', async () => {
   const { controller, database } = createMultiController();
@@ -1004,40 +1254,58 @@ test('filters decisions by the alert IDs of a secondary instance', async () => {
   seedDeletionAlert(database, 'secondary', 7, 9);
   seedDeletionAlert(database, 'secondary', 8, 10, 1_800_000);
   try {
-    const single = await controller.fetch(new Request('http://localhost/api/decisions?page=1&alert_id=7&instance=secondary'));
-    expect((await single.json() as any).data).toEqual([expect.objectContaining({ id: 9, instance_id: 'secondary' })]);
+    const single = await controller.fetch(
+      new Request('http://localhost/api/decisions?page=1&alert_id=7&instance=secondary'),
+    );
+    expect(((await single.json()) as any).data).toEqual([expect.objectContaining({ id: 9, instance_id: 'secondary' })]);
 
-    const list = await controller.fetch(new Request('http://localhost/api/decisions?page=1&alert_id=7,8&instance=secondary'));
-    expect((await list.json() as any).data.map((row: any) => row.id).sort()).toEqual([10, 9]);
+    const list = await controller.fetch(
+      new Request('http://localhost/api/decisions?page=1&alert_id=7,8&instance=secondary'),
+    );
+    expect(((await list.json()) as any).data.map((row: any) => row.id).sort()).toEqual([10, 9]);
   } finally {
     controller.stopBackgroundTasks();
     database.close();
   }
 });
 
-test.each(['decision', 'alert'])('scoped %s deletion promotes the remaining active duplicate immediately', async (kind) => {
-  const { controller, database } = createMultiController();
-  seedDeletionAlert(database, 'secondary', 7, 9);
-  seedDeletionAlert(database, 'secondary', 8, 10, 1_800_000);
-  database.refreshDecisionDuplicateFlags(new Date().toISOString());
-  try {
-    const response = await controller.fetch(new Request(`http://localhost/api/instances/secondary/${kind}s/${kind === 'alert' ? 7 : 9}`, { method: 'DELETE' }));
-    expect(response.status).toBe(200);
-    const list = await controller.fetch(new Request('http://localhost/api/decisions?page=1&instance=secondary'));
-    expect((await list.json() as any).data).toEqual([expect.objectContaining({ id: 10, is_duplicate: false })]);
-    if (kind === 'alert') await vi.waitFor(() => expect(database.getAlertDeletionTombstone('secondary\u00007')?.completed_at).toBeTruthy());
-  } finally {
-    controller.stopBackgroundTasks();
-    database.close();
-  }
-});
+test.each(['decision', 'alert'])(
+  'scoped %s deletion promotes the remaining active duplicate immediately',
+  async (kind) => {
+    const { controller, database } = createMultiController();
+    seedDeletionAlert(database, 'secondary', 7, 9);
+    seedDeletionAlert(database, 'secondary', 8, 10, 1_800_000);
+    database.refreshDecisionDuplicateFlags(new Date().toISOString());
+    try {
+      const response = await controller.fetch(
+        new Request(`http://localhost/api/instances/secondary/${kind}s/${kind === 'alert' ? 7 : 9}`, {
+          method: 'DELETE',
+        }),
+      );
+      expect(response.status).toBe(200);
+      const list = await controller.fetch(new Request('http://localhost/api/decisions?page=1&instance=secondary'));
+      expect(((await list.json()) as any).data).toEqual([expect.objectContaining({ id: 10, is_duplicate: false })]);
+      if (kind === 'alert')
+        await vi.waitFor(() =>
+          expect(database.getAlertDeletionTombstone('secondary\u00007')?.completed_at).toBeTruthy(),
+        );
+    } finally {
+      controller.stopBackgroundTasks();
+      database.close();
+    }
+  },
+);
 
 test('resumes persisted instance deletion on restart without repeating completed decision removal', async () => {
   const original = createMultiController();
   const { controller, database, primary, secondary } = original;
   const key = 'secondary\u00007';
   database.queueAlertDeletion(key, ['9'], new Date(Date.now() - 60_000).toISOString());
-  database.markAlertDeletionDecisionsExpired(key, new Date(Date.now() - 30_000).toISOString(), new Date(Date.now() - 15_000).toISOString());
+  database.markAlertDeletionDecisionsExpired(
+    key,
+    new Date(Date.now() - 30_000).toISOString(),
+    new Date(Date.now() - 15_000).toISOString(),
+  );
   const dbPath = database.cachePath;
   controller.stopBackgroundTasks();
   database.close();
@@ -1046,8 +1314,12 @@ test('resumes persisted instance deletion on restart without repeating completed
   controller.config.lookbackMs = 60_000;
   controller.config.heartbeatIntervalMs = 0;
   const restarted = createApp({
-    config: controller.config, database: reopened,
-    lapiClients: new Map([['primary', primary as never], ['secondary', secondary as never]]),
+    config: controller.config,
+    database: reopened,
+    lapiClients: new Map([
+      ['primary', primary as never],
+      ['secondary', secondary as never],
+    ]),
   });
   try {
     restarted.startBackgroundTasks();
@@ -1068,12 +1340,24 @@ test('queues reachable bulk targets while reporting an uncached target lookup fa
   const { controller, database, primary, secondary } = createMultiController();
   secondary.getAlertById.mockRejectedValue(new Error('Secondary unavailable'));
   try {
-    const response = await controller.fetch(new Request('http://localhost/api/alerts/bulk-delete', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refs: [{ instance_id: 'primary', id: 7 }, { instance_id: 'secondary', id: 7 }] }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/api/alerts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          refs: [
+            { instance_id: 'primary', id: 7 },
+            { instance_id: 'secondary', id: 7 },
+          ],
+        }),
+      }),
+    );
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ requested_alerts: 2, deleted_alerts: 1, failed: [{ kind: 'alert', id: 'secondary:7', error: 'Secondary unavailable' }] });
+    expect(await response.json()).toMatchObject({
+      requested_alerts: 2,
+      deleted_alerts: 1,
+      failed: [{ kind: 'alert', id: 'secondary:7', error: 'Secondary unavailable' }],
+    });
     await vi.waitFor(() => expect(database.getAlertDeletionTombstone('primary\u00007')?.completed_at).toBeTruthy());
     expect(primary.deleteAlert).toHaveBeenCalledExactlyOnceWith('7');
     expect(secondary.deleteAlert).not.toHaveBeenCalled();
@@ -1086,100 +1370,145 @@ test('queues reachable bulk targets while reporting an uncached target lookup fa
 test.each([
   { window: 'head', now: '2026-10-21T00:35:00.000Z', dueRefreshes: 1 },
   { window: 'closed', now: '2026-10-21T00:05:00.000Z', dueRefreshes: 2 },
-])('reconciles secondary instance $window windows to find alerts created after their start passed the delta cursor', async ({ now, dueRefreshes }) => {
-  // Keep worker I/O and application timers real while controlling window boundaries.
-  vi.useFakeTimers({ toFake: ['Date'] });
-  vi.setSystemTime(new Date(now));
-  const dir = mkdtempSync(path.join(tmpdir(), 'crowdsec-web-ui-multi-reconcile-test-'));
-  tempDirs.push(dir);
-  const config = createRuntimeConfig({
-    DB_DIR: dir,
-    CROWDSEC_USER: 'watcher',
-    CROWDSEC_PASSWORD: 'secret',
-    CROWDSEC_LOOKBACK_PERIOD: '1d',
-    CROWDSEC_REFRESH_INTERVAL: '1h',
-    CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
-    CROWDSEC_BOUNCER_PROPAGATION_DELAY: '0',
-    CROWDSEC_RECONCILE_ACTIVE_INTERVAL: '1s',
-    CROWDSEC_RECONCILE_RECENT_INTERVAL: '1s',
-    AUTH_ENABLED: 'false',
-  }, { defaultConfigFile: path.join(dir, 'config.yaml') });
-  const base = config.instances[0];
-  config.instances = [
-    { ...base, id: 'primary', name: 'Primary', lapiUrl: 'http://primary:8080' },
-    { ...base, id: 'secondary', name: 'Secondary', lapiUrl: 'http://secondary:8080' },
-  ];
-  const database = new CrowdsecDatabase({ dataDir: dir });
-  const primary = fakeClient('primary');
-  const secondary = fakeClient('secondary');
-  const lapiAlerts: any[] = [];
-  // LAPI applies since/until to started_at, not created_at.
-  secondary.fetchAlerts.mockImplementation(async (_since?: unknown, _until?: unknown, filters: any = {}) => {
-    const window = filters.relativeWindow;
-    return lapiAlerts.filter((alert) => {
-      const startedAt = Date.parse(alert.start_at);
-      return !window || (startedAt >= window.startMs - window.paddingMs && startedAt <= window.endMs + window.paddingMs);
+])(
+  'reconciles secondary instance $window windows to find alerts created after their start passed the delta cursor',
+  async ({ now, dueRefreshes }) => {
+    // Keep worker I/O and application timers real while controlling window boundaries.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(now));
+    const dir = mkdtempSync(path.join(tmpdir(), 'crowdsec-web-ui-multi-reconcile-test-'));
+    tempDirs.push(dir);
+    const config = createRuntimeConfig(
+      {
+        DB_DIR: dir,
+        CROWDSEC_USER: 'watcher',
+        CROWDSEC_PASSWORD: 'secret',
+        CROWDSEC_LOOKBACK_PERIOD: '1d',
+        CROWDSEC_REFRESH_INTERVAL: '1h',
+        CROWDSEC_MANUAL_REFRESH_ENABLED: 'true',
+        CROWDSEC_BOUNCER_PROPAGATION_DELAY: '0',
+        CROWDSEC_RECONCILE_ACTIVE_INTERVAL: '1s',
+        CROWDSEC_RECONCILE_RECENT_INTERVAL: '1s',
+        AUTH_ENABLED: 'false',
+      },
+      { defaultConfigFile: path.join(dir, 'config.yaml') },
+    );
+    const base = config.instances[0];
+    config.instances = [
+      { ...base, id: 'primary', name: 'Primary', lapiUrl: 'http://primary:8080' },
+      { ...base, id: 'secondary', name: 'Secondary', lapiUrl: 'http://secondary:8080' },
+    ];
+    const database = new CrowdsecDatabase({ dataDir: dir });
+    const primary = fakeClient('primary');
+    const secondary = fakeClient('secondary');
+    const lapiAlerts: any[] = [];
+    // LAPI applies since/until to started_at, not created_at.
+    secondary.fetchAlerts.mockImplementation(async (_since?: unknown, _until?: unknown, filters: any = {}) => {
+      const window = filters.relativeWindow;
+      return lapiAlerts.filter((alert) => {
+        const startedAt = Date.parse(alert.start_at);
+        return (
+          !window || (startedAt >= window.startMs - window.paddingMs && startedAt <= window.endMs + window.paddingMs)
+        );
+      });
     });
-  });
-  const controller = createApp({
-    config,
-    database,
-    lapiClients: new Map([['primary', primary as never], ['secondary', secondary as never]]),
-    startBackgroundTasks: false,
-    initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
-    updateChecker: async () => ({ update_available: false, current_version: 'test', remote_version: 'test', tag: 'test', release_url: '', checked_at: new Date().toISOString() }),
-  });
-  const syncSecondary = async () => {
-    const response = await controller.fetch(new Request('http://localhost/api/decisions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: '10.0.0.1', duration: '1m', type: 'ban', scope: 'instance', instance_id: 'secondary' }),
-    }));
-    expect(response.status).toBe(200);
-  };
-  const cachedSecondaryDecisionIds = () => (database.db
-    .prepare('SELECT upstream_id FROM decisions WHERE instance_id = ?')
-    .all('secondary') as Array<{ upstream_id: string }>).map((row) => String(row.upstream_id));
-
-  try {
-    const refresh = await controller.fetch(new Request('http://localhost/api/cache/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'full' }),
-    }));
-    expect(refresh.status).toBe(200);
-
-    // A slow leaky bucket started before the history sync, but overflowed
-    // (and was created in LAPI) only afterwards.
-    const startedAt = new Date(Date.now() - 20 * 60_000).toISOString();
-    lapiAlerts.push({
-      id: 135227,
-      uuid: 'slow-bf',
-      scenario: 'crowdsecurity/ssh-slow-bf',
-      message: 'slow bruteforce',
-      start_at: startedAt,
-      stop_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      source: { scope: 'Ip', value: '77.239.124.66', ip: '77.239.124.66' },
-      decisions: [{ id: 193753, origin: 'crowdsec', scenario: 'crowdsecurity/ssh-slow-bf', scope: 'Ip', value: '77.239.124.66', type: 'ban', duration: '59m' }],
+    const controller = createApp({
+      config,
+      database,
+      lapiClients: new Map([
+        ['primary', primary as never],
+        ['secondary', secondary as never],
+      ]),
+      startBackgroundTasks: false,
+      initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
+      updateChecker: async () => ({
+        update_available: false,
+        current_version: 'test',
+        remote_version: 'test',
+        tag: 'test',
+        release_url: '',
+        checked_at: new Date().toISOString(),
+      }),
     });
+    const syncSecondary = async () => {
+      const response = await controller.fetch(
+        new Request('http://localhost/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ip: '10.0.0.1',
+            duration: '1m',
+            type: 'ban',
+            scope: 'instance',
+            instance_id: 'secondary',
+          }),
+        }),
+      );
+      expect(response.status).toBe(200);
+    };
+    const cachedSecondaryDecisionIds = () =>
+      (
+        database.db.prepare('SELECT upstream_id FROM decisions WHERE instance_id = ?').all('secondary') as Array<{
+          upstream_id: string;
+        }>
+      ).map((row) => String(row.upstream_id));
 
-    await syncSecondary();
-    expect(cachedSecondaryDecisionIds()).not.toContain('193753');
+    try {
+      const refresh = await controller.fetch(
+        new Request('http://localhost/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'full' }),
+        }),
+      );
+      expect(refresh.status).toBe(200);
 
-    // The first due refresh selects the head and the oldest due window.
-    // A bucket in the previous hour is selected on the next due refresh.
-    for (let refresh = 0; refresh < dueRefreshes; refresh += 1) {
-      vi.setSystemTime(Date.now() + 1_100);
+      // A slow leaky bucket started before the history sync, but overflowed
+      // (and was created in LAPI) only afterwards.
+      const startedAt = new Date(Date.now() - 20 * 60_000).toISOString();
+      lapiAlerts.push({
+        id: 135227,
+        uuid: 'slow-bf',
+        scenario: 'crowdsecurity/ssh-slow-bf',
+        message: 'slow bruteforce',
+        start_at: startedAt,
+        stop_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        source: { scope: 'Ip', value: '77.239.124.66', ip: '77.239.124.66' },
+        decisions: [
+          {
+            id: 193753,
+            origin: 'crowdsec',
+            scenario: 'crowdsecurity/ssh-slow-bf',
+            scope: 'Ip',
+            value: '77.239.124.66',
+            type: 'ban',
+            duration: '59m',
+          },
+        ],
+      });
+
       await syncSecondary();
+      expect(cachedSecondaryDecisionIds()).not.toContain('193753');
+
+      // The first due refresh selects the head and the oldest due window.
+      // A bucket in the previous hour is selected on the next due refresh.
+      for (let refresh = 0; refresh < dueRefreshes; refresh += 1) {
+        vi.setSystemTime(Date.now() + 1_100);
+        await syncSecondary();
+      }
+      expect(cachedSecondaryDecisionIds()).toContain('193753');
+      expect(
+        database.db
+          .prepare('SELECT created_at FROM decisions WHERE instance_id = ? AND upstream_id = ?')
+          .get('secondary', '193753'),
+      ).toEqual({ created_at: lapiAlerts[0].created_at });
+      expect(database.getMeta('alert_reconcile_window_state:secondary')).not.toBeNull();
+    } finally {
+      controller.stopBackgroundTasks();
+      database.close();
+      vi.useRealTimers();
     }
-    expect(cachedSecondaryDecisionIds()).toContain('193753');
-    expect(database.db.prepare('SELECT created_at FROM decisions WHERE instance_id = ? AND upstream_id = ?')
-      .get('secondary', '193753')).toEqual({ created_at: lapiAlerts[0].created_at });
-    expect(database.getMeta('alert_reconcile_window_state:secondary')).not.toBeNull();
-  } finally {
-    controller.stopBackgroundTasks();
-    database.close();
-    vi.useRealTimers();
-  }
-}, 15_000);
+  },
+  15_000,
+);

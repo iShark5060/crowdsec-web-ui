@@ -1,18 +1,11 @@
-import { describe, expect, test, vi } from 'vitest';
 import path from 'path';
-import { CrowdsecDatabase } from '../../database';
+
+import { describe, expect, test, vi } from 'vitest';
+
 import type { CreateAppOptions } from '../../app';
+import { CrowdsecDatabase } from '../../database';
 import { parseGoDuration } from '../../utils/duration';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleImplicitSimulatedAlert,
-  sampleRangeAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, destroyTempDir, sampleAlert, seedAlert, tempDir } from './harness';
 
 describe('createApp synchronization reconciliation', () => {
   test('queries every alert scope for each bootstrap window', async () => {
@@ -38,14 +31,16 @@ describe('createApp synchronization reconciliation', () => {
     const importedAlert = sampleAlert({
       id: 81,
       uuid: 'alert-81',
-      decisions: [{
-        id: 810,
-        type: 'ban',
-        value: '8.8.8.8',
-        duration: '30m',
-        origin: 'crowdsec',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 810,
+          type: 'ban',
+          value: '8.8.8.8',
+          duration: '30m',
+          origin: 'crowdsec',
+          simulated: false,
+        },
+      ],
     });
     const { controller, database } = createController({
       env: {
@@ -81,12 +76,14 @@ describe('createApp synchronization reconciliation', () => {
       id: 82,
       uuid: 'alert-82',
       created_at: new Date(Date.now() - 2 * 60 * 60 * 1_000).toISOString(),
-      decisions: [{
-        id: 820,
-        type: 'ban',
-        value: '8.8.4.4',
-        stop_at: new Date(Date.now() + 60 * 60 * 1_000).toISOString(),
-      }],
+      decisions: [
+        {
+          id: 820,
+          type: 'ban',
+          value: '8.8.4.4',
+          stop_at: new Date(Date.now() + 60 * 60 * 1_000).toISOString(),
+        },
+      ],
     });
     let bootstrap = true;
     const { controller, database, fetchCalls } = createController({
@@ -122,12 +119,14 @@ describe('createApp synchronization reconciliation', () => {
     expect(unscopedCalls).toHaveLength(2);
     const observedAt = Date.now();
     const alertCreatedAt = Date.parse(alert.created_at);
-    expect(unscopedCalls.some((call) => {
-      const params = new URL(call.url).searchParams;
-      const start = observedAt - parseGoDuration(params.get('since'));
-      const end = observedAt - parseGoDuration(params.get('until'));
-      return alertCreatedAt >= start && alertCreatedAt < end;
-    })).toBe(true);
+    expect(
+      unscopedCalls.some((call) => {
+        const params = new URL(call.url).searchParams;
+        const start = observedAt - parseGoDuration(params.get('since'));
+        const end = observedAt - parseGoDuration(params.get('until'));
+        return alertCreatedAt >= start && alertCreatedAt < end;
+      }),
+    ).toBe(true);
     expect(database.getDecisionById('820')).not.toBeNull();
 
     controller.stopBackgroundTasks();
@@ -139,7 +138,9 @@ describe('createApp synchronization reconciliation', () => {
     const now = Date.now();
     const lookbackStart = now - 6 * 60 * 60 * 1_000;
     const firstWindowEnd = (Math.floor(lookbackStart / (60 * 60 * 1_000)) + 1) * 60 * 60 * 1_000;
-    const oldCreatedAt = new Date(lookbackStart + Math.max(1, Math.floor((firstWindowEnd - lookbackStart) / 2))).toISOString();
+    const oldCreatedAt = new Date(
+      lookbackStart + Math.max(1, Math.floor((firstWindowEnd - lookbackStart) / 2)),
+    ).toISOString();
     const activeCreatedAt = new Date(now - 2 * 60 * 60 * 1_000).toISOString();
     const oldAlert = sampleAlert({ id: 85, uuid: 'alert-85', created_at: oldCreatedAt, decisions: [] });
     const activeAlert = sampleAlert({
@@ -160,13 +161,13 @@ describe('createApp synchronization reconciliation', () => {
         CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH: '2',
       },
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([oldAlert, activeAlert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([oldAlert, activeAlert]) : undefined),
     });
 
     const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
     expect(response.status).toBe(200);
-    const unscopedCalls = fetchCalls.filter((call) =>
-      call.url.includes('/v1/alerts?') && !new URL(call.url).searchParams.has('scope'),
+    const unscopedCalls = fetchCalls.filter(
+      (call) => call.url.includes('/v1/alerts?') && !new URL(call.url).searchParams.has('scope'),
     );
     expect(unscopedCalls).toHaveLength(3);
     const observedAt = Date.now();
@@ -177,8 +178,14 @@ describe('createApp synchronization reconciliation', () => {
         end: observedAt - parseGoDuration(params.get('until')),
       };
     });
-    expect(requestedRanges.some((range) => Date.parse(oldCreatedAt) >= range.start && Date.parse(oldCreatedAt) < range.end)).toBe(true);
-    expect(requestedRanges.some((range) => Date.parse(activeCreatedAt) >= range.start && Date.parse(activeCreatedAt) < range.end)).toBe(true);
+    expect(
+      requestedRanges.some((range) => Date.parse(oldCreatedAt) >= range.start && Date.parse(oldCreatedAt) < range.end),
+    ).toBe(true);
+    expect(
+      requestedRanges.some(
+        (range) => Date.parse(activeCreatedAt) >= range.start && Date.parse(activeCreatedAt) < range.end,
+      ),
+    ).toBe(true);
     expect(Math.min(...requestedRanges.map((range) => range.start))).toBeGreaterThanOrEqual(lookbackStart - 35_000);
 
     controller.stopBackgroundTasks();
@@ -220,7 +227,9 @@ describe('createApp synchronization reconciliation', () => {
 
     const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
     expect(response.status).toBe(200);
-    expect(database.getAlertsSince(new Date(boundary).toISOString()).map((row) => JSON.parse(row.raw_data).id)).toContain(87);
+    expect(
+      database.getAlertsSince(new Date(boundary).toISOString()).map((row) => JSON.parse(row.raw_data).id),
+    ).toContain(87);
 
     controller.stopBackgroundTasks();
     database.close();
@@ -285,7 +294,7 @@ describe('createApp synchronization reconciliation', () => {
     const first = createController({
       database,
       env,
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([]) : undefined),
     });
     expect((await first.controller.fetch(new Request('http://localhost/crowdsec/api/alerts'))).status).toBe(200);
     first.controller.stopBackgroundTasks();
@@ -294,7 +303,7 @@ describe('createApp synchronization reconciliation', () => {
       database,
       env,
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([]) : undefined),
     });
     expect((await second.controller.fetch(new Request('http://localhost/crowdsec/api/alerts'))).status).toBe(200);
     expect(second.fetchCalls.filter((call) => call.url.includes('/v1/alerts?'))).toHaveLength(3);
@@ -326,7 +335,7 @@ describe('createApp synchronization reconciliation', () => {
 
     const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
     expect(response.status).toBe(200);
-    expect((await response.json() as { pagination: { total: number } }).pagination.total).toBe(2);
+    expect(((await response.json()) as { pagination: { total: number } }).pagination.total).toBe(2);
     expect(database.getAlertsSince(new Date(Date.now() - 60_000).toISOString())).toHaveLength(2);
 
     controller.stopBackgroundTasks();
@@ -358,20 +367,24 @@ describe('createApp synchronization reconciliation', () => {
     const alertsRequest = controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
     await vi.waitFor(() => expect(syncWorker.rebuildSearchIndexes).toHaveBeenCalled());
     expect(syncWorker.beginDeferredSearchIndexUpdates).toHaveBeenCalledWith(true);
-    expect(controller.getSyncStatus()).toEqual(expect.objectContaining({
-      isSyncing: true,
-      progress: 98,
-      message: 'Building search indexes...',
-      completedAt: null,
-    }));
+    expect(controller.getSyncStatus()).toEqual(
+      expect.objectContaining({
+        isSyncing: true,
+        progress: 98,
+        message: 'Building search indexes...',
+        completedAt: null,
+      }),
+    );
 
     releaseIndexRebuild();
     expect((await alertsRequest).status).toBe(200);
-    expect(controller.getSyncStatus()).toEqual(expect.objectContaining({
-      isSyncing: false,
-      progress: 100,
-      completedAt: expect.any(String),
-    }));
+    expect(controller.getSyncStatus()).toEqual(
+      expect.objectContaining({
+        isSyncing: false,
+        progress: 100,
+        completedAt: expect.any(String),
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -396,7 +409,7 @@ describe('createApp synchronization reconciliation', () => {
     const syncedAlert = sampleAlert({ id: 301, uuid: 'alert-301' });
     const { controller, database } = createController({
       syncWorker,
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([syncedAlert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([syncedAlert]) : undefined),
     });
     seedAlert(database, sampleAlert({ id: 300, uuid: 'alert-300' }));
 
@@ -417,14 +430,16 @@ describe('createApp synchronization reconciliation', () => {
     const activeAlert = sampleAlert({
       id: 91,
       uuid: 'alert-91',
-      decisions: [{
-        id: 910,
-        type: 'ban',
-        value: '9.9.9.9',
-        duration: '30m',
-        origin: 'crowdsec',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 910,
+          type: 'ban',
+          value: '9.9.9.9',
+          duration: '30m',
+          origin: 'crowdsec',
+          simulated: false,
+        },
+      ],
     });
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -445,10 +460,12 @@ describe('createApp synchronization reconciliation', () => {
       const alerts = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
       expect(alerts.status).toBe(200);
       expect(database.getDecisionById('910')).not.toBeNull();
-      expect(controller.getSyncStatus()).toEqual(expect.objectContaining({
-        state: 'complete',
-        errors: [],
-      }));
+      expect(controller.getSyncStatus()).toEqual(
+        expect.objectContaining({
+          state: 'complete',
+          errors: [],
+        }),
+      );
       expect(fetchCalls.filter((call) => call.url.includes('/v1/alerts?'))).toHaveLength(3);
 
       const logs = logSpy.mock.calls.map((call) => String(call[0])).join('\n');
@@ -463,5 +480,4 @@ describe('createApp synchronization reconciliation', () => {
       destroyTempDir();
     }
   });
-
- });
+});

@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, vi } from 'vitest';
-import { fetchConfig, updateAllowlistsSidebarPreference, updateManualRefreshSetting, updateMetricsSidebarPreference } from '../../../lib/api';
+
 import { useRefresh } from '../../../contexts/useRefresh';
+import {
+  fetchConfig,
+  updateAllowlistsSidebarPreference,
+  updateManualRefreshSetting,
+  updateMetricsSidebarPreference,
+} from '../../../lib/api';
 
 const { setLanguagePreferenceMock, tMock, useAuthMock } = vi.hoisted(() => {
   const translations: Record<string, string> = {
@@ -40,16 +46,21 @@ const { setLanguagePreferenceMock, tMock, useAuthMock } = vi.hoisted(() => {
     'pages.settings.showAllowlistsInSidebarHelp': 'Allowlists sidebar help.',
     'pages.settings.showStatisticsInSidebar': 'Show Statistics in sidebar',
     'pages.settings.showStatisticsInSidebarHelp': 'Statistics sidebar help.',
-    'pages.settings.authDisabledHint': 'Dashboard authentication is disabled. Set CONFIG_AUTH_ENABLED=true and restart the web UI to enable sign-in and account settings.',
+    'pages.settings.authDisabledHint':
+      'Dashboard authentication is disabled. Set CONFIG_AUTH_ENABLED=true and restart the web UI to enable sign-in and account settings.',
     'pages.settings.authentication': 'Authentication',
     'pages.settings.authenticationDescription': 'Manage account sign-in methods.',
     'pages.settings.password': 'Password',
-    'pages.settings.passwordDescription': 'Change your local password or disable password login after another sign-in method is configured.',
+    'pages.settings.passwordDescription':
+      'Change your local password or disable password login after another sign-in method is configured.',
     'pages.settings.disablePasswordLogin': 'Disable password login',
     'pages.settings.disablePasswordLoginDescription': 'When enabled, only passkeys and SSO can be used to sign in.',
-    'pages.settings.managedByConfig': 'Managed by {setting} in the config file. To manage it here, remove it there and restart.',
-    'pages.settings.managedByEnvironment': 'Managed by the {setting} environment variable. To manage it here, remove it and any copy in the config file, then restart.',
-    'pages.settings.passwordLoginFallback': 'The config file disables password login, but it stays enabled until OIDC or a passkey is configured.',
+    'pages.settings.managedByConfig':
+      'Managed by {setting} in the config file. To manage it here, remove it there and restart.',
+    'pages.settings.managedByEnvironment':
+      'Managed by the {setting} environment variable. To manage it here, remove it and any copy in the config file, then restart.',
+    'pages.settings.passwordLoginFallback':
+      'The config file disables password login, but it stays enabled until OIDC or a passkey is configured.',
     'pages.settings.currentPassword': 'Current password',
     'pages.settings.newPassword': 'New password',
     'pages.settings.confirmPassword': 'Confirm password',
@@ -61,8 +72,10 @@ const { setLanguagePreferenceMock, tMock, useAuthMock } = vi.hoisted(() => {
     'pages.settings.manageTotp': 'Manage TOTP',
     'pages.settings.setupTotpTitle': 'Set Up TOTP',
     'pages.settings.manageTotpTitle': 'Manage TOTP',
-    'pages.settings.setupTotpDescription': 'Scan the QR code with an authenticator app, or open the setup link on this device. Enter the generated code to finish setup.',
-    'pages.settings.disableTotpDescription': 'Disabling TOTP removes the extra code requirement from password sign-in. Confirm with your current password.',
+    'pages.settings.setupTotpDescription':
+      'Scan the QR code with an authenticator app, or open the setup link on this device. Enter the generated code to finish setup.',
+    'pages.settings.disableTotpDescription':
+      'Disabling TOTP removes the extra code requirement from password sign-in. Confirm with your current password.',
     'pages.settings.manualTotpSecret': 'Manual setup key',
     'pages.settings.copyTotpSecret': 'Copy setup key',
     'pages.settings.openAuthenticatorApp': 'Open in authenticator app',
@@ -78,7 +91,8 @@ const { setLanguagePreferenceMock, tMock, useAuthMock } = vi.hoisted(() => {
     'pages.settings.totpDisabled': 'TOTP disabled.',
     'pages.settings.copied': 'Copied.',
     'pages.settings.passkeys': 'Passkeys',
-    'pages.settings.passkeysDescription': 'Register hardware keys, platform authenticators, or synced passkeys for passwordless sign-in.',
+    'pages.settings.passkeysDescription':
+      'Register hardware keys, platform authenticators, or synced passkeys for passwordless sign-in.',
     'pages.settings.noPasskeys': 'No passkeys registered.',
     'pages.settings.passkey': 'Passkey',
     'pages.settings.passkeyAdded': 'Added {date}',
@@ -87,10 +101,12 @@ const { setLanguagePreferenceMock, tMock, useAuthMock } = vi.hoisted(() => {
     'pages.settings.passkeyNamePrompt': 'Passkey name',
     'pages.settings.passkeyNameDefault': 'Security key',
     'pages.settings.registerPasskeyTitle': 'Register New Passkey',
-    'pages.settings.registerPasskeyDescription': 'Give this passkey a recognizable name, then follow your browser or device prompt to finish registration.',
+    'pages.settings.registerPasskeyDescription':
+      'Give this passkey a recognizable name, then follow your browser or device prompt to finish registration.',
     'pages.settings.registerPasskeySubmit': 'Register Passkey',
     'pages.settings.oidcSso': 'OIDC (SSO)',
-    'pages.settings.oidcDescription': 'Configure the provider connection and optional group mapping for admin and read-only access.',
+    'pages.settings.oidcDescription':
+      'Configure the provider connection and optional group mapping for admin and read-only access.',
     'pages.settings.oidcIssuerUrl': 'Issuer URL',
     'pages.settings.oidcClientId': 'Client ID',
     'pages.settings.oidcClientSecret': 'Client Secret',
@@ -104,18 +120,23 @@ const { setLanguagePreferenceMock, tMock, useAuthMock } = vi.hoisted(() => {
     'pages.settings.oidcUnmatchedRoleAdmin': 'Admin access',
     'pages.settings.oidcUnmatchedRoleReadOnly': 'Read-only access',
     'pages.settings.oidcEndSession': 'Sign out of the identity provider on logout',
-    'pages.settings.oidcEndSessionHelp': 'When an SSO user logs out, also end their session at the identity provider so the next SSO sign-in asks for credentials again. Register {url} as a post-logout redirect URI with your provider.',
+    'pages.settings.oidcEndSessionHelp':
+      'When an SSO user logs out, also end their session at the identity provider so the next SSO sign-in asks for credentials again. Register {url} as a post-logout redirect URI with your provider.',
     'pages.settings.oidcBackchannelLogout': 'End sessions when signing out at the identity provider',
-    'pages.settings.oidcBackchannelLogoutHelp': 'Accept OpenID Connect back-channel logout notifications, so signing out at the identity provider also ends dashboard sessions. Register {url} as the back-channel logout URI with your provider.',
+    'pages.settings.oidcBackchannelLogoutHelp':
+      'Accept OpenID Connect back-channel logout notifications, so signing out at the identity provider also ends dashboard sessions. Register {url} as the back-channel logout URI with your provider.',
     'pages.settings.oidcAutoLogin': 'Sign in with SSO automatically',
-    'pages.settings.oidcAutoLoginHelp': 'Skip the login page and go straight to the identity provider. Only applies while OIDC is configured and password login is disabled. Open {url} to reach the login page anyway, for example to use a passkey.',
-    'pages.settings.oidcAutoLoginInactive': 'Auto-login is enabled but inactive: it requires OIDC to be configured and password login to be disabled.',
+    'pages.settings.oidcAutoLoginHelp':
+      'Skip the login page and go straight to the identity provider. Only applies while OIDC is configured and password login is disabled. Open {url} to reach the login page anyway, for example to use a passkey.',
+    'pages.settings.oidcAutoLoginInactive':
+      'Auto-login is enabled but inactive: it requires OIDC to be configured and password login to be disabled.',
     'pages.settings.addGroup': 'Add',
     'pages.settings.noScopesConfigured': 'No scopes configured.',
     'pages.settings.removeScope': 'Remove {scope}',
     'pages.settings.noGroupsConfigured': 'No groups configured.',
     'pages.settings.removeGroup': 'Remove {group}',
-    'pages.settings.oidcGroupsHelp': 'Choose what happens when an OIDC user matches no configured group. The default is deny sign-in.',
+    'pages.settings.oidcGroupsHelp':
+      'Choose what happens when an OIDC user matches no configured group. The default is deny sign-in.',
   };
 
   return {
@@ -166,7 +187,7 @@ vi.mock('../../../lib/i18n', () => ({
     { code: 'de', labelKey: 'languages.de' },
   ],
   getLanguageLabelKey: (language: string) => `languages.${language}`,
-  resolveLanguagePreference: (preference: string) => preference === 'browser' ? 'en' : preference,
+  resolveLanguagePreference: (preference: string) => (preference === 'browser' ? 'en' : preference),
   useI18n: () => ({
     browserLanguage: 'en',
     preference: 'browser',
@@ -175,66 +196,65 @@ vi.mock('../../../lib/i18n', () => ({
   }),
 }));
 
-  beforeEach(() => {
-    setLanguagePreferenceMock.mockReset();
-    vi.mocked(updateMetricsSidebarPreference).mockReset();
-    vi.mocked(updateAllowlistsSidebarPreference).mockReset();
-    vi.mocked(updateManualRefreshSetting).mockReset();
-    vi.mocked(updateManualRefreshSetting).mockResolvedValue({
-      success: true,
-      manual_refresh_enabled: true,
-    });
-    useAuthMock.mockReset();
-    useAuthMock.mockReturnValue({
-      authEnabled: false,
-      setupRequired: false,
-      authenticated: true,
-      user: null,
-      authMethod: null,
-      oidcEnabled: false,
-      passwordLoginDisabled: false,
-      passkeysEnabled: false,
-      hasPassword: false,
-      totpEnabled: false,
-      loading: false,
-      refresh: vi.fn(),
-      login: vi.fn(),
-      setup: vi.fn(),
-      logout: vi.fn(),
-    });
-    vi.mocked(useRefresh).mockReturnValue({
-      intervalMs: 30000,
-      nextRefreshAt: null,
-      setIntervalMs: vi.fn(),
-      lastUpdated: null,
-      setLastUpdated: vi.fn(),
-      refreshSignal: 0,
-      syncStatus: null,
-    });
-    vi.mocked(fetchConfig).mockResolvedValue({
-      lookback_period: '1h',
-      lookback_hours: 1,
-      lookback_days: 1,
-      refresh_interval: 30000,
-      current_interval_name: '30s',
-      lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
-      sync_status: { isSyncing: false, progress: 100, message: 'done', startedAt: null, completedAt: null },
-      simulations_enabled: true,
-      machine_features_enabled: false,
-      origin_features_enabled: false,
-      metrics_enabled: false,
-      metrics_sidebar_visible: true,
-      permissions: {
-        mode: 'read-only',
-        can_manage_enforcement: false,
-        can_manage_settings: false,
-      },
-    });
+beforeEach(() => {
+  setLanguagePreferenceMock.mockReset();
+  vi.mocked(updateMetricsSidebarPreference).mockReset();
+  vi.mocked(updateAllowlistsSidebarPreference).mockReset();
+  vi.mocked(updateManualRefreshSetting).mockReset();
+  vi.mocked(updateManualRefreshSetting).mockResolvedValue({
+    success: true,
+    manual_refresh_enabled: true,
   });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
+  useAuthMock.mockReset();
+  useAuthMock.mockReturnValue({
+    authEnabled: false,
+    setupRequired: false,
+    authenticated: true,
+    user: null,
+    authMethod: null,
+    oidcEnabled: false,
+    passwordLoginDisabled: false,
+    passkeysEnabled: false,
+    hasPassword: false,
+    totpEnabled: false,
+    loading: false,
+    refresh: vi.fn(),
+    login: vi.fn(),
+    setup: vi.fn(),
+    logout: vi.fn(),
   });
+  vi.mocked(useRefresh).mockReturnValue({
+    intervalMs: 30000,
+    nextRefreshAt: null,
+    setIntervalMs: vi.fn(),
+    lastUpdated: null,
+    setLastUpdated: vi.fn(),
+    refreshSignal: 0,
+    syncStatus: null,
+  });
+  vi.mocked(fetchConfig).mockResolvedValue({
+    lookback_period: '1h',
+    lookback_hours: 1,
+    lookback_days: 1,
+    refresh_interval: 30000,
+    current_interval_name: '30s',
+    lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
+    sync_status: { isSyncing: false, progress: 100, message: 'done', startedAt: null, completedAt: null },
+    simulations_enabled: true,
+    machine_features_enabled: false,
+    origin_features_enabled: false,
+    metrics_enabled: false,
+    metrics_sidebar_visible: true,
+    permissions: {
+      mode: 'read-only',
+      can_manage_enforcement: false,
+      can_manage_settings: false,
+    },
+  });
+});
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 export { setLanguagePreferenceMock, tMock, useAuthMock };

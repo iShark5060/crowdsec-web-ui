@@ -1,11 +1,13 @@
 import './harness';
-import { SettingsRouter } from './router';
-import { describe, expect, test, vi } from 'vitest';
+
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Settings } from '../../Settings';
+import { describe, expect, test, vi } from 'vitest';
+
 import { fetchConfig, updateManualDecisionScenarios } from '../../../lib/api';
 import type { ConfigResponse } from '../../../types';
+import { Settings } from '../../Settings';
+import { SettingsRouter } from './router';
 
 async function mockAdminConfig(settings: ConfigResponse['manual_decision_scenario_settings']) {
   const base = await vi.mocked(fetchConfig).getMockImplementation()?.();
@@ -24,7 +26,11 @@ describe('Settings manual decision scenarios', () => {
       success: true,
       manual_decision_scenario_settings: { configured: ['custom/from-config'], custom: ['custom/new'] },
     });
-    render(<SettingsRouter tab="general"><Settings /></SettingsRouter>);
+    render(
+      <SettingsRouter tab="general">
+        <Settings />
+      </SettingsRouter>,
+    );
 
     await waitFor(() => expect(screen.getByText('custom/old')).toBeInTheDocument());
     expect(screen.getByText('manual/web-ui')).toBeInTheDocument();
@@ -47,7 +53,11 @@ describe('Settings manual decision scenarios', () => {
   });
 
   test('hides manual decisions without settings permission', async () => {
-    render(<SettingsRouter tab="general"><Settings /></SettingsRouter>);
+    render(
+      <SettingsRouter tab="general">
+        <Settings />
+      </SettingsRouter>,
+    );
 
     expect(await screen.findByRole('tab', { name: 'pages.settings.account' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('tab', { name: 'General' })).not.toBeInTheDocument();

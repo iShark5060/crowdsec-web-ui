@@ -1,8 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
-import path from 'path';
-import { CrowdsecDatabase } from '../../database';
+
 import type { CreateAppOptions } from '../../app';
-import { parseGoDuration } from '../../utils/duration';
 import {
   createController,
   destroyTempDir,
@@ -10,18 +8,20 @@ import {
   sampleImplicitSimulatedAlert,
   sampleRangeAlert,
   sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
 } from './harness';
 
 describe('createApp synchronization runtime', () => {
   test('fails fast on mixed password and mTLS configuration', () => {
-    expect(() => createController({
-      env: {
-        CROWDSEC_TLS_CERT_PATH: '/certs/agent.pem',
-        CROWDSEC_TLS_KEY_PATH: '/certs/agent-key.pem',
-      },
-    })).toThrow(/choose either CROWDSEC_USER with CROWDSEC_PASSWORD or CROWDSEC_PASSWORD_FILE, or CROWDSEC_TLS_CERT_PATH\/CROWDSEC_TLS_KEY_PATH/i);
+    expect(() =>
+      createController({
+        env: {
+          CROWDSEC_TLS_CERT_PATH: '/certs/agent.pem',
+          CROWDSEC_TLS_KEY_PATH: '/certs/agent-key.pem',
+        },
+      }),
+    ).toThrow(
+      /choose either CROWDSEC_USER with CROWDSEC_PASSWORD or CROWDSEC_PASSWORD_FILE, or CROWDSEC_TLS_CERT_PATH\/CROWDSEC_TLS_KEY_PATH/i,
+    );
 
     destroyTempDir();
   });
@@ -59,29 +59,37 @@ describe('createApp synchronization runtime', () => {
 
       const heartbeatRequest = fetchCalls.find((call) => call.url.endsWith('/v1/heartbeat'));
       const usageMetricsRequest = fetchCalls.find((call) => call.url.endsWith('/v1/usage-metrics'));
-      expect(heartbeatRequest).toEqual(expect.objectContaining({
-        method: 'GET',
-      }));
-      expect(heartbeatRequest?.headers).toEqual(expect.objectContaining({
-        Authorization: 'Bearer token',
-      }));
-      expect(usageMetricsRequest).toEqual(expect.objectContaining({
-        method: 'POST',
-        body: expect.objectContaining({
-          log_processors: [
-            expect.objectContaining({
-              os: expect.objectContaining({
-                name: expect.any(String),
-                version: expect.any(String),
-              }),
-              version: '1.0.0',
-            }),
-          ],
+      expect(heartbeatRequest).toEqual(
+        expect.objectContaining({
+          method: 'GET',
         }),
-      }));
-      expect(usageMetricsRequest?.headers).toEqual(expect.objectContaining({
-        Authorization: 'Bearer token',
-      }));
+      );
+      expect(heartbeatRequest?.headers).toEqual(
+        expect.objectContaining({
+          Authorization: 'Bearer token',
+        }),
+      );
+      expect(usageMetricsRequest).toEqual(
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.objectContaining({
+            log_processors: [
+              expect.objectContaining({
+                os: expect.objectContaining({
+                  name: expect.any(String),
+                  version: expect.any(String),
+                }),
+                version: '1.0.0',
+              }),
+            ],
+          }),
+        }),
+      );
+      expect(usageMetricsRequest?.headers).toEqual(
+        expect.objectContaining({
+          Authorization: 'Bearer token',
+        }),
+      );
     } finally {
       controller.stopBackgroundTasks();
       vi.useRealTimers();
@@ -177,17 +185,20 @@ describe('createApp synchronization runtime', () => {
       await vi.advanceTimersByTimeAsync(65_000);
 
       const logs = logSpy.mock.calls.map((call) => String(call[0]));
-      expect(logs.filter((message) =>
-        message === 'Background refresh paused until bootstrap recovery completes.',
-      )).toHaveLength(1);
+      expect(
+        logs.filter((message) => message === 'Background refresh paused until bootstrap recovery completes.'),
+      ).toHaveLength(1);
       expect(logs.some((message) => message.startsWith('Next bootstrap attempt scheduled'))).toBe(false);
       expect(logs.some((message) => message.includes('joining it (bootstrap retry)'))).toBe(false);
 
       bootstrapReleased = true;
       releaseBootstrap();
-      for (let attempt = 0; attempt < 100 && !logSpy.mock.calls.some((call) =>
-        String(call[0]).includes('Bootstrap recovery completed successfully'),
-      ); attempt += 1) {
+      for (
+        let attempt = 0;
+        attempt < 100 &&
+        !logSpy.mock.calls.some((call) => String(call[0]).includes('Bootstrap recovery completed successfully'));
+        attempt += 1
+      ) {
         await vi.advanceTimersByTimeAsync(100);
         await new Promise((resolve) => realSetTimeout(resolve, 5));
       }
@@ -354,7 +365,9 @@ describe('createApp synchronization runtime', () => {
 
     const decisions = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions'));
     expect(decisions.status).toBe(200);
-    expect((await decisions.json()) as Array<{ id: number; simulated?: boolean; detail: { simulated?: boolean } }>).toEqual([
+    expect(
+      (await decisions.json()) as Array<{ id: number; simulated?: boolean; detail: { simulated?: boolean } }>,
+    ).toEqual([
       expect.objectContaining({
         id: 50,
         simulated: true,
@@ -459,20 +472,26 @@ describe('createApp synchronization runtime', () => {
     await lapiClient.login();
 
     const alerts = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
-    const alertsJson = await alerts.json() as Array<{ id: number }>;
+    const alertsJson = (await alerts.json()) as Array<{ id: number }>;
     expect(alertsJson).toHaveLength(1);
     expect(alertsJson[0]?.id).toBe(1);
 
     const decisions = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions'));
-    const decisionsJson = await decisions.json() as Array<{ id: number }>;
+    const decisionsJson = (await decisions.json()) as Array<{ id: number }>;
     expect(decisionsJson).toHaveLength(1);
     expect(decisionsJson[0]?.id).toBe(10);
 
     const statsAlerts = await controller.fetch(new Request('http://localhost/crowdsec/api/stats/alerts'));
-    expect(((await statsAlerts.json()) as Array<{ simulated?: boolean }>).every((alert) => alert.simulated !== true)).toBe(true);
+    expect(
+      ((await statsAlerts.json()) as Array<{ simulated?: boolean }>).every((alert) => alert.simulated !== true),
+    ).toBe(true);
 
     const statsDecisions = await controller.fetch(new Request('http://localhost/crowdsec/api/stats/decisions'));
-    expect(((await statsDecisions.json()) as Array<{ simulated?: boolean }>).every((decision) => decision.simulated !== true)).toBe(true);
+    expect(
+      ((await statsDecisions.json()) as Array<{ simulated?: boolean }>).every(
+        (decision) => decision.simulated !== true,
+      ),
+    ).toBe(true);
 
     const simulatedDetails = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/2'));
     expect(simulatedDetails.status).toBe(404);
@@ -484,5 +503,4 @@ describe('createApp synchronization runtime', () => {
     database.close();
     destroyTempDir();
   });
-
- });
+});

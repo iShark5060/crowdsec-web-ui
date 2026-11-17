@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { parseGoDuration, toDuration } from '../duration';
 
 describe('duration helpers', () => {

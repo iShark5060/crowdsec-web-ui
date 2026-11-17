@@ -1,9 +1,17 @@
-import { buildNotificationPage, buildSettings } from './harness';
-import { describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { describe, expect, test, vi } from 'vitest';
+
+import {
+  createNotificationChannel,
+  createNotificationRule,
+  fetchConfig,
+  fetchNotificationSettings,
+  fetchNotificationsPaginated,
+  markNotificationRead,
+} from '../../../lib/api';
 import { Notifications } from '../../Notifications';
-import { createNotificationChannel, createNotificationRule, fetchConfig, fetchNotificationSettings, fetchNotificationsPaginated, markNotificationRead } from '../../../lib/api';
+import { buildNotificationPage, buildSettings } from './harness';
 
 describe('Notifications page configuration', () => {
   test('hides notification management controls when read-only but keeps mark-read available', async () => {
@@ -25,44 +33,48 @@ describe('Notifications page configuration', () => {
         can_manage_settings: false,
       },
     });
-    vi.mocked(fetchNotificationSettings).mockResolvedValue(buildSettings({
-      rules: [
-        {
-          id: 'rule-1',
-          name: 'Threshold',
-          type: 'alert-threshold',
-          enabled: true,
-          severity: 'warning',
-          channel_ids: ['channel-1'],
-          config: {
-            window_minutes: 60,
-            alert_threshold: 5,
+    vi.mocked(fetchNotificationSettings).mockResolvedValue(
+      buildSettings({
+        rules: [
+          {
+            id: 'rule-1',
+            name: 'Threshold',
+            type: 'alert-threshold',
+            enabled: true,
+            severity: 'warning',
+            channel_ids: ['channel-1'],
+            config: {
+              window_minutes: 60,
+              alert_threshold: 5,
+            },
+            created_at: '2026-03-28T12:00:00.000Z',
+            updated_at: '2026-03-28T12:00:00.000Z',
           },
-          created_at: '2026-03-28T12:00:00.000Z',
-          updated_at: '2026-03-28T12:00:00.000Z',
-        },
-      ],
-    }));
-    vi.mocked(fetchNotificationsPaginated).mockResolvedValue(buildNotificationPage({
-      data: [
-        {
-          id: 'notif-1',
-          rule_id: 'rule-1',
-          rule_name: 'Threshold',
-          rule_type: 'alert-threshold',
-          severity: 'warning',
-          title: 'Threshold breached',
-          message: 'Alert volume is elevated',
-          created_at: '2026-03-28T12:00:00.000Z',
-          read_at: null,
-          metadata: {},
-          deliveries: [],
-        },
-      ],
-      selectable_ids: ['notif-1'],
-      unread_count: 1,
-      total: 1,
-    }));
+        ],
+      }),
+    );
+    vi.mocked(fetchNotificationsPaginated).mockResolvedValue(
+      buildNotificationPage({
+        data: [
+          {
+            id: 'notif-1',
+            rule_id: 'rule-1',
+            rule_name: 'Threshold',
+            rule_type: 'alert-threshold',
+            severity: 'warning',
+            title: 'Threshold breached',
+            message: 'Alert volume is elevated',
+            created_at: '2026-03-28T12:00:00.000Z',
+            read_at: null,
+            metadata: {},
+            deliveries: [],
+          },
+        ],
+        selectable_ids: ['notif-1'],
+        unread_count: 1,
+        total: 1,
+      }),
+    );
 
     render(<Notifications />);
 
@@ -167,10 +179,14 @@ describe('Notifications page configuration', () => {
     await user.type(screen.getByLabelText('Subject Prefix'), 'Home');
     await user.click(screen.getByRole('button', { name: /save destination/i }));
 
-    await waitFor(() => expect(createNotificationChannel).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'email',
-      config: expect.objectContaining({ subjectPrefix: 'Home' }),
-    })));
+    await waitFor(() =>
+      expect(createNotificationChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'email',
+          config: expect.objectContaining({ subjectPrefix: 'Home' }),
+        }),
+      ),
+    );
   });
 
   test('submits all ntfy settings and offers every Gotify priority', async () => {
@@ -193,15 +209,19 @@ describe('Notifications page configuration', () => {
     await user.type(screen.getByLabelText('Tags'), 'shield');
     await user.click(screen.getByRole('button', { name: /save destination/i }));
 
-    await waitFor(() => expect(createNotificationChannel).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'ntfy',
-      config: expect.objectContaining({
-        ntfyUsername: 'operator',
-        ntfyPassword: 'secret',
-        titlePrefix: 'Network A',
-        tags: 'shield',
-      }),
-    })));
+    await waitFor(() =>
+      expect(createNotificationChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'ntfy',
+          config: expect.objectContaining({
+            ntfyUsername: 'operator',
+            ntfyPassword: 'secret',
+            titlePrefix: 'Network A',
+            tags: 'shield',
+          }),
+        }),
+      ),
+    );
 
     await user.click(screen.getByRole('button', { name: /add destination/i }));
     await user.selectOptions(screen.getByLabelText('Type'), 'gotify');
@@ -226,16 +246,20 @@ describe('Notifications page configuration', () => {
     await user.selectOptions(screen.getByLabelText('Notification Type'), 'failure');
     await user.click(screen.getByRole('button', { name: /save destination/i }));
 
-    await waitFor(() => expect(createNotificationChannel).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'apprise',
-      config: expect.objectContaining({
-        appriseUrl: 'http://apprise:8000',
-        appriseMode: 'key',
-        appriseKey: 'crowdsec',
-        appriseTags: 'matrix',
-        appriseTypeOverride: 'failure',
-      }),
-    })));
+    await waitFor(() =>
+      expect(createNotificationChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'apprise',
+          config: expect.objectContaining({
+            appriseUrl: 'http://apprise:8000',
+            appriseMode: 'key',
+            appriseKey: 'crowdsec',
+            appriseTags: 'matrix',
+            appriseTypeOverride: 'failure',
+          }),
+        }),
+      ),
+    );
 
     await user.click(screen.getByRole('button', { name: /add destination/i }));
     await user.selectOptions(screen.getByLabelText('Type'), 'apprise');
@@ -246,13 +270,17 @@ describe('Notifications page configuration', () => {
     await user.type(screen.getByLabelText('Apprise URLs'), 'matrixs://token@matrix.example.com/#alerts');
     await user.click(screen.getByRole('button', { name: /save destination/i }));
 
-    await waitFor(() => expect(createNotificationChannel).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'apprise',
-      config: expect.objectContaining({
-        appriseMode: 'urls',
-        appriseUrls: 'matrixs://token@matrix.example.com/#alerts',
-      }),
-    })));
+    await waitFor(() =>
+      expect(createNotificationChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'apprise',
+          config: expect.objectContaining({
+            appriseMode: 'urls',
+            appriseUrls: 'matrixs://token@matrix.example.com/#alerts',
+          }),
+        }),
+      ),
+    );
   });
 
   test('shows unchanged placeholder for stored secrets when editing', async () => {
@@ -301,121 +329,143 @@ describe('Notifications page configuration', () => {
   });
 
   test('keeps recent notifications newest-first while restoring destination and rule order after remounting', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:notifications:notification-order', JSON.stringify(['notif-1', 'notif-2']));
-    window.localStorage.setItem('crowdsec-web-ui:notifications:destination-order', JSON.stringify(['channel-2', 'channel-1']));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:notifications:notification-order',
+      JSON.stringify(['notif-1', 'notif-2']),
+    );
+    window.localStorage.setItem(
+      'crowdsec-web-ui:notifications:destination-order',
+      JSON.stringify(['channel-2', 'channel-1']),
+    );
     window.localStorage.setItem('crowdsec-web-ui:notifications:rule-order', JSON.stringify(['rule-2', 'rule-1']));
 
-    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(buildSettings({
-      channels: [
-        {
-          id: 'channel-1',
-          name: 'Ops MQTT',
-          type: 'mqtt',
-          enabled: true,
-          config: {
-            brokerUrl: 'mqtt://broker.example.com:1883',
-            username: 'ops',
-            password: '(stored)',
-            clientId: '',
-            keepaliveSeconds: 60,
-            connectTimeoutMs: 10000,
-            qos: 1,
-            topic: 'crowdsec/notifications',
-            retainEvents: false,
-          },
-          configured_secrets: ['password'],
-          created_at: '2026-03-28T12:00:00.000Z',
-          updated_at: '2026-03-28T12:00:00.000Z',
-        },
-        {
-          id: 'channel-2',
-          name: 'Security Email',
-          type: 'email',
-          enabled: true,
-          config: {},
-          configured_secrets: [],
-          created_at: '2026-03-28T12:05:00.000Z',
-          updated_at: '2026-03-28T12:05:00.000Z',
-        },
-      ],
-      rules: [
-        {
-          id: 'rule-1',
-          name: 'Alert Threshold',
-          type: 'alert-threshold',
-          enabled: true,
-          severity: 'warning',
-          channel_ids: ['channel-1'],
-          config: {
-            window_minutes: 60,
-            alert_threshold: 10,
-            filters: {},
-          },
-          created_at: '2026-03-28T12:00:00.000Z',
-          updated_at: '2026-03-28T12:00:00.000Z',
-        },
-        {
-          id: 'rule-2',
-          name: 'New CVE',
-          type: 'new-cve',
-          enabled: true,
-          severity: 'critical',
-          channel_ids: ['channel-2'],
-          config: {
-            max_cve_age_days: 14,
-            filters: {
-              scenario: '',
-              target: '',
-              include_simulated: false,
+    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(
+      buildSettings({
+        channels: [
+          {
+            id: 'channel-1',
+            name: 'Ops MQTT',
+            type: 'mqtt',
+            enabled: true,
+            config: {
+              brokerUrl: 'mqtt://broker.example.com:1883',
+              username: 'ops',
+              password: '(stored)',
+              clientId: '',
+              keepaliveSeconds: 60,
+              connectTimeoutMs: 10000,
+              qos: 1,
+              topic: 'crowdsec/notifications',
+              retainEvents: false,
             },
+            configured_secrets: ['password'],
+            created_at: '2026-03-28T12:00:00.000Z',
+            updated_at: '2026-03-28T12:00:00.000Z',
           },
-          created_at: '2026-03-28T12:10:00.000Z',
-          updated_at: '2026-03-28T12:10:00.000Z',
-        },
-      ],
-    }));
-    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(buildNotificationPage({
-      data: [
-        {
-          id: 'notif-1',
-          rule_id: 'rule-1',
-          rule_name: 'Alert Threshold',
-          rule_type: 'alert-threshold',
-          severity: 'warning',
-          title: 'First server notification',
-          message: 'Server order first',
-          created_at: '2026-03-28T12:00:00.000Z',
-          read_at: null,
-          metadata: {},
-          deliveries: [],
-        },
-        {
-          id: 'notif-2',
-          rule_id: 'rule-2',
-          rule_name: 'New CVE',
-          rule_type: 'new-cve',
-          severity: 'critical',
-          title: 'Saved order notification',
-          message: 'Saved order first',
-          created_at: '2026-03-28T12:10:00.000Z',
-          read_at: null,
-          metadata: {},
-          deliveries: [],
-        },
-      ],
-      selectable_ids: ['notif-1', 'notif-2'],
-      unread_count: 2,
-      total: 2,
-    }));
+          {
+            id: 'channel-2',
+            name: 'Security Email',
+            type: 'email',
+            enabled: true,
+            config: {},
+            configured_secrets: [],
+            created_at: '2026-03-28T12:05:00.000Z',
+            updated_at: '2026-03-28T12:05:00.000Z',
+          },
+        ],
+        rules: [
+          {
+            id: 'rule-1',
+            name: 'Alert Threshold',
+            type: 'alert-threshold',
+            enabled: true,
+            severity: 'warning',
+            channel_ids: ['channel-1'],
+            config: {
+              window_minutes: 60,
+              alert_threshold: 10,
+              filters: {},
+            },
+            created_at: '2026-03-28T12:00:00.000Z',
+            updated_at: '2026-03-28T12:00:00.000Z',
+          },
+          {
+            id: 'rule-2',
+            name: 'New CVE',
+            type: 'new-cve',
+            enabled: true,
+            severity: 'critical',
+            channel_ids: ['channel-2'],
+            config: {
+              max_cve_age_days: 14,
+              filters: {
+                scenario: '',
+                target: '',
+                include_simulated: false,
+              },
+            },
+            created_at: '2026-03-28T12:10:00.000Z',
+            updated_at: '2026-03-28T12:10:00.000Z',
+          },
+        ],
+      }),
+    );
+    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(
+      buildNotificationPage({
+        data: [
+          {
+            id: 'notif-1',
+            rule_id: 'rule-1',
+            rule_name: 'Alert Threshold',
+            rule_type: 'alert-threshold',
+            severity: 'warning',
+            title: 'First server notification',
+            message: 'Server order first',
+            created_at: '2026-03-28T12:00:00.000Z',
+            read_at: null,
+            metadata: {},
+            deliveries: [],
+          },
+          {
+            id: 'notif-2',
+            rule_id: 'rule-2',
+            rule_name: 'New CVE',
+            rule_type: 'new-cve',
+            severity: 'critical',
+            title: 'Saved order notification',
+            message: 'Saved order first',
+            created_at: '2026-03-28T12:10:00.000Z',
+            read_at: null,
+            metadata: {},
+            deliveries: [],
+          },
+        ],
+        selectable_ids: ['notif-1', 'notif-2'],
+        unread_count: 2,
+        total: 2,
+      }),
+    );
 
     render(<Notifications />);
 
     await waitFor(() => expect(screen.getByText('Saved order notification')).toBeInTheDocument());
 
     expect(screen.queryByLabelText('Reorder notification notif-2')).not.toBeInTheDocument();
-    expect(screen.getByText('Saved order notification').compareDocumentPosition(screen.getByText('First server notification')) & 4).toBeTruthy();
-    expect(screen.getByLabelText('Reorder destination Security Email').compareDocumentPosition(screen.getByLabelText('Reorder destination Ops MQTT')) & 4).toBeTruthy();
-    expect(screen.getByLabelText('Reorder rule New CVE').compareDocumentPosition(screen.getByLabelText('Reorder rule Alert Threshold')) & 4).toBeTruthy();
+    expect(
+      screen
+        .getByText('Saved order notification')
+        .compareDocumentPosition(screen.getByText('First server notification')) & 4,
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByLabelText('Reorder destination Security Email')
+        .compareDocumentPosition(screen.getByLabelText('Reorder destination Ops MQTT')) & 4,
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByLabelText('Reorder rule New CVE')
+        .compareDocumentPosition(screen.getByLabelText('Reorder rule Alert Threshold')) & 4,
+    ).toBeTruthy();
   });
 
   test('shows the application update rule type without alert filter fields', async () => {
@@ -444,11 +494,15 @@ describe('Notifications page configuration', () => {
     await user.type(screen.getByLabelText('Name'), 'CrowdSec updates');
     await user.click(screen.getByRole('button', { name: /save rule/i }));
 
-    await waitFor(() => expect(createNotificationRule).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'CrowdSec updates',
-      type: 'crowdsec-update',
-      config: {},
-    })));
+    await waitFor(() =>
+      expect(createNotificationRule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'CrowdSec updates',
+          type: 'crowdsec-update',
+          config: {},
+        }),
+      ),
+    );
   });
 
   test('shows and submits the lapi availability rule config without alert filters', async () => {
@@ -470,14 +524,16 @@ describe('Notifications page configuration', () => {
     await user.click(screen.getAllByRole('switch')[1]);
     await user.click(screen.getByRole('button', { name: /save rule/i }));
 
-    expect(createNotificationRule).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'LAPI health',
-      type: 'lapi-availability',
-      config: {
-        outage_threshold_seconds: 90,
-        notify_on_recovery: true,
-      },
-    }));
+    expect(createNotificationRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'LAPI health',
+        type: 'lapi-availability',
+        config: {
+          outage_threshold_seconds: 90,
+          notify_on_recovery: true,
+        },
+      }),
+    );
   });
 
   test('shows and submits the IP ban rule with IP range and country filters', async () => {
@@ -503,21 +559,23 @@ describe('Notifications page configuration', () => {
     await user.click(screen.getAllByRole('switch')[2]);
     await user.click(screen.getByRole('button', { name: /save rule/i }));
 
-    expect(createNotificationRule).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'Ban watch',
-      type: 'ip-ban',
-      config: {
-        window_minutes: 60,
-        filters: {
-          scenario: 'ssh',
-          target: 'sshd',
-          include_simulated: true,
-          values: ['203.0.113.10', '10.0.0.0/24'],
-          countries: ['US', 'DE'],
-          exclude_countries: true,
+    expect(createNotificationRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Ban watch',
+        type: 'ip-ban',
+        config: {
+          window_minutes: 60,
+          filters: {
+            scenario: 'ssh',
+            target: 'sshd',
+            include_simulated: true,
+            values: ['203.0.113.10', '10.0.0.0/24'],
+            countries: ['US', 'DE'],
+            exclude_countries: true,
+          },
         },
-      },
-    }));
+      }),
+    );
   });
 
   test('shows scenario exclusion and time-window help on applicable rule types', async () => {
@@ -576,21 +634,23 @@ describe('Notifications page configuration', () => {
     await user.type(screen.getByLabelText('IP / Range Filter'), '10.0.0.0/24');
     await user.click(screen.getByRole('button', { name: /save rule/i }));
 
-    expect(createNotificationRule).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'Every decision',
-      type: 'new-alert-decision',
-      config: {
-        window_minutes: 5,
-        event_type: 'decision',
-        filters: {
-          scenario: 'ssh',
-          exclude_scenario: true,
-          target: '',
-          include_simulated: false,
-          values: ['10.0.0.0/24'],
+    expect(createNotificationRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Every decision',
+        type: 'new-alert-decision',
+        config: {
+          window_minutes: 5,
+          event_type: 'decision',
+          filters: {
+            scenario: 'ssh',
+            exclude_scenario: true,
+            target: '',
+            include_simulated: false,
+            values: ['10.0.0.0/24'],
+          },
         },
-      },
-    }));
+      }),
+    );
   });
 
   test('supports adding webhook query, header, and form fields from the destination modal', async () => {
@@ -613,54 +673,55 @@ describe('Notifications page configuration', () => {
   });
 
   test('renders badges for rules without destinations and destinations without attached rules', async () => {
-    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(buildSettings({
-      channels: [
-        {
-          id: 'channel-1',
-          name: 'Ops MQTT',
-          type: 'mqtt',
-          enabled: true,
-          config: {
-            brokerUrl: 'mqtt://broker.example.com:1883',
-            username: 'ops',
-            password: '(stored)',
-            clientId: '',
-            keepaliveSeconds: 60,
-            connectTimeoutMs: 10000,
-            qos: 1,
-            topic: 'crowdsec/notifications',
-            retainEvents: false,
-          },
-          configured_secrets: ['password'],
-          created_at: '2026-03-28T12:00:00.000Z',
-          updated_at: '2026-03-28T12:00:00.000Z',
-        },
-      ],
-      rules: [
-        {
-          id: 'rule-1',
-          name: 'Orphan Rule',
-          type: 'new-cve',
-          enabled: true,
-          severity: 'warning',
-          channel_ids: [],
-          config: {
-            max_cve_age_days: 14,
-            filters: {
-              scenario: '',
-              target: '',
-              include_simulated: false,
+    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(
+      buildSettings({
+        channels: [
+          {
+            id: 'channel-1',
+            name: 'Ops MQTT',
+            type: 'mqtt',
+            enabled: true,
+            config: {
+              brokerUrl: 'mqtt://broker.example.com:1883',
+              username: 'ops',
+              password: '(stored)',
+              clientId: '',
+              keepaliveSeconds: 60,
+              connectTimeoutMs: 10000,
+              qos: 1,
+              topic: 'crowdsec/notifications',
+              retainEvents: false,
             },
+            configured_secrets: ['password'],
+            created_at: '2026-03-28T12:00:00.000Z',
+            updated_at: '2026-03-28T12:00:00.000Z',
           },
-          created_at: '2026-03-28T12:00:00.000Z',
-          updated_at: '2026-03-28T12:00:00.000Z',
-        },
-      ],
-    }));
+        ],
+        rules: [
+          {
+            id: 'rule-1',
+            name: 'Orphan Rule',
+            type: 'new-cve',
+            enabled: true,
+            severity: 'warning',
+            channel_ids: [],
+            config: {
+              max_cve_age_days: 14,
+              filters: {
+                scenario: '',
+                target: '',
+                include_simulated: false,
+              },
+            },
+            created_at: '2026-03-28T12:00:00.000Z',
+            updated_at: '2026-03-28T12:00:00.000Z',
+          },
+        ],
+      }),
+    );
     render(<Notifications />);
 
     await waitFor(() => expect(screen.getByText('No rule attached')).toBeInTheDocument());
     expect(screen.getByText('No destinations')).toBeInTheDocument();
   });
-
 });

@@ -1,16 +1,17 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { Layout } from "./components/Layout";
+
+import { Layout } from './components/Layout';
+import { SyncOverlay } from './components/SyncOverlay';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { BrandingProvider } from './contexts/BrandingContext';
-import { NotificationUnreadProvider } from "./contexts/NotificationUnreadContext";
-import { RefreshProvider } from "./contexts/RefreshContext";
-import { ToastProvider } from "./contexts/ToastContext";
-import { useRefresh } from "./contexts/useRefresh";
-import { SyncOverlay } from "./components/SyncOverlay";
-import { getBasePath } from "./lib/basePath";
-import { normalizeLanguagePreference, useI18n } from "./lib/i18n";
-import { normalizeFontPreference, useFont } from "./lib/font";
+import { NotificationUnreadProvider } from './contexts/NotificationUnreadContext';
+import { RefreshProvider } from './contexts/RefreshContext';
+import { ToastProvider } from './contexts/ToastContext';
+import { useRefresh } from './contexts/useRefresh';
+import { getBasePath } from './lib/basePath';
+import { normalizeFontPreference, useFont } from './lib/font';
+import { normalizeLanguagePreference, useI18n } from './lib/i18n';
 
 const Statistics = lazy(async () => ({ default: (await import('./pages/Statistics')).Statistics }));
 const Dashboard = lazy(async () => ({ default: (await import('./pages/Dashboard')).Dashboard }));
@@ -18,16 +19,20 @@ const Alerts = lazy(async () => ({ default: (await import('./pages/Alerts')).Ale
 const Decisions = lazy(async () => ({ default: (await import('./pages/Decisions')).Decisions }));
 const Allowlists = lazy(async () => ({ default: (await import('./pages/Allowlists')).Allowlists }));
 const Metrics = lazy(async () => ({ default: (await import('./pages/Metrics')).Metrics }));
-const Notifications = lazy(async () => ({ default: (await import('./pages/Notifications')).Notifications }));
+const Notifications = lazy(async () => ({
+  default: (await import('./pages/Notifications')).Notifications,
+}));
 const Settings = lazy(async () => ({ default: (await import('./pages/Settings')).Settings }));
 const Login = lazy(async () => ({ default: (await import('./pages/Login')).Login }));
 const Setup = lazy(async () => ({ default: (await import('./pages/Setup')).Setup }));
-const PasswordChange = lazy(async () => ({ default: (await import('./pages/PasswordChange')).PasswordChange }));
+const PasswordChange = lazy(async () => ({
+  default: (await import('./pages/PasswordChange')).PasswordChange,
+}));
 
 function RouteFallback() {
   const { t } = useI18n();
 
-  return <div className="text-center p-8 text-gray-500">{t('app.loading')}</div>;
+  return <div className="p-8 text-center text-gray-500">{t('app.loading')}</div>;
 }
 
 // Applies the language and font the signed-in user saved, so they follow the user across browsers.
@@ -50,9 +55,7 @@ function ProtectedProviders({ children }: { children: ReactNode }) {
   return (
     <ToastProvider>
       <RefreshProvider>
-        <NotificationUnreadProvider>
-          {children}
-        </NotificationUnreadProvider>
+        <NotificationUnreadProvider>{children}</NotificationUnreadProvider>
       </RefreshProvider>
     </ToastProvider>
   );
@@ -68,60 +71,67 @@ function ProtectedAppShell() {
         <Route path="/" element={<Layout />}>
           <Route
             index
-            element={(
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <Dashboard />
               </Suspense>
-            )}
+            }
           />
-          <Route path="statistics" element={<Suspense fallback={<RouteFallback />}><Statistics /></Suspense>} />
+          <Route
+            path="statistics"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <Statistics />
+              </Suspense>
+            }
+          />
           <Route
             path="alerts"
-            element={(
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <Alerts />
               </Suspense>
-            )}
+            }
           />
           <Route
             path="decisions"
-            element={(
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <Decisions />
               </Suspense>
-            )}
+            }
           />
           <Route
             path="allowlists"
-            element={(
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <Allowlists />
               </Suspense>
-            )}
+            }
           />
           <Route
             path="metrics"
-            element={(
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <Metrics />
               </Suspense>
-            )}
+            }
           />
           <Route
             path="notifications"
-            element={(
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <Notifications />
               </Suspense>
-            )}
+            }
           />
           <Route
             path="settings"
-            element={(
+            element={
               <Suspense fallback={<RouteFallback />}>
                 <Settings />
               </Suspense>
-            )}
+            }
           />
         </Route>
         <Route path="/setup" element={<Navigate to="/" replace />} />

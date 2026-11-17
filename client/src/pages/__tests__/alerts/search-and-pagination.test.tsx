@@ -1,14 +1,21 @@
-import { createDeferred, flushAlertSearchDebounce, installControlledIntersectionObserver, setRefreshSignalMock, toPaginatedAlerts } from './harness';
-import { describe, expect, test, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StrictMode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import * as api from '../../../lib/api';
+import { describe, expect, test, vi } from 'vitest';
+
 import { compileAlertSearch } from '../../../../../shared/search';
-import { Alerts } from '../../Alerts';
-import { type PaginatedResponse, type SlimAlert } from '../../../types';
+import * as api from '../../../lib/api';
 import { QUICK_FILTERS_STORAGE_KEY } from '../../../lib/quickFilters';
+import { type PaginatedResponse, type SlimAlert } from '../../../types';
+import { Alerts } from '../../Alerts';
+import {
+  createDeferred,
+  flushAlertSearchDebounce,
+  installControlledIntersectionObserver,
+  setRefreshSignalMock,
+  toPaginatedAlerts,
+} from './harness';
 
 async function expandAlertSearch() {
   const wasCollapsed = screen.queryByPlaceholderText('Filter alerts...') === null;
@@ -24,7 +31,10 @@ async function expandAlertSearch() {
   expect(collapseButton).toHaveClass('sm:border-l-0');
   expect(collapseButton.previousElementSibling).toContainElement(input);
   expect(input.parentElement).toHaveClass('sm:rounded-r-none');
-  expect(screen.getByRole('button', { name: 'Search syntax help' }).compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Search syntax help' }).compareDocumentPosition(input) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
   expect(input.parentElement?.querySelector('.lucide-search')).toBeNull();
   return input;
 }
@@ -76,11 +86,12 @@ describe('Alerts page search and pagination', () => {
 
   test('applies a saved query while an earlier edit is debouncing', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      if (!init?.method) return Response.json({
-        saved: [{ id: 'saved-1', name: 'US alerts', query: 'country=US', created_at: '', updated_at: '' }],
-        recent: [],
-        shared: false,
-      });
+      if (!init?.method)
+        return Response.json({
+          saved: [{ id: 'saved-1', name: 'US alerts', query: 'country=US', created_at: '', updated_at: '' }],
+          recent: [],
+          shared: false,
+        });
       return Response.json({ recent: [] });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -93,7 +104,9 @@ describe('Alerts page search and pagination', () => {
     fireEvent.change(input, { target: { value: 'target:ssh' } });
     await userEvent.click(screen.getByRole('button', { name: 'Saved filters' }));
     const entry = await screen.findByText('US alerts');
-    await userEvent.click(within(entry.closest('div.rounded-md') as HTMLElement).getByRole('button', { name: 'Apply' }));
+    await userEvent.click(
+      within(entry.closest('div.rounded-md') as HTMLElement).getByRole('button', { name: 'Apply' }),
+    );
     await waitFor(() => expect(vi.mocked(api.fetchAlertsPaginated).mock.calls.at(-1)?.[2]?.q).toBe('country=US'));
     await flushAlertSearchDebounce();
     expect(vi.mocked(api.fetchAlertsPaginated).mock.calls.at(-1)?.[2]?.q).toBe('country=US');
@@ -136,7 +149,11 @@ describe('Alerts page search and pagination', () => {
   test('records a Quick Filter query only after the drawer closes', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({ recent: [] }));
     vi.stubGlobal('fetch', fetchMock);
-    render(<MemoryRouter initialEntries={['/alerts']}><Alerts /></MemoryRouter>);
+    render(
+      <MemoryRouter initialEntries={['/alerts']}>
+        <Alerts />
+      </MemoryRouter>,
+    );
     await userEvent.click(await screen.findByRole('button', { name: 'Filters' }));
     const drawer = screen.getByRole('dialog', { name: 'Quick filters' });
     await userEvent.click(within(drawer).getByRole('button', { name: 'Date and time' }));
@@ -170,9 +187,11 @@ describe('Alerts page search and pagination', () => {
       target: { value: '2026-03-24T12:45' },
     });
 
-    await waitFor(() => expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBe(
-      'country=DE AND date>=2026-03-24T10:00 AND date<=2026-03-24T12:00',
-    ));
+    await waitFor(() =>
+      expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBe(
+        'country=DE AND date>=2026-03-24T10:00 AND date<=2026-03-24T12:00',
+      ),
+    );
     await expandAlertSearch();
     expect(screen.getByPlaceholderText('Filter alerts...')).toHaveValue(
       'country=DE AND date>=2026-03-24T10:00 AND date<=2026-03-24T12:00',
@@ -190,12 +209,10 @@ describe('Alerts page search and pagination', () => {
     expect(disabledFilters).toBeDisabled();
     expect(screen.getByText(/The `:` operator performs a broad match/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Filter alerts...')).toBeInTheDocument();
-    expect(screen.getByText(/The `:` operator performs a broad match/).closest(
-      '[data-search-controls-footer="true"]',
-    )).not.toBeNull();
     expect(
-      JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections?.target,
-    ).toBeUndefined();
+      screen.getByText(/The `:` operator performs a broad match/).closest('[data-search-controls-footer="true"]'),
+    ).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections?.target).toBeUndefined();
 
     const input = await expandAlertSearch();
     fireEvent.change(input, { target: { value: 'target=abc' } });
@@ -203,15 +220,21 @@ describe('Alerts page search and pagination', () => {
 
     expect(screen.getByRole('button', { name: 'Filters' })).toBeEnabled();
     expect(screen.queryByText(/The `:` operator performs a broad match/)).not.toBeInTheDocument();
-    await waitFor(() => expect(
-      JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections?.target,
-    ).toEqual({ included: ['abc'], excluded: [] }));
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections?.target).toEqual({
+        included: ['abc'],
+        excluded: [],
+      }),
+    );
   });
 
   test('offers quick filters for every visible filterable alert column', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: ['id', 'instance', 'target', 'region', 'city', 'machine', 'origin', 'decisions'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: ['id', 'instance', 'target', 'region', 'city', 'machine', 'origin', 'decisions'],
+      }),
+    );
     render(
       <MemoryRouter initialEntries={['/alerts']}>
         <Alerts />
@@ -224,7 +247,8 @@ describe('Alerts page search and pagination', () => {
     for (const name of expectedSections) {
       expect(within(drawer).getByRole('button', { name })).toBeInTheDocument();
     }
-    const sectionNames = within(drawer).getAllByRole('button')
+    const sectionNames = within(drawer)
+      .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter((name): name is string => Boolean(name && expectedSections.includes(name)));
     expect(sectionNames).toEqual(expectedSections);
@@ -252,23 +276,30 @@ describe('Alerts page search and pagination', () => {
     await userEvent.click(mode);
     expect(within(drawer).queryByRole('checkbox', { name: /All/ })).not.toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('checkbox', { name: 'Toggle Live in Mode' }));
-    await waitFor(() => expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
-      q: 'sim=simulated',
-    }));
+    await waitFor(() =>
+      expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
+        q: 'sim=simulated',
+      }),
+    );
     expect(within(screen.getByRole('button', { name: 'Filters' })).getByText('1')).toBeInTheDocument();
 
     await userEvent.click(within(drawer).getByRole('checkbox', { name: 'Toggle Live in Mode' }));
     await waitFor(() => expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBeUndefined());
     await userEvent.click(within(drawer).getByRole('checkbox', { name: 'Toggle Simulation in Mode' }));
-    await waitFor(() => expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
-      q: 'sim=live',
-    }));
+    await waitFor(() =>
+      expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
+        q: 'sim=live',
+      }),
+    );
   });
 
   test('lists the target quick filter below visible filters when the target column is hidden', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: ['time', 'source'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: ['time', 'source'],
+      }),
+    );
     render(
       <MemoryRouter initialEntries={['/alerts']}>
         <Alerts />
@@ -285,13 +316,16 @@ describe('Alerts page search and pagination', () => {
   });
 
   test('applies persisted common filters and keeps decision-only filters disabled and clearable', async () => {
-    window.localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        country: { included: ['DE'], excluded: [] },
-        action: { included: ['ban'], excluded: [] },
-      },
-      dateRange: { start: '', end: '' },
-    }));
+    window.localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          country: { included: ['DE'], excluded: [] },
+          action: { included: ['ban'], excluded: [] },
+        },
+        dateRange: { start: '', end: '' },
+      }),
+    );
     const fetchAlertsPaginatedMock = vi.mocked(api.fetchAlertsPaginated);
     fetchAlertsPaginatedMock.mockClear();
 
@@ -307,11 +341,11 @@ describe('Alerts page search and pagination', () => {
     expect(screen.getByRole('button', { name: 'Action' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Clear Action' }));
 
-    await waitFor(() => expect(
-      JSON.parse(window.localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections,
-    ).toEqual({
-      country: { included: ['DE'], excluded: [] },
-    }));
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections).toEqual({
+        country: { included: ['DE'], excluded: [] },
+      }),
+    );
     expect(fetchAlertsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBe('country=DE');
   });
 
@@ -326,18 +360,21 @@ describe('Alerts page search and pagination', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Country' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Germany' }));
 
-    await waitFor(() => expect(
-      JSON.parse(window.localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections,
-    ).toMatchObject({
-      country: { included: ['DE'], excluded: [] },
-    }));
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections).toMatchObject({
+        country: { included: ['DE'], excluded: [] },
+      }),
+    );
   });
 
   test('places current-page filters first and orders unavailable filters by the decisions page', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: ['source', 'time'],
-      decisions: ['expiration', 'alert', 'action'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: ['source', 'time'],
+        decisions: ['expiration', 'alert', 'action'],
+      }),
+    );
 
     render(
       <MemoryRouter initialEntries={['/alerts']}>
@@ -348,24 +385,16 @@ describe('Alerts page search and pagination', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Filters' }));
     const drawer = screen.getByRole('dialog', { name: 'Quick filters' });
     const allButtons = within(drawer).getAllByRole('button');
-    const facetButtons = allButtons.filter((button) => (
-      button.closest('section')?.hasAttribute('data-applicable')
-    ));
-    const unavailableButtons = facetButtons.filter((button) => button.closest('section')
-      ?.getAttribute('data-applicable') === 'false');
-    const currentPageButtons = allButtons.filter((button) => (
-      ['IP / Range', 'Date and time'].includes(button.textContent || '')
-    ));
+    const facetButtons = allButtons.filter((button) => button.closest('section')?.hasAttribute('data-applicable'));
+    const unavailableButtons = facetButtons.filter(
+      (button) => button.closest('section')?.getAttribute('data-applicable') === 'false',
+    );
+    const currentPageButtons = allButtons.filter((button) =>
+      ['IP / Range', 'Date and time'].includes(button.textContent || ''),
+    );
 
-    expect(currentPageButtons.map((button) => button.textContent)).toEqual([
-      'IP / Range',
-      'Date and time',
-    ]);
-    expect(unavailableButtons.map((button) => button.textContent)).toEqual([
-      'Expiration',
-      'Alert',
-      'Action',
-    ]);
+    expect(currentPageButtons.map((button) => button.textContent)).toEqual(['IP / Range', 'Date and time']);
+    expect(unavailableButtons.map((button) => button.textContent)).toEqual(['Expiration', 'Alert', 'Action']);
   });
 
   test('opens the alert search syntax help modal', async () => {
@@ -574,15 +603,15 @@ describe('Alerts page search and pagination', () => {
           source: { range: '192.168.5.0/24', cn: 'Unknown', as_name: 'Local Network' },
           target: 'manual',
           meta_search: '192.168.5.0/24 localhost',
-          decisions: [{ id: 14302, value: '192.168.5.0/24', type: 'ban', origin: 'cscli', simulated: false, expired: false }],
+          decisions: [
+            { id: 14302, value: '192.168.5.0/24', type: 'ban', origin: 'cscli', simulated: false, expired: false },
+          ],
         },
       ];
       const compiledSearch = filters?.q
         ? compileAlertSearch(filters.q, { machineEnabled: true, originEnabled: true })
         : null;
-      const filteredAlerts = compiledSearch?.ok
-        ? rangeAlerts.filter(compiledSearch.predicate)
-        : rangeAlerts;
+      const filteredAlerts = compiledSearch?.ok ? rangeAlerts.filter(compiledSearch.predicate) : rangeAlerts;
       return toPaginatedAlerts(filteredAlerts, page, pageSize, rangeAlerts.length);
     });
 
@@ -618,7 +647,9 @@ describe('Alerts page search and pagination', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByText('Showing 50 of 55 alerts (60 total before filters)')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Showing 50 of 55 alerts (60 total before filters)')).toBeInTheDocument(),
+    );
     expect(screen.queryByText('10.0.0.55')).not.toBeInTheDocument();
   });
 
@@ -634,9 +665,9 @@ describe('Alerts page search and pagination', () => {
         decisions: [],
       },
     ];
-    const fetchAlertsPaginatedMock = vi.mocked(api.fetchAlertsPaginated).mockImplementation(async (page, pageSize) =>
-      toPaginatedAlerts(alerts, page, pageSize, alerts.length),
-    );
+    const fetchAlertsPaginatedMock = vi
+      .mocked(api.fetchAlertsPaginated)
+      .mockImplementation(async (page, pageSize) => toPaginatedAlerts(alerts, page, pageSize, alerts.length));
     fetchAlertsPaginatedMock.mockClear();
 
     render(
@@ -662,9 +693,9 @@ describe('Alerts page search and pagination', () => {
       meta_search: 'paged',
       decisions: [],
     }));
-    const fetchAlertsPaginatedMock = vi.mocked(api.fetchAlertsPaginated).mockImplementation(async (page, pageSize) =>
-      toPaginatedAlerts(pagedAlerts, page, pageSize, pagedAlerts.length),
-    );
+    const fetchAlertsPaginatedMock = vi
+      .mocked(api.fetchAlertsPaginated)
+      .mockImplementation(async (page, pageSize) => toPaginatedAlerts(pagedAlerts, page, pageSize, pagedAlerts.length));
 
     const { rerender } = render(
       <MemoryRouter initialEntries={['/alerts']}>

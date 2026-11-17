@@ -1,32 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="ui-acrylic">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="light dark" />
-  
-  <!-- Favicons -->
-  <link rel="icon" type="image/png" sizes="112x112" href="./logo-sidebar.png" />
-  <link rel="icon" type="image/png" sizes="96x96" href="./favicon-96x96.png" />
-  <link rel="shortcut icon" href="./favicon.ico" />
-  
-  <!-- Apple Touch Icons -->
-  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
-  
-  <!-- Android/Chrome -->
-  <link rel="icon" type="image/png" sizes="192x192" href="./android-chrome-192x192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="./android-chrome-512x512.png" />
-  
-  <!-- Web App Manifest -->
-  <link rel="manifest" href="./site.webmanifest" />
-  
-  <title>CrowdSec Web UI</title>
-</head>
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="112x112" href="./logo-sidebar.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="./favicon-96x96.png" />
+    <link rel="shortcut icon" href="./favicon.ico" />
 
-<body>
-  <div id="root"></div>
-  <script type="module" src="./src/main.tsx"></script>
-</body>
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
 
+    <!-- Android/Chrome -->
+    <link rel="icon" type="image/png" sizes="192x192" href="./android-chrome-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="./android-chrome-512x512.png" />
+
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="./site.webmanifest" />
+
+    <title>CrowdSec Web UI</title>
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('theme');
+          var dark = mode === 'dark' || (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
+  </body>
 </html>

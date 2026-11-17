@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import type { DecisionListItem, SlimAlert } from '../../../shared/contracts';
 import {
   analyzeSearchQuery,
@@ -338,7 +339,11 @@ describe('shared search compiler', () => {
   });
 
   test('supports dashboard hour date comparisons in the supplied timezone', () => {
-    const compiled = compileAlertSearch('date>=2026-07-05T01 AND date<=2026-07-05T03', {}, { timeZone: 'Europe/Berlin' });
+    const compiled = compileAlertSearch(
+      'date>=2026-07-05T01 AND date<=2026-07-05T03',
+      {},
+      { timeZone: 'Europe/Berlin' },
+    );
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) {
       return;
@@ -399,22 +404,30 @@ describe('shared search compiler', () => {
       return;
     }
 
-    expect(compiled.predicate({
-      ...baseAlert,
-      source: { value: '10.0.0.42' },
-    })).toBe(true);
-    expect(compiled.predicate({
-      ...baseAlert,
-      source: { range: '10.0.0.0/24' },
-    })).toBe(true);
-    expect(compiled.predicate({
-      ...baseAlert,
-      source: { range: '10.0.0.128/25' },
-    })).toBe(true);
-    expect(compiled.predicate({
-      ...baseAlert,
-      source: { value: '10.0.1.42' },
-    })).toBe(false);
+    expect(
+      compiled.predicate({
+        ...baseAlert,
+        source: { value: '10.0.0.42' },
+      }),
+    ).toBe(true);
+    expect(
+      compiled.predicate({
+        ...baseAlert,
+        source: { range: '10.0.0.0/24' },
+      }),
+    ).toBe(true);
+    expect(
+      compiled.predicate({
+        ...baseAlert,
+        source: { range: '10.0.0.128/25' },
+      }),
+    ).toBe(true);
+    expect(
+      compiled.predicate({
+        ...baseAlert,
+        source: { value: '10.0.1.42' },
+      }),
+    ).toBe(false);
   });
 
   test('matches bare CIDR terms against alert and decision IP fields', () => {
@@ -642,9 +655,7 @@ describe('shared search compiler', () => {
   });
 
   test('extracts and replaces dashboard-compatible date-time ranges', () => {
-    const compiled = compileAlertSearch(
-      'country:DE AND date>=2026-03-29T01:30 AND date<=2026-03-29T03:45',
-    );
+    const compiled = compileAlertSearch('country:DE AND date>=2026-03-29T01:30 AND date<=2026-03-29T03:45');
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
 
@@ -652,14 +663,22 @@ describe('shared search compiler', () => {
       start: '2026-03-29T01:30',
       end: '2026-03-29T03:45',
     });
-    expect(serializeSearchNode(replaceSearchDateRange(compiled.ast, {
-      start: '2026-04-01T08:15',
-      end: '2026-04-01T10:30',
-    }))).toBe('country:DE AND date>=2026-04-01T08:15 AND date<=2026-04-01T10:30');
-    expect(serializeSearchNode(replaceSearchDateRange(compiled.ast, {
-      start: '',
-      end: '',
-    }))).toBe('country:DE');
+    expect(
+      serializeSearchNode(
+        replaceSearchDateRange(compiled.ast, {
+          start: '2026-04-01T08:15',
+          end: '2026-04-01T10:30',
+        }),
+      ),
+    ).toBe('country:DE AND date>=2026-04-01T08:15 AND date<=2026-04-01T10:30');
+    expect(
+      serializeSearchNode(
+        replaceSearchDateRange(compiled.ast, {
+          start: '',
+          end: '',
+        }),
+      ),
+    ).toBe('country:DE');
   });
 
   test('builds alert help examples from provided alert rows', () => {
@@ -678,7 +697,11 @@ describe('shared search compiler', () => {
   });
 
   test('builds decision help examples from provided decision rows', () => {
-    const help = getSearchHelpDefinition('decisions', { originEnabled: true }, { decisions: [baseDecision, secondDecision] });
+    const help = getSearchHelpDefinition(
+      'decisions',
+      { originEnabled: true },
+      { decisions: [baseDecision, secondDecision] },
+    );
 
     expect(help.examples.map((example) => example.query)).toEqual([
       'ssh bf',
@@ -701,15 +724,21 @@ describe('shared search compiler', () => {
   });
 
   test('skips numeric-only chunks when building free-text alert examples', () => {
-    const help = getSearchHelpDefinition('alerts', {}, {
-      alerts: [{
-        ...baseAlert,
-        target: '85.215.176.66',
-        source: { ...baseAlert.source, as_name: undefined },
-        scenario: 'crowdsecurity/vpatch-CVE-2025-55182',
-        meta_search: '85.215.176.66 vpatch CVE-2025-55182',
-      }],
-    });
+    const help = getSearchHelpDefinition(
+      'alerts',
+      {},
+      {
+        alerts: [
+          {
+            ...baseAlert,
+            target: '85.215.176.66',
+            source: { ...baseAlert.source, as_name: undefined },
+            scenario: 'crowdsecurity/vpatch-CVE-2025-55182',
+            meta_search: '85.215.176.66 vpatch CVE-2025-55182',
+          },
+        ],
+      },
+    );
 
     expect(help.examples[0]?.query).toBe('vpatch cve');
     expect(help.examples[2]?.query).toBe('country:Germany vpatch');

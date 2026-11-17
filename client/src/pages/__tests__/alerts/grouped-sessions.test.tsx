@@ -1,13 +1,14 @@
-import { installControlledIntersectionObserver, setRefreshSignalMock } from './harness';
-import { describe, expect, test, vi } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
-import * as api from '../../../lib/api';
+import { describe, expect, test, vi } from 'vitest';
+
 import { compileAlertSearch } from '../../../../../shared/search';
-import { Alerts } from '../../Alerts';
+import * as api from '../../../lib/api';
 import { QUICK_FILTERS_STORAGE_KEY } from '../../../lib/quickFilters';
 import type { AlertSession, AlertSessionsResponse } from '../../../types';
+import { Alerts } from '../../Alerts';
+import { installControlledIntersectionObserver, setRefreshSignalMock } from './harness';
 
 function session(overrides: Partial<AlertSession> & { ip?: string } = {}): AlertSession {
   const { ip = '45.138.12.51', ...rest } = overrides;
@@ -35,7 +36,10 @@ function session(overrides: Partial<AlertSession> & { ip?: string } = {}): Alert
       },
     ],
     scenario_count: 5,
-    targets: [{ value: 'example.com', count: 30 }, { value: 'www.example.com', count: 8 }],
+    targets: [
+      { value: 'example.com', count: 30 },
+      { value: 'www.example.com', count: 8 },
+    ],
     target_count: 2,
     decision_summary_partial: false,
     decision_alert_ids: ['900', '899'],
@@ -47,7 +51,13 @@ function session(overrides: Partial<AlertSession> & { ip?: string } = {}): Alert
       target: 'example.com',
       meta_search: '',
       decisions: [],
-      decision_summary: { origins: [], active_count: 3, expired_count: 2, simulated_active_count: 0, simulated_expired_count: 0 },
+      decision_summary: {
+        origins: [],
+        active_count: 3,
+        expired_count: 2,
+        simulated_active_count: 0,
+        simulated_expired_count: 0,
+      },
       simulated: false,
     },
     ...rest,
@@ -60,7 +70,14 @@ function sessionsResponse(
 ): AlertSessionsResponse {
   return {
     data,
-    pagination: { page: 1, page_size: 50, has_more: false, total_alerts: 38, unfiltered_total_alerts: 38, ...pagination },
+    pagination: {
+      page: 1,
+      page_size: 50,
+      has_more: false,
+      total_alerts: 38,
+      unfiltered_total_alerts: 38,
+      ...pagination,
+    },
   };
 }
 
@@ -79,7 +96,9 @@ function LocationProbe() {
   return (
     <>
       <output data-testid="location-search">{location.search}</output>
-      <button type="button" onClick={() => navigate(-1)}>Browser back</button>
+      <button type="button" onClick={() => navigate(-1)}>
+        Browser back
+      </button>
     </>
   );
 }
@@ -194,7 +213,10 @@ describe('Alerts page grouped sessions', () => {
       expect(within(row).getByText('1x')).toBeInTheDocument();
       expect(within(row).queryByText('+2 more')).not.toBeInTheDocument();
       expect(within(row).getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true');
-      expect(screen.getByRole('button', { name: 'Expand session 45.138.12.51' })).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.getByRole('button', { name: 'Expand session 45.138.12.51' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
       expect(api.fetchAlertsPaginated).not.toHaveBeenCalled();
       expect(api.fetchAlertSessionsPaginated).not.toHaveBeenCalled();
 
@@ -217,9 +239,13 @@ describe('Alerts page grouped sessions', () => {
     });
 
     test('offers no toggle when every scenario already fits', async () => {
-      vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(sessionsResponse([
-        session({ scenario_groups: [{ kind: 'waf', scenario_count: 3, alert_count: 12, scenarios: scenarios.slice(0, 3) }] }),
-      ]));
+      vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(
+        sessionsResponse([
+          session({
+            scenario_groups: [{ kind: 'waf', scenario_count: 3, alert_count: 12, scenarios: scenarios.slice(0, 3) }],
+          }),
+        ]),
+      );
       renderAlerts('/alerts?group=ip');
       const row = (await screen.findByText('38 alert(s) over <1m')).closest('tr')!;
 
@@ -229,9 +255,9 @@ describe('Alerts page grouped sessions', () => {
   });
 
   test('marks decision totals that only cover part of a large session', async () => {
-    vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(sessionsResponse([
-      session({ alert_count: 5000, decision_summary_partial: true }),
-    ]));
+    vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(
+      sessionsResponse([session({ alert_count: 5000, decision_summary_partial: true })]),
+    );
 
     renderAlerts('/alerts?group=ip');
 
@@ -243,8 +269,14 @@ describe('Alerts page grouped sessions', () => {
     renderAlerts(`/alerts?group=ip&q=${encodeURIComponent('kind=waf')}`);
     await screen.findByText('38 alert(s) over <1m');
 
-    const activeParams = new URL(screen.getByRole('link', { name: 'Active: 3' }).getAttribute('href')!, 'http://localhost').searchParams;
-    const inactiveParams = new URL(screen.getByRole('link', { name: 'Inactive: 2' }).getAttribute('href')!, 'http://localhost').searchParams;
+    const activeParams = new URL(
+      screen.getByRole('link', { name: 'Active: 3' }).getAttribute('href')!,
+      'http://localhost',
+    ).searchParams;
+    const inactiveParams = new URL(
+      screen.getByRole('link', { name: 'Inactive: 2' }).getAttribute('href')!,
+      'http://localhost',
+    ).searchParams;
 
     expect(activeParams.get('alert_id')).toBe('900,899');
     expect(activeParams.has('q')).toBe(false);
@@ -258,9 +290,16 @@ describe('Alerts page grouped sessions', () => {
   });
 
   test('deletes every alert of the selected sessions', async () => {
-    const single = session({ ip: '2.2.2.2', alert_count: 1, latest: { ...session().latest, id: 950, source: { ip: '2.2.2.2' } } });
+    const single = session({
+      ip: '2.2.2.2',
+      alert_count: 1,
+      latest: { ...session().latest, id: 950, source: { ip: '2.2.2.2' } },
+    });
     vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(sessionsResponse([session(), single]));
-    for (const [page, id] of [[1, 900], [2, 899]]) {
+    for (const [page, id] of [
+      [1, 900],
+      [2, 899],
+    ]) {
       vi.mocked(api.fetchAlertsPaginated).mockResolvedValueOnce({
         data: [{ ...session().latest, id }],
         pagination: { page, page_size: 200, total: 2, total_pages: 2, unfiltered_total: 2 },
@@ -344,7 +383,10 @@ describe('Alerts page grouped sessions', () => {
     const other = session({ ip: '2.2.2.2', key: 'other-session' });
     vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(sessionsResponse([session(), other]));
     vi.mocked(api.fetchAlertsPaginated).mockResolvedValueOnce({
-      data: [{ ...session().latest, id: 900 }, { ...session().latest, id: 899 }],
+      data: [
+        { ...session().latest, id: 900 },
+        { ...session().latest, id: 899 },
+      ],
       pagination: { page: 1, page_size: 200, total: 2, total_pages: 1, unfiltered_total: 2 },
       selectable_ids: [],
     });
@@ -391,12 +433,14 @@ describe('Alerts page grouped sessions', () => {
 
   function mockSessionAlerts(total: number) {
     const totalPages = Math.ceil(total / 200);
-    vi.mocked(api.fetchAlertsPaginated).mockImplementation(async (page) => pageOfAlerts(
-      Array.from({ length: Math.min(200, total - (page - 1) * 200) }, (_, index) => (page - 1) * 200 + index + 1),
-      page,
-      totalPages,
-      total,
-    ));
+    vi.mocked(api.fetchAlertsPaginated).mockImplementation(async (page) =>
+      pageOfAlerts(
+        Array.from({ length: Math.min(200, total - (page - 1) * 200) }, (_, index) => (page - 1) * 200 + index + 1),
+        page,
+        totalPages,
+        total,
+      ),
+    );
   }
 
   async function confirmSessionDelete() {
@@ -424,7 +468,13 @@ describe('Alerts page grouped sessions', () => {
     vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(sessionsResponse([session()]));
     mockSessionAlerts(4100);
     vi.mocked(api.bulkDeleteAlerts)
-      .mockResolvedValueOnce({ requested_alerts: 2000, requested_decisions: 0, deleted_alerts: 2000, deleted_decisions: 0, failed: [] })
+      .mockResolvedValueOnce({
+        requested_alerts: 2000,
+        requested_decisions: 0,
+        deleted_alerts: 2000,
+        deleted_decisions: 0,
+        failed: [],
+      })
       .mockRejectedValueOnce(new Error('Network down'));
     renderAlerts('/alerts?group=ip');
 
@@ -542,7 +592,10 @@ describe('Alerts page grouped sessions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Collapse session 45.138.12.51' }));
 
     expect(screen.queryByText('1.2.3.4')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Expand session 45.138.12.51' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'Expand session 45.138.12.51' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
     expect(api.fetchAlertsPaginated).not.toHaveBeenCalled();
   });
 
@@ -647,7 +700,9 @@ describe('Alerts page grouped sessions', () => {
       const refresh = await renderWithTwoExpandedSessions();
 
       await refresh();
-      await act(async () => { await Promise.resolve(); });
+      await act(async () => {
+        await Promise.resolve();
+      });
 
       expect(api.fetchAlertsPaginated).not.toHaveBeenCalled();
       expect(screen.getAllByText('1.2.3.4')).toHaveLength(2);
@@ -655,10 +710,9 @@ describe('Alerts page grouped sessions', () => {
 
     test('reads only the session that changed', async () => {
       const refresh = await renderWithTwoExpandedSessions();
-      vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(sessionsResponse([
-        session({ alert_count: 40, last_seen: '2026-11-01T13:45:00.000Z' }),
-        other,
-      ]));
+      vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(
+        sessionsResponse([session({ alert_count: 40, last_seen: '2026-11-01T13:45:00.000Z' }), other]),
+      );
 
       await refresh();
 
@@ -677,7 +731,9 @@ describe('Alerts page grouped sessions', () => {
     await userEvent.click(await screen.findByText('38 alert(s) over <1m'));
     await screen.findByText('1.2.3.4');
 
-    vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(sessionsResponse([session({ alert_count: 1, latest: { ...session().latest, source: { ip: '45.138.12.51' } } })]));
+    vi.mocked(api.fetchAlertSessionsPaginated).mockResolvedValue(
+      sessionsResponse([session({ alert_count: 1, latest: { ...session().latest, source: { ip: '45.138.12.51' } } })]),
+    );
     setRefreshSignalMock(1);
     rerender(
       <MemoryRouter initialEntries={['/alerts?group=ip']}>
@@ -726,16 +782,20 @@ describe('Alerts page grouped sessions', () => {
     const triggerIntersection = installControlledIntersectionObserver();
     const first = session({ ip: '1.1.1.1' });
     const second = session({ ip: '2.2.2.2' });
-    vi.mocked(api.fetchAlertSessionsPaginated).mockImplementation(async (page) => (page === 1
-      ? sessionsResponse([first], { has_more: true })
-      // The first row shifted onto page 2 between the two requests.
-      : sessionsResponse([first, second], { page: 2 })));
+    vi.mocked(api.fetchAlertSessionsPaginated).mockImplementation(async (page) =>
+      page === 1
+        ? sessionsResponse([first], { has_more: true })
+        : // The first row shifted onto page 2 between the two requests.
+          sessionsResponse([first, second], { page: 2 }),
+    );
     renderAlerts('/alerts?group=ip');
 
     await screen.findByText('1.1.1.1');
     expect(screen.getByTestId('alerts-summary')).toHaveTextContent('Showing 1+ sessions from 38 alerts');
 
-    await act(async () => { triggerIntersection(); });
+    await act(async () => {
+      triggerIntersection();
+    });
 
     await screen.findByText('2.2.2.2');
     expect(screen.getAllByText('1.1.1.1')).toHaveLength(1);
@@ -746,7 +806,10 @@ describe('Alerts page grouped sessions', () => {
     renderAlerts(`/alerts?group=ip&q=${encodeURIComponent('kind=waf')}`);
 
     await waitFor(() => expect(api.fetchAlertSessionsPaginated).toHaveBeenCalled());
-    expect(vi.mocked(api.fetchAlertSessionsPaginated).mock.lastCall?.[2]).toMatchObject({ q: 'kind=waf', instance: 'all' });
+    expect(vi.mocked(api.fetchAlertSessionsPaginated).mock.lastCall?.[2]).toMatchObject({
+      q: 'kind=waf',
+      instance: 'all',
+    });
   });
 
   test('refreshes loaded sessions in place', async () => {

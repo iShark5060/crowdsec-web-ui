@@ -1,19 +1,19 @@
-import { spawn } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import http from "node:http";
+import { spawn } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(scriptDir, "..");
-const baseUrl = process.env.CROWDSEC_SCREENSHOT_BASE_URL || "http://127.0.0.1:5173";
+const repoRoot = resolve(scriptDir, '..');
+const baseUrl = process.env.CROWDSEC_SCREENSHOT_BASE_URL || 'http://127.0.0.1:5173';
 const screenshotDir = process.env.CROWDSEC_SCREENSHOT_OUTPUT_DIR || scriptDir;
-const chromePath = process.env.CHROME_PATH || "/usr/bin/google-chrome";
+const chromePath = process.env.CHROME_PATH || '/usr/bin/google-chrome';
 const userDataDir = join(tmpdir(), `crowdsec-web-ui-screenshots-chrome-${Date.now()}`);
-const remotePort = Number.parseInt(process.env.CROWDSEC_SCREENSHOT_CHROME_PORT || "9224", 10);
-const demoUsername = process.env.CROWDSEC_SCREENSHOT_USERNAME || "admin";
-const demoPassword = process.env.CROWDSEC_SCREENSHOT_PASSWORD || "Screenshot123";
+const remotePort = Number.parseInt(process.env.CROWDSEC_SCREENSHOT_CHROME_PORT || '9224', 10);
+const demoUsername = process.env.CROWDSEC_SCREENSHOT_USERNAME || 'admin';
+const demoPassword = process.env.CROWDSEC_SCREENSHOT_PASSWORD || 'Screenshot123';
 const viewport = { width: 1843, height: 1136, deviceScaleFactor: 1, mobile: false };
 
 mkdirSync(screenshotDir, { recursive: true });
@@ -22,16 +22,16 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function requestJson(url, method = "GET") {
+function requestJson(url, method = 'GET') {
   return new Promise((resolve, reject) => {
     const req = http
       .request(url, { method }, (res) => {
-        let data = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk) => {
+        let data = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
           data += chunk;
         });
-        res.on("end", () => {
+        res.on('end', () => {
           try {
             resolve(JSON.parse(data));
           } catch (error) {
@@ -39,7 +39,7 @@ function requestJson(url, method = "GET") {
           }
         });
       })
-      .on("error", reject);
+      .on('error', reject);
     req.end();
   });
 }
@@ -51,7 +51,7 @@ function waitForProcessExit(processRef, timeoutMs = 3_000) {
 
   return new Promise((resolveWait) => {
     const timeout = setTimeout(resolveWait, timeoutMs);
-    processRef.once("exit", () => {
+    processRef.once('exit', () => {
       clearTimeout(timeout);
       resolveWait();
     });
@@ -67,7 +67,7 @@ async function waitForChrome() {
       await sleep(150);
     }
   }
-  throw new Error("Chrome did not expose DevTools in time");
+  throw new Error('Chrome did not expose DevTools in time');
 }
 
 class Cdp {
@@ -76,7 +76,7 @@ class Cdp {
     this.id = 0;
     this.pending = new Map();
     this.events = new Map();
-    this.ws.addEventListener("message", (event) => {
+    this.ws.addEventListener('message', (event) => {
       const msg = JSON.parse(String(event.data));
       if (msg.id && this.pending.has(msg.id)) {
         const { resolve: resolvePending, reject } = this.pending.get(msg.id);
@@ -92,8 +92,8 @@ class Cdp {
 
   ready() {
     return new Promise((resolveReady, reject) => {
-      this.ws.addEventListener("open", resolveReady, { once: true });
-      this.ws.addEventListener("error", reject, { once: true });
+      this.ws.addEventListener('open', resolveReady, { once: true });
+      this.ws.addEventListener('error', reject, { once: true });
     });
   }
 
@@ -119,22 +119,22 @@ class Cdp {
 async function createPage() {
   const tab = await requestJson(
     `http://127.0.0.1:${remotePort}/json/new?${encodeURIComponent(baseUrl)}`,
-    "PUT",
+    'PUT',
   );
   const cdp = new Cdp(tab.webSocketDebuggerUrl);
   await cdp.ready();
-  await cdp.send("Page.enable");
-  await cdp.send("Runtime.enable");
-  await cdp.send("Emulation.setDeviceMetricsOverride", viewport);
-  await cdp.send("Emulation.setEmulatedMedia", {
-    media: "screen",
-    features: [{ name: "prefers-color-scheme", value: "light" }],
+  await cdp.send('Page.enable');
+  await cdp.send('Runtime.enable');
+  await cdp.send('Emulation.setDeviceMetricsOverride', viewport);
+  await cdp.send('Emulation.setEmulatedMedia', {
+    media: 'screen',
+    features: [{ name: 'prefers-color-scheme', value: 'light' }],
   });
   return cdp;
 }
 
 async function evaluate(cdp, expression, awaitPromise = true) {
-  const result = await cdp.send("Runtime.evaluate", {
+  const result = await cdp.send('Runtime.evaluate', {
     expression,
     awaitPromise,
     returnByValue: true,
@@ -143,9 +143,9 @@ async function evaluate(cdp, expression, awaitPromise = true) {
   if (result.exceptionDetails) {
     throw new Error(
       result.exceptionDetails.exception?.description ||
-      result.exceptionDetails.exception?.value ||
-      result.exceptionDetails.text ||
-      "Evaluation failed",
+        result.exceptionDetails.exception?.value ||
+        result.exceptionDetails.text ||
+        'Evaluation failed',
     );
   }
   return result.result?.value;
@@ -161,10 +161,13 @@ async function navigateDocument(cdp, path) {
   const onLoad = () => {
     loaded = true;
   };
-  cdp.on("Page.loadEventFired", onLoad);
-  await cdp.send("Page.navigate", { url: `${baseUrl}${path}` });
+  cdp.on('Page.loadEventFired', onLoad);
+  await cdp.send('Page.navigate', { url: `${baseUrl}${path}` });
   const deadline = Date.now() + 12_000;
-  while (!loaded && Date.now() < deadline) await sleep(100);
+  while (Date.now() < deadline) {
+    if (loaded) break;
+    await sleep(100);
+  }
   await waitForDocumentReady(cdp);
 }
 
@@ -206,7 +209,7 @@ async function waitForAppSettled(cdp) {
 }
 
 async function prepareSession(cdp) {
-  await navigateDocument(cdp, "/login");
+  await navigateDocument(cdp, '/login');
   await evaluate(
     cdp,
     `(() => {
@@ -306,27 +309,31 @@ async function screenshot(cdp, name) {
     })()`,
   );
   await sleep(350);
-  const { data } = await cdp.send("Page.captureScreenshot", {
-    format: "png",
+  const { data } = await cdp.send('Page.captureScreenshot', {
+    format: 'png',
     fromSurface: true,
     captureBeyondViewport: false,
   });
-  writeFileSync(join(screenshotDir, name), Buffer.from(data, "base64"));
+  writeFileSync(join(screenshotDir, name), Buffer.from(data, 'base64'));
   console.log(`Captured ${name}`);
 }
 
 async function main() {
-  const chrome = spawn(chromePath, [
-    "--headless=new",
-    "--disable-gpu",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-dev-shm-usage",
-    "--hide-scrollbars",
-    `--user-data-dir=${userDataDir}`,
-    `--remote-debugging-port=${remotePort}`,
-    `${baseUrl}/`,
-  ], { cwd: repoRoot, stdio: "ignore" });
+  const chrome = spawn(
+    chromePath,
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-dev-shm-usage',
+      '--hide-scrollbars',
+      `--user-data-dir=${userDataDir}`,
+      `--remote-debugging-port=${remotePort}`,
+      `${baseUrl}/`,
+    ],
+    { cwd: repoRoot, stdio: 'ignore' },
+  );
 
   try {
     await waitForChrome();
@@ -334,75 +341,75 @@ async function main() {
     try {
       await prepareSession(cdp);
 
-      await navigate(cdp, "/?instance=primary");
-      await clickByText(cdp, "Hour");
-      await screenshot(cdp, "dashboard.png");
+      await navigate(cdp, '/?instance=primary');
+      await clickByText(cdp, 'Hour');
+      await screenshot(cdp, 'dashboard.png');
 
-      await screenshot(cdp, "update_available.png");
+      await screenshot(cdp, 'update_available.png');
 
-      await cdp.send("Emulation.setDeviceMetricsOverride", { ...viewport, height: 1512 });
-      await navigate(cdp, "/statistics?instance=primary&range=7");
-      await waitForText(cdp, "Activity History");
-      await screenshot(cdp, "statistics.png");
-      await cdp.send("Emulation.setDeviceMetricsOverride", viewport);
+      await cdp.send('Emulation.setDeviceMetricsOverride', { ...viewport, height: 1512 });
+      await navigate(cdp, '/statistics?instance=primary&range=7');
+      await waitForText(cdp, 'Activity History');
+      await screenshot(cdp, 'statistics.png');
+      await cdp.send('Emulation.setDeviceMetricsOverride', viewport);
 
-      await navigate(cdp, "/alerts?instance=all");
-      await screenshot(cdp, "multi_instance.png");
+      await navigate(cdp, '/alerts?instance=all');
+      await screenshot(cdp, 'multi_instance.png');
 
-      await navigate(cdp, "/alerts?instance=primary");
-      await screenshot(cdp, "alerts.png");
+      await navigate(cdp, '/alerts?instance=primary');
+      await screenshot(cdp, 'alerts.png');
 
-      await navigate(cdp, "/alerts?instance=primary&q=country%3DNL");
+      await navigate(cdp, '/alerts?instance=primary&q=country%3DNL');
       await clickFirst(cdp, "button[aria-label='Saved filters']");
-      await waitForText(cdp, "German alerts");
-      await screenshot(cdp, "saved_filters.png");
+      await waitForText(cdp, 'German alerts');
+      await screenshot(cdp, 'saved_filters.png');
       await closeModal(cdp);
-      await navigate(cdp, "/alerts?instance=primary");
+      await navigate(cdp, '/alerts?instance=primary');
 
       await clickFirst(cdp, "button[aria-label='Filters']");
-      await clickByText(cdp, "Country");
-      await waitForText(cdp, "Netherlands");
-      await clickByText(cdp, "Netherlands");
-      await waitForText(cdp, "Showing 1 of 1 alerts");
-      await screenshot(cdp, "quick_filters.png");
+      await clickByText(cdp, 'Country');
+      await waitForText(cdp, 'Netherlands');
+      await clickByText(cdp, 'Netherlands');
+      await waitForText(cdp, 'Showing 1 of 1 alerts');
+      await screenshot(cdp, 'quick_filters.png');
       // Quick filters persist across pages and would otherwise filter the later screenshots
-      await clickByText(cdp, "Reset all filters");
+      await clickByText(cdp, 'Reset all filters');
       await clickFirst(cdp, "button[aria-label='Close filters']");
 
-      await clickFirst(cdp, "tbody tr");
-      await screenshot(cdp, "alert_details.png");
+      await clickFirst(cdp, 'tbody tr');
+      await screenshot(cdp, 'alert_details.png');
 
       await closeModal(cdp);
       await clickFirst(cdp, "button[aria-label='Expand search']");
       await clickFirst(cdp, "button[aria-label='Search syntax help']");
-      await screenshot(cdp, "search_syntax.png");
+      await screenshot(cdp, 'search_syntax.png');
 
-      await navigate(cdp, "/decisions?instance=primary");
-      await screenshot(cdp, "decisions.png");
+      await navigate(cdp, '/decisions?instance=primary');
+      await screenshot(cdp, 'decisions.png');
 
-      await clickByText(cdp, "Add Decision");
-      await screenshot(cdp, "add_decision.png");
+      await clickByText(cdp, 'Add Decision');
+      await screenshot(cdp, 'add_decision.png');
 
-      await navigate(cdp, "/allowlists?instance=all");
-      await waitForText(cdp, "office-network");
-      await screenshot(cdp, "allowlists.png");
+      await navigate(cdp, '/allowlists?instance=all');
+      await waitForText(cdp, 'office-network');
+      await screenshot(cdp, 'allowlists.png');
 
-      await navigate(cdp, "/metrics?instance=primary");
-      await screenshot(cdp, "metrics.png");
+      await navigate(cdp, '/metrics?instance=primary');
+      await screenshot(cdp, 'metrics.png');
 
-      await navigate(cdp, "/notifications");
-      await screenshot(cdp, "notifications.png");
+      await navigate(cdp, '/notifications');
+      await screenshot(cdp, 'notifications.png');
 
-      await clickByText(cdp, "Add Rule");
-      await screenshot(cdp, "notification_rule.png");
+      await clickByText(cdp, 'Add Rule');
+      await screenshot(cdp, 'notification_rule.png');
 
-      await navigate(cdp, "/settings");
-      await screenshot(cdp, "settings.png");
+      await navigate(cdp, '/settings');
+      await screenshot(cdp, 'settings.png');
     } finally {
       cdp.close();
     }
   } finally {
-    chrome.kill("SIGTERM");
+    chrome.kill('SIGTERM');
     await waitForProcessExit(chrome);
     rmSync(userDataDir, { recursive: true, force: true });
   }

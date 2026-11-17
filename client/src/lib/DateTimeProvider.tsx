@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+
 import { fetchConfig } from './api';
 import {
   DEFAULT_DATE_TIME_SETTINGS,
@@ -31,15 +32,18 @@ export function DateTimeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const formatDate = useCallback(
-    (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => formatDateValue(value, settings, options),
+    (value: Date | string | number, options?: Intl.DateTimeFormatOptions) =>
+      formatDateValue(value, settings, options),
     [settings],
   );
   const formatTime = useCallback(
-    (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => formatTimeValue(value, settings, options),
+    (value: Date | string | number, options?: Intl.DateTimeFormatOptions) =>
+      formatTimeValue(value, settings, options),
     [settings],
   );
   const formatDateTime = useCallback(
-    (value: Date | string | number, options?: Intl.DateTimeFormatOptions) => formatDateTimeValue(value, settings, options),
+    (value: Date | string | number, options?: Intl.DateTimeFormatOptions) =>
+      formatDateTimeValue(value, settings, options),
     [settings],
   );
   const value = useMemo(

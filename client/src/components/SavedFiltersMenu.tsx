@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
 import { Bookmark, SquarePen, Trash2 } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
+
 import { useAuth } from '../contexts/AuthContext';
 import { useI18n } from '../lib/i18n';
 import {
@@ -23,7 +24,7 @@ interface SavedFiltersMenuProps {
 
 export function SavedFiltersMenu(props: SavedFiltersMenuProps) {
   const { authEnabled, user } = useAuth();
-  const owner = authEnabled ? user?.userId ?? 'signed-out' : 'shared';
+  const owner = authEnabled ? (user?.userId ?? 'signed-out') : 'shared';
   return <SavedFiltersMenuBody key={owner} {...props} />;
 }
 
@@ -47,7 +48,8 @@ function SavedFiltersMenuBody({ page, query, onApply }: SavedFiltersMenuProps) {
         setError('');
       }
     } catch (failure) {
-      if (id === requestId.current) setError(failure instanceof Error ? failure.message : String(failure));
+      if (id === requestId.current)
+        setError(failure instanceof Error ? failure.message : String(failure));
     }
   }, []);
 
@@ -90,70 +92,194 @@ function SavedFiltersMenuBody({ page, query, onApply }: SavedFiltersMenuProps) {
       >
         <Bookmark size={18} aria-hidden="true" />
       </button>
-      <Modal isOpen={open} onClose={() => setOpen(false)} title={t('components.savedFilters.title')} maxWidth="max-w-xl">
+      <Modal
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title={t('components.savedFilters.title')}
+        maxWidth="max-w-xl"
+      >
         <div className="space-y-6 text-sm text-gray-900 dark:text-gray-100">
-          {lists?.shared && <p className="text-amber-700 dark:text-amber-300">{t('components.savedFilters.shared')}</p>}
-          {error && <p role="alert" className="text-red-600 dark:text-red-400">{error}</p>}
-          <form className="flex flex-wrap gap-2" onSubmit={async (event) => {
-            event.preventDefault();
-            if (await mutate(() => createSavedFilter(name, query.trim()))) setName('');
-          }}>
+          {lists?.shared && (
+            <p className="text-amber-700 dark:text-amber-300">
+              {t('components.savedFilters.shared')}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          )}
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (await mutate(() => createSavedFilter(name, query.trim()))) setName('');
+            }}
+          >
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
               maxLength={80}
               aria-label={t('components.savedFilters.name')}
               placeholder={t('components.savedFilters.name')}
-              className="min-h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-500 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-400"
+              className="focus:border-primary-500 focus:ring-primary-500/30 min-h-11 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-gray-900 placeholder:text-gray-500 focus:ring-2 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-400"
             />
-            <button type="submit" disabled={busy || !name.trim() || !filterValidForPage(query, page)} className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary-600 px-4 font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={busy || !name.trim() || !filterValidForPage(query, page)}
+              className="bg-primary-600 hover:bg-primary-700 focus-visible:ring-primary-500 inline-flex min-h-11 items-center justify-center rounded-md px-4 font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
               {t('components.savedFilters.save')}
             </button>
           </form>
-          {!filterValidForPage(query, page) && <p className="text-gray-500 dark:text-gray-400">{t('components.savedFilters.validQuery')}</p>}
+          {!filterValidForPage(query, page) && (
+            <p className="text-gray-500 dark:text-gray-400">
+              {t('components.savedFilters.validQuery')}
+            </p>
+          )}
           <section aria-label={t('components.savedFilters.saved')} className="space-y-2">
             <h4 className="font-semibold">{t('components.savedFilters.saved')}</h4>
             {!lists && !error && <p>{t('components.savedFilters.loading')}</p>}
-            {lists?.saved.length === 0 && <p className="text-gray-500 dark:text-gray-400">{t('components.savedFilters.emptySaved')}</p>}
+            {lists?.saved.length === 0 && (
+              <p className="text-gray-500 dark:text-gray-400">
+                {t('components.savedFilters.emptySaved')}
+              </p>
+            )}
             {lists?.saved.map((filter) => {
               const compatible = filterValidForPage(filter.query, page);
-              return <div key={filter.id} className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40">
-                {renameId === filter.id ? (
-                  <form className="flex flex-wrap gap-2" onSubmit={async (event) => {
-                    event.preventDefault();
-                    if (await mutate(() => renameSavedFilter(filter.id, renameValue))) setRenameId(null);
-                  }}>
-                    <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} maxLength={80} aria-label={t('components.savedFilters.name')} className="min-h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-gray-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100" />
-                    <button type="submit" disabled={busy || !renameValue.trim()} className="inline-flex min-h-9 items-center justify-center rounded-md bg-primary-600 px-3 font-medium text-white transition-colors hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50">{t('common.save')}</button>
-                    <button type="button" onClick={() => setRenameId(null)} className="inline-flex min-h-9 items-center justify-center rounded-md border border-gray-300 px-3 font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">{t('common.cancel')}</button>
-                  </form>
-                ) : (
-                  <>
-                    <div className="font-medium">{filter.name}</div>
-                    <div className="mt-1 break-all text-xs leading-5 text-gray-500 dark:text-gray-400">{filter.query}</div>
-                    <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-gray-200 pt-2 dark:border-gray-700">
-                      <button type="button" disabled={!compatible || busy} title={!compatible ? t('components.savedFilters.incompatible') : undefined} onClick={() => apply(filter.query)} className="inline-flex min-h-9 items-center justify-center rounded-md border border-primary-300 px-3 font-medium text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 dark:border-primary-700 dark:text-primary-300 dark:hover:bg-primary-900/30 dark:disabled:border-gray-700 dark:disabled:text-gray-500">{t('components.savedFilters.apply')}</button>
-                      <button type="button" disabled={busy} aria-label={t('components.savedFilters.rename')} title={t('components.savedFilters.rename')} onClick={() => { setRenameId(filter.id); setRenameValue(filter.name); }} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"><SquarePen className="h-4 w-4" aria-hidden="true" /></button>
-                      <button type="button" disabled={busy} aria-label={t('common.delete')} title={t('common.delete')} onClick={() => { void mutate(() => deleteSavedFilter(filter.id)); }} className="inline-flex h-9 w-9 items-center justify-center rounded-full text-red-600 transition-colors hover:bg-red-50 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
-                      {!compatible && <span className="text-xs text-gray-500 dark:text-gray-400">{t('components.savedFilters.incompatible')}</span>}
-                    </div>
-                  </>
-                )}
-              </div>;
+              return (
+                <div
+                  key={filter.id}
+                  className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+                >
+                  {renameId === filter.id ? (
+                    <form
+                      className="flex flex-wrap gap-2"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        if (await mutate(() => renameSavedFilter(filter.id, renameValue)))
+                          setRenameId(null);
+                      }}
+                    >
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(event) => setRenameValue(event.target.value)}
+                        maxLength={80}
+                        aria-label={t('components.savedFilters.name')}
+                        className="focus:border-primary-500 focus:ring-primary-500/30 min-h-9 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-gray-900 focus:ring-2 focus:outline-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                      />
+                      <button
+                        type="submit"
+                        disabled={busy || !renameValue.trim()}
+                        className="bg-primary-600 hover:bg-primary-700 focus-visible:ring-primary-500 inline-flex min-h-9 items-center justify-center rounded-md px-3 font-medium text-white transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {t('common.save')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRenameId(null)}
+                        className="focus-visible:ring-primary-500 inline-flex min-h-9 items-center justify-center rounded-md border border-gray-300 px-3 font-medium text-gray-700 transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:outline-none dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="font-medium">{filter.name}</div>
+                      <div className="mt-1 text-xs leading-5 break-all text-gray-500 dark:text-gray-400">
+                        {filter.query}
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-gray-200 pt-2 dark:border-gray-700">
+                        <button
+                          type="button"
+                          disabled={!compatible || busy}
+                          title={
+                            !compatible ? t('components.savedFilters.incompatible') : undefined
+                          }
+                          onClick={() => apply(filter.query)}
+                          className="border-primary-300 text-primary-700 hover:bg-primary-50 focus-visible:ring-primary-500 dark:border-primary-700 dark:text-primary-300 dark:hover:bg-primary-900/30 inline-flex min-h-9 items-center justify-center rounded-md border px-3 font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                        >
+                          {t('components.savedFilters.apply')}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          aria-label={t('components.savedFilters.rename')}
+                          title={t('components.savedFilters.rename')}
+                          onClick={() => {
+                            setRenameId(filter.id);
+                            setRenameValue(filter.name);
+                          }}
+                          className="focus-visible:ring-primary-500 inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                        >
+                          <SquarePen className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          aria-label={t('common.delete')}
+                          title={t('common.delete')}
+                          onClick={() => {
+                            void mutate(() => deleteSavedFilter(filter.id));
+                          }}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-red-600 transition-colors hover:bg-red-50 hover:text-red-900 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        {!compatible && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {t('components.savedFilters.incompatible')}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
             })}
           </section>
           <section aria-label={t('components.savedFilters.recent')} className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <h4 className="font-semibold">{t('components.savedFilters.recent')}</h4>
-              {!!lists?.recent.length && <button type="button" disabled={busy} onClick={() => { void mutate(clearRecentFilters); }} className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" />{t('components.savedFilters.clearRecent')}</button>}
+              {!!lists?.recent.length && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    void mutate(clearRecentFilters);
+                  }}
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-900 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20 dark:hover:text-red-300"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t('components.savedFilters.clearRecent')}
+                </button>
+              )}
             </div>
-            {lists?.recent.length === 0 && <p className="text-gray-500 dark:text-gray-400">{t('components.savedFilters.emptyRecent')}</p>}
+            {lists?.recent.length === 0 && (
+              <p className="text-gray-500 dark:text-gray-400">
+                {t('components.savedFilters.emptyRecent')}
+              </p>
+            )}
             {lists?.recent.map((filter) => {
               const compatible = filterValidForPage(filter.query, page);
-              return <div key={filter.query} className="flex items-start justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40">
-                <span className="min-w-0 break-all leading-5">{filter.query}</span>
-                <button type="button" disabled={!compatible || busy} title={!compatible ? t('components.savedFilters.incompatible') : undefined} onClick={() => apply(filter.query)} className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-md border border-primary-300 px-3 font-medium text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 dark:border-primary-700 dark:text-primary-300 dark:hover:bg-primary-900/30 dark:disabled:border-gray-700 dark:disabled:text-gray-500">{t('components.savedFilters.apply')}</button>
-              </div>;
+              return (
+                <div
+                  key={filter.query}
+                  className="flex items-start justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+                >
+                  <span className="min-w-0 leading-5 break-all">{filter.query}</span>
+                  <button
+                    type="button"
+                    disabled={!compatible || busy}
+                    title={!compatible ? t('components.savedFilters.incompatible') : undefined}
+                    onClick={() => apply(filter.query)}
+                    className="border-primary-300 text-primary-700 hover:bg-primary-50 focus-visible:ring-primary-500 dark:border-primary-700 dark:text-primary-300 dark:hover:bg-primary-900/30 inline-flex min-h-9 shrink-0 items-center justify-center rounded-md border px-3 font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                  >
+                    {t('components.savedFilters.apply')}
+                  </button>
+                </div>
+              );
             })}
           </section>
         </div>

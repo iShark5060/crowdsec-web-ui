@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import {
   getLoadTestBatchCreatedAtEnd,
   getLoadTestHeadSyncEnd,
@@ -70,14 +71,7 @@ describe('load-test dataset shape', () => {
       Array.from(getLoadTestDecisionIdsForAlertLayout(index + 1, layout)),
     );
 
-    expect(decisionsByAlert).toEqual([
-      [1, 2, 3, 4, 5],
-      [6, 7, 8],
-      [9, 12],
-      [10, 13],
-      [11, 14],
-      [],
-    ]);
+    expect(decisionsByAlert).toEqual([[1, 2, 3, 4, 5], [6, 7, 8], [9, 12], [10, 13], [11, 14], []]);
     for (const [alertIndex, decisionIds] of decisionsByAlert.entries()) {
       for (const decisionId of decisionIds) {
         expect(getLoadTestSourceAlertIdForDecisionLayout(decisionId, layout)).toBe(alertIndex + 1);
@@ -101,9 +95,9 @@ describe('load-test dataset shape', () => {
   });
 
   test('selects deterministic inclusive per-alert decision counts for mixed blocklist deltas', () => {
-    expect([31, 32, 33].map((alertId) =>
-      getLoadTestRefreshDecisionCount(alertId, 1337, 1_000, 25_000),
-    )).toEqual([10_414, 12_829, 14_713]);
+    expect([31, 32, 33].map((alertId) => getLoadTestRefreshDecisionCount(alertId, 1337, 1_000, 25_000))).toEqual([
+      10_414, 12_829, 14_713,
+    ]);
     expect(getLoadTestRefreshDecisionCount(31, 1337, 0, 0)).toBe(0);
     expect(getLoadTestRefreshDecisionCount(31, 1337, 25_000, 1_000)).toBe(0);
   });

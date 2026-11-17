@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { createAuthSessionCookie, createController } from './harness';
 
 const ISSUER = 'https://idp.example.com/application/o/crowdsec/';
@@ -6,11 +7,13 @@ const ISSUER = 'https://idp.example.com/application/o/crowdsec/';
 type Controller = ReturnType<typeof createController>['controller'];
 
 async function setupAdmin(controller: Controller): Promise<string> {
-  const setup = await controller.fetch(new Request('http://localhost/crowdsec/api/auth/setup', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'admin', password: 'Secret123' }),
-  }));
+  const setup = await controller.fetch(
+    new Request('http://localhost/crowdsec/api/auth/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'Secret123' }),
+    }),
+  );
   expect(setup.status).toBe(200);
   return setup.headers.get('set-cookie') || '';
 }
@@ -20,11 +23,13 @@ function getJson(controller: Controller, path: string, cookie = '') {
 }
 
 function putSettings(controller: Controller, cookie: string, body: Record<string, unknown>) {
-  return controller.fetch(new Request('http://localhost/crowdsec/api/auth/settings', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', cookie },
-    body: JSON.stringify(body),
-  }));
+  return controller.fetch(
+    new Request('http://localhost/crowdsec/api/auth/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', cookie },
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 function fallbackWarnings(warn: { mock: { calls: unknown[][] } }): number {
@@ -32,11 +37,13 @@ function fallbackWarnings(warn: { mock: { calls: unknown[][] } }): number {
 }
 
 function passwordLogin(controller: Controller) {
-  return controller.fetch(new Request('http://localhost/crowdsec/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'admin', password: 'Secret123' }),
-  }));
+  return controller.fetch(
+    new Request('http://localhost/crowdsec/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'Secret123' }),
+    }),
+  );
 }
 
 describe('auth.passwordLogin.enabled', () => {
@@ -59,9 +66,17 @@ describe('auth.passwordLogin.enabled', () => {
         CONFIG_AUTH_PASSWORD_LOGIN_ENABLED: 'false',
       },
     });
-    const user = database.upsertOidcUser({ username: 'oidc-admin', role: 'admin', issuer: ISSUER, subject: 'oidc-subject' });
+    const user = database.upsertOidcUser({
+      username: 'oidc-admin',
+      role: 'admin',
+      issuer: ISSUER,
+      subject: 'oidc-subject',
+    });
     const cookie = createAuthSessionCookie(database, {
-      userId: user.id, username: user.username, role: user.role, authMethod: 'oidc',
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      authMethod: 'oidc',
     });
 
     expect(await (await getJson(controller, 'status')).json()).toMatchObject({ passwordLoginDisabled: true });
@@ -79,7 +94,9 @@ describe('auth.passwordLogin.enabled', () => {
 
     const otherChange = await putSettings(controller, cookie, { oidcGroupsClaim: 'roles' });
     expect(otherChange.status).toBe(200);
-    expect(await otherChange.json()).toMatchObject({ settings: { disablePasswordLogin: true, passwordLoginManaged: true } });
+    expect(await otherChange.json()).toMatchObject({
+      settings: { disablePasswordLogin: true, passwordLoginManaged: true },
+    });
     expect(fallbackWarnings(warn)).toBe(0);
   });
 
@@ -99,11 +116,13 @@ describe('auth.passwordLogin.enabled', () => {
       oidcEnabled: true,
       passwordLoginDisabled: true,
     });
-    const setup = await controller.fetch(new Request('http://localhost/crowdsec/api/auth/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: 'Secret123' }),
-    }));
+    const setup = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/auth/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'admin', password: 'Secret123' }),
+      }),
+    );
     expect(setup.status).toBe(403);
     expect(setup.headers.get('set-cookie')).toBeFalsy();
     expect(database.countAuthUsers()).toBe(0);

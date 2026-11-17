@@ -43,7 +43,16 @@ export async function sendSmtpMail(message: SmtpMessage): Promise<void> {
   });
   const ehlo = `EHLO ${formatHeloName(message.heloName)}`;
   const deliver = async () => {
-    let socket = await connectSmtp(message.host, message.port, message.tlsMode, message.allowInsecureTls === true, message.lookup, (next) => { activeSocket = next; });
+    let socket = await connectSmtp(
+      message.host,
+      message.port,
+      message.tlsMode,
+      message.allowInsecureTls === true,
+      message.lookup,
+      (next) => {
+        activeSocket = next;
+      },
+    );
     reader = createSmtpResponseReader(socket);
     await readExpectedResponse(reader.read, [220]);
     await smtpCommand(socket, reader.read, ehlo, [250]);
@@ -51,19 +60,38 @@ export async function sendSmtpMail(message: SmtpMessage): Promise<void> {
     if (message.tlsMode === 'starttls') {
       await smtpCommand(socket, reader.read, 'STARTTLS', [220]);
       reader.dispose();
-      socket = await upgradeToTls(socket, message.host, message.allowInsecureTls === true, (next) => { activeSocket = next; });
+      socket = await upgradeToTls(
+        socket,
+        message.host,
+        message.allowInsecureTls === true,
+        (next) => {
+          activeSocket = next;
+        },
+      );
       reader = createSmtpResponseReader(socket);
       await smtpCommand(socket, reader.read, ehlo, [250]);
     }
 
     if (message.username && message.password) {
       try {
-        const authPlain = Buffer.from(`\u0000${message.username}\u0000${message.password}`).toString('base64');
+        const authPlain = Buffer.from(
+          `\u0000${message.username}\u0000${message.password}`,
+        ).toString('base64');
         await smtpCommand(socket, reader.read, `AUTH PLAIN ${authPlain}`, [235]);
       } catch {
         await smtpCommand(socket, reader.read, 'AUTH LOGIN', [334]);
-        await smtpCommand(socket, reader.read, Buffer.from(message.username).toString('base64'), [334]);
-        await smtpCommand(socket, reader.read, Buffer.from(message.password).toString('base64'), [235]);
+        await smtpCommand(
+          socket,
+          reader.read,
+          Buffer.from(message.username).toString('base64'),
+          [334],
+        );
+        await smtpCommand(
+          socket,
+          reader.read,
+          Buffer.from(message.password).toString('base64'),
+          [235],
+        );
       }
     }
 
@@ -106,29 +134,50 @@ function connectSmtp(
   onSocket: (socket: net.Socket | tls.TLSSocket) => void,
 ): Promise<net.Socket | tls.TLSSocket> {
   return new Promise((resolve, reject) => {
-    const socket = tlsMode === 'tls'
-      ? tls.connect({ host, port, lookup, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: !allowInsecureTls }, () => resolve(socket))
-      : net.createConnection({ host, port, lookup }, () => resolve(socket));
+    const socket =
+      tlsMode === 'tls'
+        ? tls.connect(
+            {
+              host,
+              port,
+              lookup,
+              servername: net.isIP(host) ? undefined : host,
+              rejectUnauthorized: !allowInsecureTls,
+            },
+            () => resolve(socket),
+          )
+        : net.createConnection({ host, port, lookup }, () => resolve(socket));
 
     socket.once('error', reject);
     onSocket(socket);
   });
 }
 
-function upgradeToTls(socket: net.Socket, host: string, allowInsecureTls: boolean, onSocket: (socket: tls.TLSSocket) => void): Promise<tls.TLSSocket> {
+function upgradeToTls(
+  socket: net.Socket,
+  host: string,
+  allowInsecureTls: boolean,
+  onSocket: (socket: tls.TLSSocket) => void,
+): Promise<tls.TLSSocket> {
   return new Promise((resolve, reject) => {
-    const secureSocket = tls.connect({
-      socket,
-      servername: net.isIP(host) ? undefined : host,
-      rejectUnauthorized: !allowInsecureTls,
-    }, () => resolve(secureSocket));
+    const secureSocket = tls.connect(
+      {
+        socket,
+        servername: net.isIP(host) ? undefined : host,
+        rejectUnauthorized: !allowInsecureTls,
+      },
+      () => resolve(secureSocket),
+    );
 
     secureSocket.once('error', reject);
     onSocket(secureSocket);
   });
 }
 
-function createSmtpResponseReader(socket: net.Socket | tls.TLSSocket): { read: () => Promise<string>; dispose: () => void } {
+function createSmtpResponseReader(socket: net.Socket | tls.TLSSocket): {
+  read: () => Promise<string>;
+  dispose: () => void;
+} {
   let buffer = '';
   let lines: string[] = [];
   const waiters: Array<(value: string) => void> = [];
@@ -210,7 +259,10 @@ async function smtpCommand(
   return readExpectedResponse(readResponse, expectedCodes);
 }
 
-async function readExpectedResponse(readResponse: () => Promise<string>, expectedCodes: number[]): Promise<string> {
+async function readExpectedResponse(
+  readResponse: () => Promise<string>,
+  expectedCodes: number[],
+): Promise<string> {
   const response = await readResponse();
   const code = Number.parseInt(response.slice(0, 3), 10);
   if (!expectedCodes.includes(code)) {

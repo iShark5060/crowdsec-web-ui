@@ -1,6 +1,8 @@
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
+
 import { WebSocket, WebSocketServer } from 'ws';
+
 import type { AppController } from './app';
 
 const AUTH_TIMEOUT_MS = 5_000;
@@ -13,8 +15,14 @@ export interface CacheUpdateWebSocketController {
 }
 
 interface UpgradeCapableServer {
-  on: (event: 'upgrade', listener: (request: IncomingMessage, socket: Duplex, head: Buffer) => void) => unknown;
-  off: (event: 'upgrade', listener: (request: IncomingMessage, socket: Duplex, head: Buffer) => void) => unknown;
+  on: (
+    event: 'upgrade',
+    listener: (request: IncomingMessage, socket: Duplex, head: Buffer) => void,
+  ) => unknown;
+  off: (
+    event: 'upgrade',
+    listener: (request: IncomingMessage, socket: Duplex, head: Buffer) => void,
+  ) => unknown;
 }
 
 export function attachCacheUpdateWebSocket(
@@ -33,14 +41,20 @@ export function attachCacheUpdateWebSocket(
       aliveSocket.isAlive = true;
     });
 
-    socket.send(JSON.stringify({
-      type: 'ready',
-      updated_at: controller.getCacheLastUpdate(),
-    }));
+    socket.send(
+      JSON.stringify({
+        type: 'ready',
+        updated_at: controller.getCacheLastUpdate(),
+      }),
+    );
   });
 
   const unsubscribe = controller.subscribeCacheUpdates((updatedAt, instanceIds) => {
-    const payload = JSON.stringify({ type: 'cache-updated', updated_at: updatedAt, instance_ids: instanceIds });
+    const payload = JSON.stringify({
+      type: 'cache-updated',
+      updated_at: updatedAt,
+      instance_ids: instanceIds,
+    });
     for (const socket of webSocketServer.clients) {
       if (socket.readyState === WebSocket.OPEN) socket.send(payload);
     }
@@ -67,23 +81,29 @@ export function attachCacheUpdateWebSocket(
     const onSocketError = () => socket.destroy();
     socket.on('error', onSocketError);
     const host = request.headers.host;
-    if (!host || !isExpectedSocketPath(request.url, host, socketPath) || !isSameOrigin(request, host)) {
+    if (
+      !host ||
+      !isExpectedSocketPath(request.url, host, socketPath) ||
+      !isSameOrigin(request, host)
+    ) {
       rejectUpgrade(socket, 404, 'Not Found');
       return;
     }
 
-    void authorizeUpgrade(request, controller, host).then((authorized) => {
-      if (!authorized || socket.destroyed) {
+    void authorizeUpgrade(request, controller, host)
+      .then((authorized) => {
+        if (!authorized || socket.destroyed) {
+          if (!socket.destroyed) rejectUpgrade(socket, 401, 'Unauthorized');
+          return;
+        }
+        webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
+          socket.off('error', onSocketError);
+          webSocketServer.emit('connection', webSocket, request);
+        });
+      })
+      .catch(() => {
         if (!socket.destroyed) rejectUpgrade(socket, 401, 'Unauthorized');
-        return;
-      }
-      webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
-        socket.off('error', onSocketError);
-        webSocketServer.emit('connection', webSocket, request);
       });
-    }).catch(() => {
-      if (!socket.destroyed) rejectUpgrade(socket, 401, 'Unauthorized');
-    });
   };
 
   server.on('upgrade', handleUpgrade);
@@ -99,7 +119,11 @@ export function attachCacheUpdateWebSocket(
   };
 }
 
-function isExpectedSocketPath(requestUrl: string | undefined, host: string, expectedPath: string): boolean {
+function isExpectedSocketPath(
+  requestUrl: string | undefined,
+  host: string,
+  expectedPath: string,
+): boolean {
   try {
     return new URL(requestUrl || '/', `http://${host}`).pathname === expectedPath;
   } catch {
@@ -117,9 +141,20 @@ function isSameOrigin(request: IncomingMessage, host: string): boolean {
   }
 }
 
-async function authorizeUpgrade(request: IncomingMessage, controller: AppController, host: string): Promise<boolean> {
+async function authorizeUpgrade(
+  request: IncomingMessage,
+  controller: AppController,
+  host: string,
+): Promise<boolean> {
   const headers = new Headers();
-  for (const name of ['authorization', 'cookie', 'user-agent', 'x-forwarded-for', 'x-forwarded-proto', 'x-real-ip']) {
+  for (const name of [
+    'authorization',
+    'cookie',
+    'user-agent',
+    'x-forwarded-for',
+    'x-forwarded-proto',
+    'x-real-ip',
+  ]) {
     const value = request.headers[name];
     if (typeof value === 'string') headers.set(name, value);
   }

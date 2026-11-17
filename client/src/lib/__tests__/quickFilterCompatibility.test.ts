@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'vitest';
+
 import { compileAlertSearch } from '../../../../shared/search';
-import {
-  getQuickFilterCompatibility,
-  type QuickFilterIncompatibilityReason,
-} from '../quickFilterCompatibility';
+import { getQuickFilterCompatibility, type QuickFilterIncompatibilityReason } from '../quickFilterCompatibility';
 import { ALERT_QUICK_FILTER_FIELDS } from '../quickFilters';
 
 function compatibility(query: string) {

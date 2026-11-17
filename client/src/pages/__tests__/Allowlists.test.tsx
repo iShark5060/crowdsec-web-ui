@@ -1,9 +1,16 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
+import type {
+  AllowlistCheckResponse,
+  AllowlistEntriesResponse,
+  AllowlistEntry,
+  AllowlistsResponse,
+  AllowlistSummary,
+} from '../../types';
 import { Allowlists } from '../Allowlists';
-import type { AllowlistCheckResponse, AllowlistEntriesResponse, AllowlistEntry, AllowlistsResponse, AllowlistSummary } from '../../types';
 
 const { fetchAllowlistsMock, fetchAllowlistEntriesMock, checkAllowlistMock } = vi.hoisted(() => ({
   fetchAllowlistsMock: vi.fn(),
@@ -25,11 +32,22 @@ function summary(name: string, overrides: Partial<AllowlistSummary> = {}): Allow
   return { name, console_managed: false, instance_ids: ['main'], entry_count: 0, matching_entries: 0, ...overrides };
 }
 
-function entriesPage(allowlist: AllowlistSummary, data: AllowlistEntry[], page = 1, total = data.length): AllowlistEntriesResponse {
+function entriesPage(
+  allowlist: AllowlistSummary,
+  data: AllowlistEntry[],
+  page = 1,
+  total = data.length,
+): AllowlistEntriesResponse {
   return {
     allowlist,
     data,
-    pagination: { page, page_size: 50, total, total_pages: Math.ceil(total / 50), unfiltered_total: allowlist.entry_count },
+    pagination: {
+      page,
+      page_size: 50,
+      total,
+      total_pages: Math.ceil(total / 50),
+      unfiltered_total: allowlist.entry_count,
+    },
   };
 }
 
@@ -46,7 +64,13 @@ function LocationProbe() {
 }
 
 function renderAllowlists(path = '/allowlists') {
-  return render(<MemoryRouter initialEntries={[path]}><Allowlists /><LocationProbe /><ScopeNavigation /></MemoryRouter>);
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Allowlists />
+      <LocationProbe />
+      <ScopeNavigation />
+    </MemoryRouter>,
+  );
 }
 
 function ScopeNavigation() {
@@ -131,7 +155,9 @@ describe('Allowlists page', () => {
 
   test.each(['success', 'failure'])('ignores a late list %s from the previous instance', async (outcome) => {
     const east = deferred<AllowlistsResponse>();
-    fetchAllowlistsMock.mockImplementation((scope: string) => scope === 'east' ? east.promise : Promise.resolve(scopedResponse(scope)));
+    fetchAllowlistsMock.mockImplementation((scope: string) =>
+      scope === 'east' ? east.promise : Promise.resolve(scopedResponse(scope)),
+    );
     fetchAllowlistEntriesMock.mockResolvedValue(entriesPage(summary('empty'), []));
     renderAllowlists('/allowlists?instance=east');
 
@@ -150,9 +176,11 @@ describe('Allowlists page', () => {
 
   test('ignores a late list response for an older filter', async () => {
     const olderFilter = deferred<AllowlistsResponse>();
-    fetchAllowlistsMock.mockImplementation((_scope: string, query: string) => query === 'old'
-      ? olderFilter.promise
-      : Promise.resolve({ partial: false, instances: singleInstance, allowlists: [summary(query || 'initial')] }));
+    fetchAllowlistsMock.mockImplementation((_scope: string, query: string) =>
+      query === 'old'
+        ? olderFilter.promise
+        : Promise.resolve({ partial: false, instances: singleInstance, allowlists: [summary(query || 'initial')] }),
+    );
     fetchAllowlistEntriesMock.mockResolvedValue(entriesPage(summary('empty'), []));
     renderAllowlists();
 
@@ -173,10 +201,19 @@ describe('Allowlists page', () => {
   test('lists allowlists and shows the entries of the selected one', async () => {
     const office = summary('office', { description: 'Office network', entry_count: 2, matching_entries: 2 });
     const monitoring = summary('monitoring', { console_managed: true, entry_count: 0 });
-    fetchAllowlistsMock.mockResolvedValue({ partial: false, instances: singleInstance, allowlists: [monitoring, office] } satisfies AllowlistsResponse);
-    fetchAllowlistEntriesMock.mockImplementation(async (name: string) => name === 'office'
-      ? entriesPage(office, [entry('10.0.0.0/8', { description: 'VPN' }), entry('192.0.2.10', { expiration: '2026-12-01T00:00:00.000Z' })])
-      : entriesPage(monitoring, []));
+    fetchAllowlistsMock.mockResolvedValue({
+      partial: false,
+      instances: singleInstance,
+      allowlists: [monitoring, office],
+    } satisfies AllowlistsResponse);
+    fetchAllowlistEntriesMock.mockImplementation(async (name: string) =>
+      name === 'office'
+        ? entriesPage(office, [
+            entry('10.0.0.0/8', { description: 'VPN' }),
+            entry('192.0.2.10', { expiration: '2026-12-01T00:00:00.000Z' }),
+          ])
+        : entriesPage(monitoring, []),
+    );
     renderAllowlists();
 
     expect(await screen.findByText('This allowlist has no active entries.')).toBeInTheDocument();
@@ -196,21 +233,30 @@ describe('Allowlists page', () => {
 
   test('loads further entry pages from the server while scrolling', async () => {
     const callbacks: IntersectionObserverCallback[] = [];
-    vi.stubGlobal('IntersectionObserver', class {
-      constructor(callback: IntersectionObserverCallback) {
-        callbacks.push(callback);
-      }
-      observe() {}
-      disconnect() {}
-    });
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          callbacks.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
     const big = summary('big', { entry_count: 60, matching_entries: 60 });
-    fetchAllowlistsMock.mockResolvedValue({ partial: false, instances: singleInstance, allowlists: [big] } satisfies AllowlistsResponse);
-    fetchAllowlistEntriesMock.mockImplementation(async (_name: string, _scope: string, page: number) => entriesPage(
-      big,
-      Array.from({ length: page === 1 ? 50 : 10 }, (_, index) => entry(`10.0.${page}.${index}`)),
-      page,
-      60,
-    ));
+    fetchAllowlistsMock.mockResolvedValue({
+      partial: false,
+      instances: singleInstance,
+      allowlists: [big],
+    } satisfies AllowlistsResponse);
+    fetchAllowlistEntriesMock.mockImplementation(async (_name: string, _scope: string, page: number) =>
+      entriesPage(
+        big,
+        Array.from({ length: page === 1 ? 50 : 10 }, (_, index) => entry(`10.0.${page}.${index}`)),
+        page,
+        60,
+      ),
+    );
     renderAllowlists('/allowlists?allowlist=big');
 
     expect(await screen.findByText('Showing 50 of 60 entries')).toBeInTheDocument();
@@ -229,9 +275,10 @@ describe('Allowlists page', () => {
       instances: singleInstance,
       allowlists: query === 'nothing' ? [] : [{ ...office, matching_entries: query ? 1 : 100 }],
     }));
-    fetchAllowlistEntriesMock.mockImplementation(async (_name: string, _scope: string, _page: number, _size: number, query: string) => (
-      entriesPage(office, query ? [entry('192.0.2.10')] : [entry('10.0.0.1')])
-    ));
+    fetchAllowlistEntriesMock.mockImplementation(
+      async (_name: string, _scope: string, _page: number, _size: number, query: string) =>
+        entriesPage(office, query ? [entry('192.0.2.10')] : [entry('10.0.0.1')]),
+    );
     renderAllowlists();
 
     expect(await screen.findByText('10.0.0.1')).toBeInTheDocument();
@@ -258,10 +305,12 @@ describe('Allowlists page', () => {
       ],
       allowlists: [office],
     } satisfies AllowlistsResponse);
-    fetchAllowlistEntriesMock.mockResolvedValue(entriesPage(office, [
-      entry('10.0.0.0/8', { instance_ids: ['east', 'west'] }),
-      entry('192.0.2.10', { instance_ids: ['east'] }),
-    ]));
+    fetchAllowlistEntriesMock.mockResolvedValue(
+      entriesPage(office, [
+        entry('10.0.0.0/8', { instance_ids: ['east', 'west'] }),
+        entry('192.0.2.10', { instance_ids: ['east'] }),
+      ]),
+    );
     renderAllowlists('/allowlists?instance=all');
 
     const sharedEntry = within((await screen.findByText('10.0.0.0/8')).closest('li')!);
@@ -274,7 +323,9 @@ describe('Allowlists page', () => {
     expect(eastEntry.getByText('🟦')).toBeInTheDocument();
     expect(eastEntry.queryByText('West')).not.toBeInTheDocument();
     expect(screen.queryByText(/Missing on/)).not.toBeInTheDocument();
-    expect(screen.getByText('Allowlists require CrowdSec 1.6.5 or later and are not available on: Old')).toBeInTheDocument();
+    expect(
+      screen.getByText('Allowlists require CrowdSec 1.6.5 or later and are not available on: Old'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Could not read allowlists from Down.')).toBeInTheDocument();
     expect(screen.getByText('Request timeout')).toBeInTheDocument();
   });
@@ -287,7 +338,9 @@ describe('Allowlists page', () => {
     } satisfies AllowlistsResponse);
     renderAllowlists();
 
-    expect(await screen.findByText('This CrowdSec LAPI does not support allowlists. They require CrowdSec 1.6.5 or later.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('This CrowdSec LAPI does not support allowlists. They require CrowdSec 1.6.5 or later.'),
+    ).toBeInTheDocument();
     expect(screen.queryByText('No allowlists are configured.')).not.toBeInTheDocument();
   });
 
@@ -330,8 +383,21 @@ describe('Allowlists page', () => {
         value: '10.1.2.3',
         allowlisted: true,
         results: [
-          { instance_id: 'east', instance_name: 'East', instance_icon: '🟦', status: 'available', allowlisted: true, reason: '10.0.0.0/8 from office (VPN)' },
-          { instance_id: 'west', instance_name: 'West', status: 'unavailable', allowlisted: false, error: 'Request timeout' },
+          {
+            instance_id: 'east',
+            instance_name: 'East',
+            instance_icon: '🟦',
+            status: 'available',
+            allowlisted: true,
+            reason: '10.0.0.0/8 from office (VPN)',
+          },
+          {
+            instance_id: 'west',
+            instance_name: 'West',
+            status: 'unavailable',
+            allowlisted: false,
+            error: 'Request timeout',
+          },
         ],
       })
       .mockRejectedValueOnce(new Error('Failed to check allowlists'));

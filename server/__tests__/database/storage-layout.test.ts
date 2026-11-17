@@ -1,7 +1,9 @@
-import { describe, expect, test } from 'vitest';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
-import path from 'path';
 import { tmpdir } from 'os';
+import path from 'path';
+
+import { describe, expect, test } from 'vitest';
+
 import { CrowdsecDatabase } from '../../database';
 import { createLegacyDatabase, tempDirs } from './harness';
 
@@ -118,7 +120,9 @@ function createLegacyInstall(dataDir: string): void {
         'rule-legacy:threshold:28928160');
   `);
   for (let index = 0; index < 7; index += 1) {
-    legacy.prepare('INSERT INTO recent_search_filters (owner_id, query, used_at_ms) VALUES (?, ?, ?)').run(7, `country=DE AND ip:192.0.2.${index}`, index);
+    legacy
+      .prepare('INSERT INTO recent_search_filters (owner_id, query, used_at_ms) VALUES (?, ?, ?)')
+      .run(7, `country=DE AND ip:192.0.2.${index}`, index);
   }
   legacy.close();
 }
@@ -162,48 +166,58 @@ describe('CrowdsecDatabase storage layout', () => {
     expect(db.updateAuthUserTotpLastStep(7, 12345)).toBe(true);
     expect(db.updateAuthUserTotpLastStep(7, 12345)).toBe(false);
     expect(db.listWebAuthnCredentialsByUser(7)).toEqual([expect.objectContaining({ credential_id: 'credential-1' })]);
-    expect(db.createAuthUser({ username: 'second', passwordHash: 'hash', role: 'admin', authProvider: 'password' })).toBe(8);
+    expect(
+      db.createAuthUser({ username: 'second', passwordHash: 'hash', role: 'admin', authProvider: 'password' }),
+    ).toBe(8);
 
     expect(db.listNotificationChannels()).toEqual([expect.objectContaining({ id: 'channel-1', name: 'Ops' })]);
     expect(db.listNotificationRules()).toEqual([
       expect.objectContaining({ id: 'rule-legacy', name: 'Legacy threshold', severity: 'warning' }),
     ]);
-    expect(db.listNotifications()).toEqual([expect.objectContaining({
-      id: 'notif-legacy',
-      created_at: '2025-01-01T00:00:00.000Z',
-      deliveries_json: JSON.stringify([{ attempted_at: '2025-01-01T00:00:00.000Z' }]),
-    })]);
+    expect(db.listNotifications()).toEqual([
+      expect.objectContaining({
+        id: 'notif-legacy',
+        created_at: '2025-01-01T00:00:00.000Z',
+        deliveries_json: JSON.stringify([{ attempted_at: '2025-01-01T00:00:00.000Z' }]),
+      }),
+    ]);
     expect(db.listNotificationIncidentsByRule('rule-legacy')).toEqual([
       expect.objectContaining({ incident_key: 'threshold:active', resolved_at: null }),
     ]);
     // The legacy table had a unique dedupe key; the new schema allows repeated incidents.
-    expect(db.insertNotification({
-      $id: 'notif-legacy-2',
-      $created_at: '2025-01-01T05:00:00.000Z',
-      $updated_at: '2025-01-01T05:00:00.000Z',
-      $rule_id: 'rule-legacy',
-      $rule_name: 'Legacy threshold',
-      $rule_type: 'alert-threshold',
-      $severity: 'warning',
-      $title: 'Threshold exceeded again',
-      $message: '11 alerts matched.',
-      $read_at: null,
-      $metadata_json: JSON.stringify({ matched_alerts: 11 }),
-      $deliveries_json: JSON.stringify([]),
-      $dedupe_key: 'rule-legacy:threshold:28928160',
-    })).toBe(true);
+    expect(
+      db.insertNotification({
+        $id: 'notif-legacy-2',
+        $created_at: '2025-01-01T05:00:00.000Z',
+        $updated_at: '2025-01-01T05:00:00.000Z',
+        $rule_id: 'rule-legacy',
+        $rule_name: 'Legacy threshold',
+        $rule_type: 'alert-threshold',
+        $severity: 'warning',
+        $title: 'Threshold exceeded again',
+        $message: '11 alerts matched.',
+        $read_at: null,
+        $metadata_json: JSON.stringify({ matched_alerts: 11 }),
+        $deliveries_json: JSON.stringify([]),
+        $dedupe_key: 'rule-legacy:threshold:28928160',
+      }),
+    ).toBe(true);
 
-    expect(db.getPendingAlertDeletions()).toEqual([expect.objectContaining({
-      alert_id: 'default\u0000101',
-      decision_ids_json: '["5001"]',
-      attempt_count: 2,
-      last_error: 'LAPI unavailable',
-    })]);
-    expect(db.insertAlert({ $id: 101, $uuid: 'alert-101', $created_at: '2026-01-03T00:00:00.000Z', $message: 'deleted' })).toBe(false);
+    expect(db.getPendingAlertDeletions()).toEqual([
+      expect.objectContaining({
+        alert_id: 'default\u0000101',
+        decision_ids_json: '["5001"]',
+        attempt_count: 2,
+        last_error: 'LAPI unavailable',
+      }),
+    ]);
+    expect(
+      db.insertAlert({ $id: 101, $uuid: 'alert-101', $created_at: '2026-01-03T00:00:00.000Z', $message: 'deleted' }),
+    ).toBe(false);
 
-    expect(db.db.prepare('SELECT query FROM recent_search_filters WHERE owner_id = 7 ORDER BY used_at_ms DESC').all()).toEqual(
-      [6, 5, 4, 3, 2].map((index) => ({ query: `country=DE AND ip:192.0.2.${index}` })),
-    );
+    expect(
+      db.db.prepare('SELECT query FROM recent_search_filters WHERE owner_id = 7 ORDER BY used_at_ms DESC').all(),
+    ).toEqual([6, 5, 4, 3, 2].map((index) => ({ query: `country=DE AND ip:192.0.2.${index}` })));
     db.close();
   });
 
@@ -286,7 +300,14 @@ describe('CrowdsecDatabase storage layout', () => {
     db = new CrowdsecDatabase({ dataDir, cacheDir });
     expect(db.getPendingAlertDeletions()).toEqual([expect.objectContaining({ alert_id: 'default\u0000101' })]);
     const syncWorker = new CrowdsecDatabase({ cachePath: db.cachePath, statePath: null });
-    expect(syncWorker.insertAlert({ $id: 101, $uuid: 'alert-101', $created_at: '2026-01-03T00:00:00.000Z', $message: 'deleted' })).toBe(false);
+    expect(
+      syncWorker.insertAlert({
+        $id: 101,
+        $uuid: 'alert-101',
+        $created_at: '2026-01-03T00:00:00.000Z',
+        $message: 'deleted',
+      }),
+    ).toBe(false);
     syncWorker.close();
     expect(db.countAuthUsers()).toBe(1);
     expect(db.getMeta('language')?.value).toBe('fr');

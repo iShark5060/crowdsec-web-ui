@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { renderTemplate } from '../../notifications/webhook-template';
 
 const baseEvent = {
@@ -18,15 +19,18 @@ const baseEvent = {
 
 describe('webhook templates', () => {
   test('renders non-null fallback aliases for nullable rule fields', () => {
-    expect(renderTemplate(
-      '{{event.rule_idOrUnknown}}|{{event.rule_nameOrUnknown}}|{{event.rule_typeOrUnknown}}',
-      baseEvent,
-    )).toBe('unknown|unknown|unknown');
+    expect(
+      renderTemplate('{{event.rule_idOrUnknown}}|{{event.rule_nameOrUnknown}}|{{event.rule_typeOrUnknown}}', baseEvent),
+    ).toBe('unknown|unknown|unknown');
 
-    expect(JSON.parse(renderTemplate(
-      '{"rule_id":{{event.rule_idOrUnknownJson}},"rule_name":{{event.rule_nameOrUnknownJson}},"rule_type":{{event.rule_typeOrUnknownJson}}}',
-      baseEvent,
-    ))).toEqual({
+    expect(
+      JSON.parse(
+        renderTemplate(
+          '{"rule_id":{{event.rule_idOrUnknownJson}},"rule_name":{{event.rule_nameOrUnknownJson}},"rule_type":{{event.rule_typeOrUnknownJson}}}',
+          baseEvent,
+        ),
+      ),
+    ).toEqual({
       rule_id: 'unknown',
       rule_name: 'unknown',
       rule_type: 'unknown',
@@ -34,15 +38,19 @@ describe('webhook templates', () => {
   });
 
   test('fallback aliases preserve configured rule values', () => {
-    expect(JSON.parse(renderTemplate(
-      '{"rule_id":{{event.rule_idOrUnknownJson}},"rule_name":{{event.rule_nameOrUnknownJson}},"rule_type":{{event.rule_typeOrUnknownJson}}}',
-      {
-        ...baseEvent,
-        rule_id: 'rule-1',
-        rule_name: 'High volume',
-        rule_type: 'alert-threshold',
-      },
-    ))).toEqual({
+    expect(
+      JSON.parse(
+        renderTemplate(
+          '{"rule_id":{{event.rule_idOrUnknownJson}},"rule_name":{{event.rule_nameOrUnknownJson}},"rule_type":{{event.rule_typeOrUnknownJson}}}',
+          {
+            ...baseEvent,
+            rule_id: 'rule-1',
+            rule_name: 'High volume',
+            rule_type: 'alert-threshold',
+          },
+        ),
+      ),
+    ).toEqual({
       rule_id: 'rule-1',
       rule_name: 'High volume',
       rule_type: 'alert-threshold',
@@ -50,7 +58,8 @@ describe('webhook templates', () => {
   });
 
   test('exposes the configured application name', () => {
-    expect(renderTemplate('{{event.app_name}}|{{event.app_nameJson}}', { ...baseEvent, app_name: 'Acme "SOC"' }))
-      .toBe('Acme "SOC"|"Acme \\"SOC\\""');
+    expect(renderTemplate('{{event.app_name}}|{{event.app_nameJson}}', { ...baseEvent, app_name: 'Acme "SOC"' })).toBe(
+      'Acme "SOC"|"Acme \\"SOC\\""',
+    );
   });
 });

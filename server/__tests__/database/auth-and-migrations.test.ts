@@ -1,12 +1,6 @@
-import Database from 'better-sqlite3';
 import { describe, expect, test } from 'vitest';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs';
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { tmpdir } from 'os';
-import { CrowdsecDatabase } from '../../database';
-import { decisionFromRow } from '../../normalized-record';
-import { createLegacyDatabase, createTestDatabase, createTestDatabasePath, tempDirs } from './harness';
+
+import { createTestDatabase } from './harness';
 
 describe('CrowdsecDatabase auth and migrations', () => {
   test('fresh databases default dashboard auth on', () => {
@@ -177,11 +171,10 @@ describe('CrowdsecDatabase auth and migrations', () => {
       });
     }
 
-    expect(db.deleteAlertsMissingBetween(
-      '2025-01-01T00:00:00.000Z',
-      '2025-01-01T02:00:00.000Z',
-      ['1'],
-    )).toEqual({ alerts: 1, decisions: 1 });
+    expect(db.deleteAlertsMissingBetween('2025-01-01T00:00:00.000Z', '2025-01-01T02:00:00.000Z', ['1'])).toEqual({
+      alerts: 1,
+      decisions: 1,
+    });
 
     expect(db.getAlertsBetween('2025-01-01T00:00:00.000Z', '2025-01-01T02:00:00.000Z')).toHaveLength(1);
     expect(db.getAlertsSince('2025-01-01T00:00:00.000Z')).toHaveLength(2);
@@ -224,7 +217,10 @@ describe('CrowdsecDatabase auth and migrations', () => {
       });
     }
 
-    expect(db.deleteActiveAlertsMissing(['1'], '2025-01-01T00:00:00.000Z', '2024-12-31T00:00:00.000Z')).toEqual({ alerts: 1, decisions: 1 });
+    expect(db.deleteActiveAlertsMissing(['1'], '2025-01-01T00:00:00.000Z', '2024-12-31T00:00:00.000Z')).toEqual({
+      alerts: 1,
+      decisions: 1,
+    });
     expect(db.getAlertsSince('2024-01-01T00:00:00.000Z')).toHaveLength(3);
     expect(db.getDecisionById('10')).not.toBeNull();
     expect(db.getDecisionById('20')).toBeNull();

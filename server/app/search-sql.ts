@@ -1,12 +1,13 @@
 import { isIP } from 'node:net';
+
 import type { SearchNode } from '../../shared/search';
-import type { AlertListFilters, DecisionListFilters } from './types';
 import {
   addDashboardBucketInterval,
   formatDashboardClientBucketKey,
   parseDashboardBucketKey,
   parseDashboardWallKey,
 } from './dashboard-stats';
+import type { AlertListFilters, DecisionListFilters } from './types';
 
 export interface SqlCondition {
   sql: string;
@@ -32,7 +33,9 @@ export class SqlWhere {
   }
 
   toSql(): string {
-    return this.clauses.length > 0 ? `WHERE ${this.clauses.map((clause) => `(${clause})`).join(' AND ')}` : '';
+    return this.clauses.length > 0
+      ? `WHERE ${this.clauses.map((clause) => `(${clause})`).join(' AND ')}`
+      : '';
   }
 }
 
@@ -41,24 +44,52 @@ export function createSqlWhere(): SqlWhere {
 }
 
 const DECISION_COVERED_SEARCH_FIELDS = new Set([
-  'id', 'instance', 'alert', 'scenario', 'ip', 'country', 'region', 'city', 'as', 'target',
-  'kind', 'message', 'date', 'action', 'type', 'status', 'duplicate', 'sim', 'machine', 'origin',
+  'id',
+  'instance',
+  'alert',
+  'scenario',
+  'ip',
+  'country',
+  'region',
+  'city',
+  'as',
+  'target',
+  'kind',
+  'message',
+  'date',
+  'action',
+  'type',
+  'status',
+  'duplicate',
+  'sim',
+  'machine',
+  'origin',
 ]);
 
 const ALERT_COVERED_SEARCH_FIELDS = new Set([
-  'id', 'instance', 'scenario', 'message', 'ip', 'country', 'region', 'city', 'as',
-  'kind', 'target', 'date', 'sim', 'machine', 'origin', 'decision',
+  'id',
+  'instance',
+  'scenario',
+  'message',
+  'ip',
+  'country',
+  'region',
+  'city',
+  'as',
+  'kind',
+  'target',
+  'date',
+  'sim',
+  'machine',
+  'origin',
+  'decision',
 ]);
 
 // These fields are part of the duplicate-group identity. Applying predicates
 // that only reference them cannot hide the persisted primary while leaving
 // another member of the same group visible, so the precomputed duplicate
 // flags remain correct for any boolean combination of these predicates.
-const DECISION_DUPLICATE_GROUP_INVARIANT_FIELDS = new Set([
-  'instance',
-  'ip',
-  'sim',
-]);
+const DECISION_DUPLICATE_GROUP_INVARIANT_FIELDS = new Set(['instance', 'ip', 'sim']);
 
 export function decisionSearchCanSplitDuplicateGroup(
   node: SearchNode | null,
@@ -88,8 +119,10 @@ export function decisionSearchCanSplitDuplicateGroup(
     return decisionSearchCanSplitDuplicateGroup(node.expression, includeExpired, scopedField);
   }
 
-  return decisionSearchCanSplitDuplicateGroup(node.left, includeExpired, scopedField)
-    || decisionSearchCanSplitDuplicateGroup(node.right, includeExpired, scopedField);
+  return (
+    decisionSearchCanSplitDuplicateGroup(node.left, includeExpired, scopedField) ||
+    decisionSearchCanSplitDuplicateGroup(node.right, includeExpired, scopedField)
+  );
 }
 
 export function getAlertCountIndexHint(
@@ -100,35 +133,42 @@ export function getAlertCountIndexHint(
     return '';
   }
   if (
-    searchAst
-    || filters.ip
-    || filters.country
-    || filters.scenario
-    || filters.as
-    || filters.target
-    || filters.date
-    || filters.dateStart
-    || filters.dateEnd
-    || filters.simulation !== 'all'
+    searchAst ||
+    filters.ip ||
+    filters.country ||
+    filters.scenario ||
+    filters.as ||
+    filters.target ||
+    filters.date ||
+    filters.dateStart ||
+    filters.dateEnd ||
+    filters.simulation !== 'all'
   ) {
     return 'INDEXED BY idx_alerts_filters';
   }
   return '';
 }
 
-export function getDecisionPageIndexHint(filters: DecisionListFilters, searchAst: SearchNode | null): string {
-  if (filters.showDuplicates || filters.alertIds.length > 0 || searchAstContainsField(searchAst, 'id', 'alert')) {
+export function getDecisionPageIndexHint(
+  filters: DecisionListFilters,
+  searchAst: SearchNode | null,
+): string {
+  if (
+    filters.showDuplicates ||
+    filters.alertIds.length > 0 ||
+    searchAstContainsField(searchAst, 'id', 'alert')
+  ) {
     return '';
   }
 
   if (
-    filters.instanceId !== 'all'
-    && !searchAst
-    && !filters.country
-    && !filters.scenario
-    && !filters.as
-    && !filters.ip
-    && !filters.target
+    filters.instanceId !== 'all' &&
+    !searchAst &&
+    !filters.country &&
+    !filters.scenario &&
+    !filters.as &&
+    !filters.ip &&
+    !filters.target
   ) {
     return 'INDEXED BY idx_decisions_instance_duplicate_paging';
   }
@@ -151,12 +191,16 @@ export function isAlertSearchCoveredByFilterIndex(node: SearchNode, fieldContext
   if (node.kind === 'term') return fieldContext;
   if (node.kind === 'comparison') return ALERT_COVERED_SEARCH_FIELDS.has(node.field);
   if (node.kind === 'field') {
-    return ALERT_COVERED_SEARCH_FIELDS.has(node.field)
-      && isAlertSearchCoveredByFilterIndex(node.expression, true);
+    return (
+      ALERT_COVERED_SEARCH_FIELDS.has(node.field) &&
+      isAlertSearchCoveredByFilterIndex(node.expression, true)
+    );
   }
   if (node.kind === 'not') return isAlertSearchCoveredByFilterIndex(node.expression, fieldContext);
-  return isAlertSearchCoveredByFilterIndex(node.left, fieldContext)
-    && isAlertSearchCoveredByFilterIndex(node.right, fieldContext);
+  return (
+    isAlertSearchCoveredByFilterIndex(node.left, fieldContext) &&
+    isAlertSearchCoveredByFilterIndex(node.right, fieldContext)
+  );
 }
 
 export function searchAstContainsField(node: SearchNode | null, ...fields: string[]): boolean {
@@ -167,7 +211,9 @@ export function searchAstContainsField(node: SearchNode | null, ...fields: strin
   }
   if (node.kind === 'not') return searchAstContainsField(node.expression, ...fields);
   if (node.kind === 'binary') {
-    return searchAstContainsField(node.left, ...fields) || searchAstContainsField(node.right, ...fields);
+    return (
+      searchAstContainsField(node.left, ...fields) || searchAstContainsField(node.right, ...fields)
+    );
   }
   return false;
 }
@@ -183,16 +229,24 @@ export function getSimpleSearchFieldValue(node: SearchNode | null, field: string
   return '';
 }
 
-export function isDecisionSearchCoveredByFilterIndex(node: SearchNode, fieldContext = false): boolean {
+export function isDecisionSearchCoveredByFilterIndex(
+  node: SearchNode,
+  fieldContext = false,
+): boolean {
   if (node.kind === 'term') return fieldContext;
   if (node.kind === 'comparison') return DECISION_COVERED_SEARCH_FIELDS.has(node.field);
   if (node.kind === 'field') {
-    return DECISION_COVERED_SEARCH_FIELDS.has(node.field)
-      && isDecisionSearchCoveredByFilterIndex(node.expression, true);
+    return (
+      DECISION_COVERED_SEARCH_FIELDS.has(node.field) &&
+      isDecisionSearchCoveredByFilterIndex(node.expression, true)
+    );
   }
-  if (node.kind === 'not') return isDecisionSearchCoveredByFilterIndex(node.expression, fieldContext);
-  return isDecisionSearchCoveredByFilterIndex(node.left, fieldContext)
-    && isDecisionSearchCoveredByFilterIndex(node.right, fieldContext);
+  if (node.kind === 'not')
+    return isDecisionSearchCoveredByFilterIndex(node.expression, fieldContext);
+  return (
+    isDecisionSearchCoveredByFilterIndex(node.left, fieldContext) &&
+    isDecisionSearchCoveredByFilterIndex(node.right, fieldContext)
+  );
 }
 
 export function addLike(where: SqlWhere, columnSql: string, value: string): void {
@@ -205,7 +259,11 @@ export function addIpCondition(where: SqlWhere, column: string, value: string): 
     where.add(`${column} = ?`, normalized);
     return;
   }
-  where.add(`(matches_ip_search_value(${column}, ?) = 1 OR LOWER(${column}) LIKE ? ESCAPE '\\')`, value, likeParam(value));
+  where.add(
+    `(matches_ip_search_value(${column}, ?) = 1 OR LOWER(${column}) LIKE ? ESCAPE '\\')`,
+    value,
+    likeParam(value),
+  );
 }
 
 export function textCondition(columnSql: string, value: string, exact = false): SqlCondition {
@@ -260,7 +318,11 @@ export function decisionMachineLabelSql(extraDataColumn: string, fallbackColumn:
   END`;
 }
 
-export function jsonStringArraySql(extraDataColumn: string, key: string, fallbackColumn: string): string {
+export function jsonStringArraySql(
+  extraDataColumn: string,
+  key: string,
+  fallbackColumn: string,
+): string {
   const path = `$.${key}`;
   return `CASE
     WHEN json_valid(${extraDataColumn}) = 1
@@ -270,7 +332,11 @@ export function jsonStringArraySql(extraDataColumn: string, key: string, fallbac
   END`;
 }
 
-export function anyTextColumnCondition(columns: string[], value: string, exact = false): SqlCondition {
+export function anyTextColumnCondition(
+  columns: string[],
+  value: string,
+  exact = false,
+): SqlCondition {
   const conditions = columns.map((column) => textCondition(`LOWER(${column})`, value, exact));
   return {
     sql: `(${conditions.map((condition) => condition.sql).join(' OR ')})`,
@@ -285,7 +351,7 @@ export function targetFieldCondition(
   exact = false,
 ): SqlCondition {
   const primary = textCondition(`LOWER(${targetColumn})`, value, exact);
-  const arrayValue = "LOWER(TRIM(CAST(target_filter_value.value AS TEXT)))";
+  const arrayValue = 'LOWER(TRIM(CAST(target_filter_value.value AS TEXT)))';
   const arrayCondition = textCondition(arrayValue, value, exact);
   return {
     sql: `(${primary.sql} OR EXISTS (
@@ -322,7 +388,11 @@ export function ipCondition(column: string, value: string, exact = false): SqlCo
   };
 }
 
-export function freeTextSearchCondition(page: SearchPageForSql, value: string, searchIndexAvailable: boolean): SqlCondition {
+export function freeTextSearchCondition(
+  page: SearchPageForSql,
+  value: string,
+  searchIndexAvailable: boolean,
+): SqlCondition {
   const fallback = textCondition('LOWER(search_text)', value);
   if (!searchIndexAvailable) {
     return fallback;
@@ -405,13 +475,15 @@ export function alertFieldCondition(
     case 'sim':
       return simulationTermCondition(value);
     case 'machine':
-      return anyTextColumnCondition([
-        normalizedMachineIdSql('machine_id', 'machine'),
-        'machine_alias',
-        'machine',
-      ], value, exact);
+      return anyTextColumnCondition(
+        [normalizedMachineIdSql('machine_id', 'machine'), 'machine_alias', 'machine'],
+        value,
+        exact,
+      );
     case 'origin':
-      return exact ? spaceSeparatedTextCondition('origins', value) : textCondition('LOWER(origins)', value);
+      return exact
+        ? spaceSeparatedTextCondition('origins', value)
+        : textCondition('LOWER(origins)', value);
     case 'decision':
       return alertDecisionCondition(value, now, simulationsEnabled);
     default:
@@ -440,9 +512,17 @@ export function decisionFieldCondition(
     case 'scenario':
       return textCondition('LOWER(scenario)', value, exact);
     case 'kind':
-      return textCondition('LOWER((SELECT kind FROM alerts WHERE alerts.id = decisions.alert_id))', value, exact);
+      return textCondition(
+        'LOWER((SELECT kind FROM alerts WHERE alerts.id = decisions.alert_id))',
+        value,
+        exact,
+      );
     case 'message':
-      return textCondition('LOWER((SELECT message FROM alerts WHERE alerts.id = decisions.alert_id))', value, exact);
+      return textCondition(
+        'LOWER((SELECT message FROM alerts WHERE alerts.id = decisions.alert_id))',
+        value,
+        exact,
+      );
     case 'ip':
       return ipCondition('value', value, exact);
     case 'country':
@@ -467,11 +547,15 @@ export function decisionFieldCondition(
     case 'sim':
       return simulationTermCondition(value);
     case 'machine':
-      return anyTextColumnCondition([
-        decisionMachineIdSql('extra_data', 'machine'),
-        decisionMachineLabelSql('extra_data', 'machine'),
-        'machine',
-      ], value, exact);
+      return anyTextColumnCondition(
+        [
+          decisionMachineIdSql('extra_data', 'machine'),
+          decisionMachineLabelSql('extra_data', 'machine'),
+          'machine',
+        ],
+        value,
+        exact,
+      );
     case 'origin':
       return textCondition('LOWER(origin)', value, exact);
     default:
@@ -488,9 +572,13 @@ export function instanceFieldCondition(
   if (!normalized) return { sql: '0 = 1', params: [] };
 
   const matchingIds = instances
-    .filter((instance) => exact
-      ? [instance.id, instance.name].some((candidate) => candidate.trim().toLowerCase() === normalized)
-      : `${instance.id} ${instance.name}`.trim().toLowerCase().includes(normalized))
+    .filter((instance) =>
+      exact
+        ? [instance.id, instance.name].some(
+            (candidate) => candidate.trim().toLowerCase() === normalized,
+          )
+        : `${instance.id} ${instance.name}`.trim().toLowerCase().includes(normalized),
+    )
     .map((instance) => instance.id);
   if (matchingIds.length === 0) return { sql: '0 = 1', params: [] };
 
@@ -520,17 +608,19 @@ export function alertEmptyFieldCondition(field: string, simulationsEnabled = tru
     case 'city':
     case 'as':
     case 'origin':
-      return emptyTextCondition({
-        scenario: 'scenario',
-        kind: 'kind',
-        message: 'message',
-        ip: 'source_ip',
-        country: 'country',
-        region: 'region',
-        city: 'city',
-        as: 'as_name',
-        origin: 'origins',
-      }[field]);
+      return emptyTextCondition(
+        {
+          scenario: 'scenario',
+          kind: 'kind',
+          message: 'message',
+          ip: 'source_ip',
+          country: 'country',
+          region: 'region',
+          city: 'city',
+          as: 'as_name',
+          origin: 'origins',
+        }[field],
+      );
     case 'decision':
       return {
         sql: `NOT EXISTS (
@@ -544,7 +634,11 @@ export function alertEmptyFieldCondition(field: string, simulationsEnabled = tru
   }
 }
 
-export function alertDecisionCondition(value: string, now: string, simulationsEnabled: boolean): SqlCondition {
+export function alertDecisionCondition(
+  value: string,
+  now: string,
+  simulationsEnabled: boolean,
+): SqlCondition {
   const normalized = value.trim().toLowerCase();
   const simulationSql = simulationsEnabled ? '' : ' AND facet_decision.simulated = 0';
   if (normalized === 'active') {
@@ -593,20 +687,22 @@ export function decisionEmptyFieldCondition(field: string): SqlCondition {
     case 'action':
     case 'type':
     case 'origin':
-      return emptyTextCondition({
-        alert: 'alert_id',
-        scenario: 'scenario',
-        kind: '(SELECT kind FROM alerts WHERE alerts.id = decisions.alert_id)',
-        message: '(SELECT message FROM alerts WHERE alerts.id = decisions.alert_id)',
-        ip: 'value',
-        country: 'country',
-        region: 'region',
-        city: 'city',
-        as: 'as_name',
-        action: 'type',
-        type: 'type',
-        origin: 'origin',
-      }[field]);
+      return emptyTextCondition(
+        {
+          alert: 'alert_id',
+          scenario: 'scenario',
+          kind: '(SELECT kind FROM alerts WHERE alerts.id = decisions.alert_id)',
+          message: '(SELECT message FROM alerts WHERE alerts.id = decisions.alert_id)',
+          ip: 'value',
+          country: 'country',
+          region: 'region',
+          city: 'city',
+          as: 'as_name',
+          action: 'type',
+          type: 'type',
+          origin: 'origin',
+        }[field],
+      );
     default:
       return { sql: '0 = 1', params: [] };
   }
@@ -715,7 +811,9 @@ export function compileSearchNodeSql(
   if (!node) return null;
 
   if (node.kind === 'term') {
-    return scopedField ? context.fieldCondition(scopedField, node.value) : context.freeTextCondition(node.value);
+    return scopedField
+      ? context.fieldCondition(scopedField, node.value)
+      : context.freeTextCondition(node.value);
   }
 
   if (node.kind === 'comparison') {
@@ -766,7 +864,8 @@ export function dateComparisonCondition(
 
   if (range.precision === 'day' || range.precision === 'hour') {
     if (operator === '=') return { sql: `${column} >= ? AND ${column} < ?`, params: [start, end] };
-    if (operator === '<>') return { sql: `(${column} < ? OR ${column} >= ?)`, params: [start, end] };
+    if (operator === '<>')
+      return { sql: `(${column} < ? OR ${column} >= ?)`, params: [start, end] };
     if (operator === '<') return { sql: `${column} < ?`, params: [start] };
     if (operator === '<=') return { sql: `${column} < ?`, params: [end] };
     if (operator === '>') return { sql: `${column} >= ?`, params: [end] };
@@ -789,16 +888,38 @@ export function parseSqlSearchDateValue(
 ): { start: number; end: number; precision: 'day' | 'hour' | 'instant' } | null {
   const trimmed = value.trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    const start = parseDashboardBucketKey(trimmed, dateOptions.timezoneOffsetMinutes, dateOptions.timeZone);
-    const endKey = formatDashboardClientBucketKey(addDashboardBucketInterval(parseDashboardWallKey(trimmed), 'day'), 'day');
-    const end = parseDashboardBucketKey(endKey, dateOptions.timezoneOffsetMinutes, dateOptions.timeZone);
+    const start = parseDashboardBucketKey(
+      trimmed,
+      dateOptions.timezoneOffsetMinutes,
+      dateOptions.timeZone,
+    );
+    const endKey = formatDashboardClientBucketKey(
+      addDashboardBucketInterval(parseDashboardWallKey(trimmed), 'day'),
+      'day',
+    );
+    const end = parseDashboardBucketKey(
+      endKey,
+      dateOptions.timezoneOffsetMinutes,
+      dateOptions.timeZone,
+    );
     return { start: start.getTime(), end: end.getTime(), precision: 'day' };
   }
 
   if (/^\d{4}-\d{2}-\d{2}T\d{2}$/.test(trimmed)) {
-    const start = parseDashboardBucketKey(trimmed, dateOptions.timezoneOffsetMinutes, dateOptions.timeZone);
-    const endKey = formatDashboardClientBucketKey(addDashboardBucketInterval(parseDashboardWallKey(trimmed), 'hour'), 'hour');
-    const end = parseDashboardBucketKey(endKey, dateOptions.timezoneOffsetMinutes, dateOptions.timeZone);
+    const start = parseDashboardBucketKey(
+      trimmed,
+      dateOptions.timezoneOffsetMinutes,
+      dateOptions.timeZone,
+    );
+    const endKey = formatDashboardClientBucketKey(
+      addDashboardBucketInterval(parseDashboardWallKey(trimmed), 'hour'),
+      'hour',
+    );
+    const end = parseDashboardBucketKey(
+      endKey,
+      dateOptions.timezoneOffsetMinutes,
+      dateOptions.timeZone,
+    );
     return { start: start.getTime(), end: end.getTime(), precision: 'hour' };
   }
 
@@ -813,7 +934,10 @@ export function getDateFilterBoundary(
   timeZone: string | null,
   includeHour: boolean,
 ): Date {
-  if ((includeHour && /^\d{4}-\d{2}-\d{2}T\d{2}$/.test(value)) || (!includeHour && /^\d{4}-\d{2}-\d{2}$/.test(value))) {
+  if (
+    (includeHour && /^\d{4}-\d{2}-\d{2}T\d{2}$/.test(value)) ||
+    (!includeHour && /^\d{4}-\d{2}-\d{2}$/.test(value))
+  ) {
     return parseDashboardBucketKey(value, timezoneOffsetMinutes, timeZone);
   }
   const timestamp = Date.parse(value);

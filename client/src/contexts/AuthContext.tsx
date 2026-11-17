@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+
 import { apiUrl } from '../lib/basePath';
 import { setOidcAutoLoginRetried, setOidcAutoLoginSuppressed } from '../lib/oidcAutoLogin';
 import { AUTH_SESSION_INVALIDATED_EVENT } from '../lib/sessionFetch';
@@ -70,7 +79,7 @@ async function readJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     let message = 'Request failed';
     try {
-      const payload = await response.json() as { error?: string };
+      const payload = (await response.json()) as { error?: string };
       message = payload.error || message;
     } catch {
       // Use the default message.
@@ -133,38 +142,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (username: string, password: string, totpCode?: string) => {
-    const response = await fetch(apiUrl('/api/auth/login'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, totpCode }),
-    });
-    if (!response.ok) {
-      let message = 'Login failed';
-      let requiresTotp = false;
-      try {
-        const payload = await response.json() as { error?: string; requiresTotp?: boolean };
-        message = payload.error || message;
-        requiresTotp = payload.requiresTotp === true;
-      } catch {
-        // Use the default message.
+  const login = useCallback(
+    async (username: string, password: string, totpCode?: string) => {
+      const response = await fetch(apiUrl('/api/auth/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, totpCode }),
+      });
+      if (!response.ok) {
+        let message = 'Login failed';
+        let requiresTotp = false;
+        try {
+          const payload = (await response.json()) as { error?: string; requiresTotp?: boolean };
+          message = payload.error || message;
+          requiresTotp = payload.requiresTotp === true;
+        } catch {
+          // Use the default message.
+        }
+        throw Object.assign(new Error(message), { requiresTotp });
       }
-      throw Object.assign(new Error(message), { requiresTotp });
-    }
-    await refresh();
-  }, [refresh]);
+      await refresh();
+    },
+    [refresh],
+  );
 
-  const setup = useCallback(async (username: string, password: string) => {
-    await readJson('/api/auth/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
-    await refresh();
-  }, [refresh]);
+  const setup = useCallback(
+    async (username: string, password: string) => {
+      await readJson('/api/auth/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      await refresh();
+    },
+    [refresh],
+  );
 
   const logout = useCallback(async () => {
-    const payload = await readJson<{ redirectUrl?: string }>('/api/auth/logout', { method: 'POST' });
+    const payload = await readJson<{ redirectUrl?: string }>('/api/auth/logout', {
+      method: 'POST',
+    });
     setOidcAutoLoginSuppressed(true);
     // SSO sessions are also ended at the identity provider, which then
     // redirects back to the login page.
@@ -183,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+// oxlint-disable-next-line react/only-export-components -- hook shares this provider file
 export function useAuth(): AuthContextValue {
   return useContext(AuthContext);
 }

@@ -1,6 +1,7 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type JWTPayload } from 'jose';
 import { generate, generateSecret } from 'otplib';
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { hashPassword } from '../../app-auth';
 import { createAuthSessionCookie, createController } from './harness';
 
@@ -31,14 +32,16 @@ class Browser {
   constructor(private readonly controller: Controller) {}
 
   async request(path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
-    const response = await this.controller.fetch(new Request(`${BASE}${path}`, {
-      method: init.method ?? 'GET',
-      headers: {
-        cookie: [...this.cookies].map(([name, value]) => `${name}=${value}`).join('; '),
-        ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-    }));
+    const response = await this.controller.fetch(
+      new Request(`${BASE}${path}`, {
+        method: init.method ?? 'GET',
+        headers: {
+          cookie: [...this.cookies].map(([name, value]) => `${name}=${value}`).join('; '),
+          ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      }),
+    );
     for (const cookie of response.headers.getSetCookie()) {
       const [pair, ...attributes] = cookie.split(';');
       const name = pair.slice(0, pair.indexOf('='));
@@ -54,7 +57,7 @@ class Browser {
 
   async me(): Promise<Record<string, unknown> | null> {
     const response = await this.request('/api/auth/me');
-    return response.status === 200 ? (await response.json() as { user: Record<string, unknown> }).user : null;
+    return response.status === 200 ? ((await response.json()) as { user: Record<string, unknown> }).user : null;
   }
 
   linkStatus(): Promise<Response> {
@@ -65,31 +68,35 @@ class Browser {
 /** Answers discovery, JWKS and the token endpoint with an ID token for the given claims. */
 function stubProvider(getClaims: () => Claims): void {
   const originalFetch = globalThis.fetch;
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input instanceof Request ? input.url : String(input);
-    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    if (url === `${ISSUER}.well-known/openid-configuration`) {
-      return json({
-        issuer: ISSUER,
-        authorization_endpoint: `${ISSUER}authorize/`,
-        token_endpoint: `${ISSUER}token/`,
-        jwks_uri: `${ISSUER}jwks/`,
-      });
-    }
-    if (url === `${ISSUER}jwks/`) return json({ keys: [publicJwk] });
-    if (url === `${ISSUER}token/`) {
-      const idToken = await new SignJWT({ nonce: currentNonce, ...getClaims() })
-        .setProtectedHeader({ alg: 'RS256', kid: publicJwk.kid })
-        .setIssuer(ISSUER)
-        .setAudience(CLIENT_ID)
-        .setSubject(getClaims().sub ?? 'alice-sub')
-        .setIssuedAt()
-        .setExpirationTime('5m')
-        .sign(signingKey);
-      return json({ access_token: 'access', token_type: 'Bearer', id_token: idToken });
-    }
-    return originalFetch(input, init);
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const json = (body: unknown) =>
+        new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      if (url === `${ISSUER}.well-known/openid-configuration`) {
+        return json({
+          issuer: ISSUER,
+          authorization_endpoint: `${ISSUER}authorize/`,
+          token_endpoint: `${ISSUER}token/`,
+          jwks_uri: `${ISSUER}jwks/`,
+        });
+      }
+      if (url === `${ISSUER}jwks/`) return json({ keys: [publicJwk] });
+      if (url === `${ISSUER}token/`) {
+        const idToken = await new SignJWT({ nonce: currentNonce, ...getClaims() })
+          .setProtectedHeader({ alg: 'RS256', kid: publicJwk.kid })
+          .setIssuer(ISSUER)
+          .setAudience(CLIENT_ID)
+          .setSubject(getClaims().sub ?? 'alice-sub')
+          .setIssuedAt()
+          .setExpirationTime('5m')
+          .sign(signingKey);
+        return json({ access_token: 'access', token_type: 'Bearer', id_token: idToken });
+      }
+      return originalFetch(input, init);
+    }),
+  );
 }
 
 describe('linking local and SSO sign-in', () => {
@@ -150,20 +157,23 @@ describe('linking local and SSO sign-in', () => {
   async function reachConfirmation(client: Browser, result: Claims = identity()): Promise<string> {
     const start = await client.request('/api/auth/oidc/link/start', { method: 'POST' });
     expect(start.status).toBe(200);
-    const { redirectUrl } = await start.json() as { redirectUrl: string };
+    const { redirectUrl } = (await start.json()) as { redirectUrl: string };
     const response = await throughProvider(client, redirectUrl, result);
     expect(response.status).toBe(302);
     return response.headers.get('location')!;
   }
 
   async function pendingId(client: Browser): Promise<string | undefined> {
-    const status = await (await client.linkStatus()).json() as { pending: { id: string } | null };
+    const status = (await (await client.linkStatus()).json()) as { pending: { id: string } | null };
     return status.pending?.id;
   }
 
   /** Confirms what the status currently shows, as a form that was just loaded does. */
   async function confirm(client: Browser, body: Record<string, unknown> = { password: PASSWORD }): Promise<Response> {
-    return client.request('/api/auth/oidc/link/confirm', { method: 'POST', body: { confirmationId: await pendingId(client), ...body } });
+    return client.request('/api/auth/oidc/link/confirm', {
+      method: 'POST',
+      body: { confirmationId: await pendingId(client), ...body },
+    });
   }
 
   function unlink(client: Browser, body: Record<string, unknown> = { password: PASSWORD }): Promise<Response> {
@@ -179,7 +189,11 @@ describe('linking local and SSO sign-in', () => {
 
   function addLinkedUser(username: string, issuer = ISSUER): number {
     const id = database.createAuthUser({ username, passwordHash, role: 'read-only', authProvider: 'password' });
-    database.linkOidcIdentity(id, { username: `${username}-sso`, role: 'admin', issuer, subject: `${username}-sub` }, 'verified');
+    database.linkOidcIdentity(
+      id,
+      { username: `${username}-sso`, role: 'admin', issuer, subject: `${username}-sub` },
+      'verified',
+    );
     return id;
   }
 
@@ -200,7 +214,12 @@ describe('linking local and SSO sign-in', () => {
   }
 
   function addSsoAccount(disabled = false): number {
-    const user = database.upsertOidcUser({ username: 'admin#oidc-1a2b3c4d5e', role: 'admin', issuer: ISSUER, subject: 'alice-sub' });
+    const user = database.upsertOidcUser({
+      username: 'admin#oidc-1a2b3c4d5e',
+      role: 'admin',
+      issuer: ISSUER,
+      subject: 'alice-sub',
+    });
     if (disabled) database.setAuthUserDisabled(user.id, true);
     return user.id;
   }
@@ -208,7 +227,7 @@ describe('linking local and SSO sign-in', () => {
   beforeAll(async () => {
     const keyPair = await generateKeyPair('RS256');
     signingKey = keyPair.privateKey;
-    publicJwk = { ...await exportJWK(keyPair.publicKey), kid: 'test-key', alg: 'RS256', use: 'sig' };
+    publicJwk = { ...(await exportJWK(keyPair.publicKey)), kid: 'test-key', alg: 'RS256', use: 'sig' };
     passwordHash = await hashPassword(PASSWORD);
   });
 
@@ -233,7 +252,7 @@ describe('linking local and SSO sign-in', () => {
       const before = database.getAuthUserById(adminId);
 
       const start = await client.request('/api/auth/oidc/link/start', { method: 'POST' });
-      const { redirectUrl } = await start.json() as { redirectUrl: string };
+      const { redirectUrl } = (await start.json()) as { redirectUrl: string };
       expect(new URL(redirectUrl).searchParams.get('prompt')).toBe('login');
 
       const response = await throughProvider(client, redirectUrl, identity());
@@ -241,9 +260,15 @@ describe('linking local and SSO sign-in', () => {
       expect(database.countAuthUsers()).toBe(1);
       expect(database.getAuthUserById(adminId)).toEqual(before);
 
-      const status = await (await client.linkStatus()).json() as Record<string, unknown>;
+      const status = (await (await client.linkStatus()).json()) as Record<string, unknown>;
       expect(status).toMatchObject({ available: true, canManage: true, link: null });
-      expect(status.pending).toEqual({ id: expect.any(String), issuer: ISSUER, username: 'alice', role: 'admin', merge: null });
+      expect(status.pending).toEqual({
+        id: expect.any(String),
+        issuer: ISSUER,
+        username: 'alice',
+        role: 'admin',
+        merge: null,
+      });
     });
 
     describe('confirming what the form showed', () => {
@@ -283,8 +308,13 @@ describe('linking local and SSO sign-in', () => {
         expect(database.getAuthUserById(adminId)?.oidc_subject).toBeNull();
       });
 
-      test('another attempt\'s separate SSO account is not merged', async () => {
-        const bobAccount = database.upsertOidcUser({ username: 'bob', role: 'admin', issuer: ISSUER, subject: 'bob-sub' });
+      test("another attempt's separate SSO account is not merged", async () => {
+        const bobAccount = database.upsertOidcUser({
+          username: 'bob',
+          role: 'admin',
+          issuer: ISSUER,
+          subject: 'bob-sub',
+        });
         const client = await signedIn();
         await reachConfirmation(client);
         const shownInFirstTab = await pendingId(client);
@@ -303,7 +333,7 @@ describe('linking local and SSO sign-in', () => {
         expect((await confirm(client, { confirmationId: shown })).status).toBe(409);
         expect(database.getAuthUserById(ssoId)).not.toBeNull();
 
-        const status = await (await client.linkStatus()).json() as { pending: { merge: unknown } };
+        const status = (await (await client.linkStatus()).json()) as { pending: { merge: unknown } };
         expect(status.pending.merge).toEqual({ username: 'admin#oidc-1a2b3c4d5e' });
         expect((await confirm(client)).status).toBe(200);
         expect(database.getAuthUserById(ssoId)).toBeNull();
@@ -314,7 +344,10 @@ describe('linking local and SSO sign-in', () => {
         await reachConfirmation(client);
         const shown = await pendingId(client);
 
-        const confirming = client.request('/api/auth/oidc/link/confirm', { method: 'POST', body: { confirmationId: shown, password: PASSWORD } });
+        const confirming = client.request('/api/auth/oidc/link/confirm', {
+          method: 'POST',
+          body: { confirmationId: shown, password: PASSWORD },
+        });
         await new Promise((resolve) => setTimeout(resolve, 5));
         const ssoId = addSsoAccount();
 
@@ -369,10 +402,12 @@ describe('linking local and SSO sign-in', () => {
       const client = await signedIn();
       await reachConfirmation(client);
       const pending = client.cookies.get(`${ACCOUNT_COOKIE_PREFIX}pending`)!;
-      const forged = Buffer.from(JSON.stringify({
-        ...JSON.parse(Buffer.from(pending.split('.')[0], 'base64url').toString('utf8')),
-        subject: 'mallory-sub',
-      })).toString('base64url');
+      const forged = Buffer.from(
+        JSON.stringify({
+          ...JSON.parse(Buffer.from(pending.split('.')[0], 'base64url').toString('utf8')),
+          subject: 'mallory-sub',
+        }),
+      ).toString('base64url');
       client.cookies.set(`${ACCOUNT_COOKIE_PREFIX}pending`, `${forged}.${pending.split('.')[1]}`);
 
       expect((await confirm(client)).status).toBe(400);
@@ -382,17 +417,29 @@ describe('linking local and SSO sign-in', () => {
     test('the authenticator code is required when TOTP is on', async () => {
       const client = await signedIn();
       const setupResponse = await client.request('/api/auth/totp/setup', { method: 'POST' });
-      const setupPayload = await setupResponse.json() as { secret: string };
-      expect((await client.request('/api/auth/totp/enable', { method: 'POST', body: { code: await generate({ secret: setupPayload.secret }) } })).status).toBe(200);
+      const setupPayload = (await setupResponse.json()) as { secret: string };
+      expect(
+        (
+          await client.request('/api/auth/totp/enable', {
+            method: 'POST',
+            body: { code: await generate({ secret: setupPayload.secret }) },
+          })
+        ).status,
+      ).toBe(200);
       await reachConfirmation(client);
 
       const missing = await confirm(client);
       expect(missing.status).toBe(400);
       expect(await missing.json()).toMatchObject({ error: 'Authenticator code required' });
-      expect((await confirm(client, { password: PASSWORD, totpCode: await generate({ secret: generateSecret() }) })).status).toBe(400);
+      expect(
+        (await confirm(client, { password: PASSWORD, totpCode: await generate({ secret: generateSecret() }) })).status,
+      ).toBe(400);
       expect(database.getAuthUserById(adminId)?.oidc_subject).toBeNull();
 
-      const response = await confirm(client, { password: PASSWORD, totpCode: await generate({ secret: setupPayload.secret }) });
+      const response = await confirm(client, {
+        password: PASSWORD,
+        totpCode: await generate({ secret: setupPayload.secret }),
+      });
       expect(response.status).toBe(200);
       expect(database.getAuthUserById(adminId)?.oidc_subject).toBe('alice-sub');
     });
@@ -407,7 +454,13 @@ describe('linking local and SSO sign-in', () => {
     });
 
     test('a pending password change blocks starting a link', async () => {
-      database.createAuthUser({ username: 'fresh', passwordHash, role: 'read-only', authProvider: 'password', passwordChangeRequired: true });
+      database.createAuthUser({
+        username: 'fresh',
+        passwordHash,
+        role: 'read-only',
+        authProvider: 'password',
+        passwordChangeRequired: true,
+      });
       const client = await signedIn('fresh');
       expect((await client.request('/api/auth/oidc/link/start', { method: 'POST' })).status).toBe(403);
     });
@@ -415,7 +468,7 @@ describe('linking local and SSO sign-in', () => {
     test('credentials changed at the provider step invalidate the intent', async () => {
       const client = await signedIn();
       const start = await client.request('/api/auth/oidc/link/start', { method: 'POST' });
-      const { redirectUrl } = await start.json() as { redirectUrl: string };
+      const { redirectUrl } = (await start.json()) as { redirectUrl: string };
       database.resetAuthUserPassword(adminId, passwordHash, false);
 
       const response = await throughProvider(client, redirectUrl, identity());
@@ -450,7 +503,7 @@ describe('linking local and SSO sign-in', () => {
     test('a failed provider sign-in returns to the account page', async () => {
       const client = await signedIn();
       const start = await client.request('/api/auth/oidc/link/start', { method: 'POST' });
-      const { redirectUrl } = await start.json() as { redirectUrl: string };
+      const { redirectUrl } = (await start.json()) as { redirectUrl: string };
       const state = new URL(redirectUrl).searchParams.get('state');
       const response = await client.request(`/api/auth/oidc/callback?error=access_denied&state=${state}`);
       expect(response.headers.get('location')).toContain('oidcLink=failed');
@@ -462,9 +515,12 @@ describe('linking local and SSO sign-in', () => {
     });
 
     test('an unreachable provider fails the start without changing anything', async () => {
-      vi.stubGlobal('fetch', vi.fn(async () => {
-        throw new TypeError('fetch failed');
-      }));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          throw new TypeError('fetch failed');
+        }),
+      );
       const client = await signedIn();
       expect((await client.request('/api/auth/oidc/link/start', { method: 'POST' })).status).toBe(502);
     });
@@ -517,11 +573,17 @@ describe('linking local and SSO sign-in', () => {
       const sso = browser();
       await ssoSignIn(sso);
 
-      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(DENIED_LOGIN_URL);
+      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(
+        DENIED_LOGIN_URL,
+      );
       expect(await sso.me()).toBeNull();
       expect(await local.me()).toMatchObject({ role: 'admin' });
       await signedIn();
-      expect(database.getAuthUserById(adminId)).toMatchObject({ role: 'admin', oidc_role: null, oidc_subject: 'alice-sub' });
+      expect(database.getAuthUserById(adminId)).toMatchObject({
+        role: 'admin',
+        oidc_role: null,
+        oidc_subject: 'alice-sub',
+      });
       expect(await (await local.linkStatus()).json()).toMatchObject({ link: { username: 'alice', role: null } });
     });
 
@@ -578,11 +640,14 @@ describe('linking local and SSO sign-in', () => {
       const sso = browser();
       await ssoSignIn(sso);
 
-      const settings = await (await sso.request('/api/auth/settings')).json() as Record<string, unknown>;
+      const settings = (await (await sso.request('/api/auth/settings')).json()) as Record<string, unknown>;
       expect(settings).toMatchObject({ passkeysAvailable: false, totpEnabled: false, authMethod: 'oidc' });
 
       const refused = [
-        await sso.request('/api/auth/change-password', { method: 'POST', body: { currentPassword: PASSWORD, newPassword: 'NewPassword2' } }),
+        await sso.request('/api/auth/change-password', {
+          method: 'POST',
+          body: { currentPassword: PASSWORD, newPassword: 'NewPassword2' },
+        }),
         await sso.request('/api/auth/webauthn/register/options', { method: 'POST' }),
         await sso.request('/api/auth/webauthn/register/verify', { method: 'POST', body: {} }),
         await sso.request('/api/auth/totp/setup', { method: 'POST' }),
@@ -593,7 +658,7 @@ describe('linking local and SSO sign-in', () => {
       ];
       expect(refused.map((response) => response.status)).toEqual([403, 403, 403, 403, 403, 403, 403, 403]);
 
-      const status = await (await sso.linkStatus()).json() as Record<string, unknown>;
+      const status = (await (await sso.linkStatus()).json()) as Record<string, unknown>;
       expect(status).toMatchObject({ canManage: false, link: { username: 'alice', provider: 'current' } });
     });
 
@@ -622,12 +687,16 @@ describe('linking local and SSO sign-in', () => {
       expect(await stale.me()).toMatchObject({ role: 'admin' });
 
       expect((await stale.request(`/api/auth/users/${bossId}`, { method: 'DELETE' })).status).toBe(400);
-      expect((await stale.request(`/api/auth/users/${bossId}`, { method: 'PATCH', body: { disabled: true } })).status).toBe(400);
-      expect((await stale.request(`/api/auth/users/${bossId}`, { method: 'PATCH', body: { role: 'read-only' } })).status).toBe(400);
+      expect(
+        (await stale.request(`/api/auth/users/${bossId}`, { method: 'PATCH', body: { disabled: true } })).status,
+      ).toBe(400);
+      expect(
+        (await stale.request(`/api/auth/users/${bossId}`, { method: 'PATCH', body: { role: 'read-only' } })).status,
+      ).toBe(400);
       expect(database.getAuthUserById(bossId)).toMatchObject({ disabled: 0, role: 'admin' });
     });
 
-    test('the configured provider\'s SSO admin can remove a local administrator', async () => {
+    test("the configured provider's SSO admin can remove a local administrator", async () => {
       const bossId = addAdmin();
       database.updateAuthUserRole(adminId, 'read-only');
       await linkedAdmin();
@@ -640,7 +709,9 @@ describe('linking local and SSO sign-in', () => {
       database.updateAuthUserRole(adminId, 'read-only');
       await linkedAdmin();
       const stale = ssoSessionOf(addLinkedUser('stale', OTHER_ISSUER));
-      expect((await stale.request(`/api/auth/users/${adminId}`, { method: 'PATCH', body: { disabled: true } })).status).toBe(400);
+      expect(
+        (await stale.request(`/api/auth/users/${adminId}`, { method: 'PATCH', body: { disabled: true } })).status,
+      ).toBe(400);
       expect(database.getAuthUserById(adminId)?.disabled).toBe(0);
     });
 
@@ -656,7 +727,9 @@ describe('linking local and SSO sign-in', () => {
       const local = await linkedAdmin();
       expect((await unlink(local)).status).toBe(400);
 
-      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(DENIED_LOGIN_URL);
+      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(
+        DENIED_LOGIN_URL,
+      );
       expect((await unlink(local)).status).toBe(200);
       expect(database.getAuthUserById(adminId)).toMatchObject({ role: 'read-only', oidc_subject: null });
     });
@@ -667,7 +740,9 @@ describe('linking local and SSO sign-in', () => {
       addLinkedUser('denied');
       const stale = ssoSessionOf(addLinkedUser('stale', OTHER_ISSUER));
 
-      expect((await ssoSignIn(browser(), identity({ sub: 'denied-sub', groups: ['strangers'] }))).headers.get('location')).toBe(DENIED_LOGIN_URL);
+      expect(
+        (await ssoSignIn(browser(), identity({ sub: 'denied-sub', groups: ['strangers'] }))).headers.get('location'),
+      ).toBe(DENIED_LOGIN_URL);
       expect((await stale.request(`/api/auth/users/${bossId}`, { method: 'DELETE' })).status).toBe(400);
     });
 
@@ -677,7 +752,9 @@ describe('linking local and SSO sign-in', () => {
       const ssoId = addSsoAccount();
       const stale = ssoSessionOf(addLinkedUser('stale', OTHER_ISSUER));
 
-      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(DENIED_LOGIN_URL);
+      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(
+        DENIED_LOGIN_URL,
+      );
       expect(database.getAuthUserById(ssoId)?.role).toBe('read-only');
       expect((await stale.request(`/api/auth/users/${bossId}`, { method: 'DELETE' })).status).toBe(400);
 
@@ -686,9 +763,13 @@ describe('linking local and SSO sign-in', () => {
     });
 
     test('denying an identity leaves the role of an account with a password alone', async () => {
-      database.db.prepare('UPDATE auth_users SET auth_provider = ?, oidc_issuer = ?, oidc_subject = ? WHERE id = ?').run('oidc', ISSUER, 'alice-sub', adminId);
+      database.db
+        .prepare('UPDATE auth_users SET auth_provider = ?, oidc_issuer = ?, oidc_subject = ? WHERE id = ?')
+        .run('oidc', ISSUER, 'alice-sub', adminId);
 
-      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(DENIED_LOGIN_URL);
+      expect((await ssoSignIn(browser(), identity({ groups: ['strangers'] }))).headers.get('location')).toBe(
+        DENIED_LOGIN_URL,
+      );
       expect(database.getAuthUserById(adminId)?.role).toBe('admin');
     });
 
@@ -712,7 +793,7 @@ describe('linking local and SSO sign-in', () => {
       const client = await signedIn();
       await reachConfirmation(client);
 
-      const status = await (await client.linkStatus()).json() as { pending: { merge: unknown } };
+      const status = (await (await client.linkStatus()).json()) as { pending: { merge: unknown } };
       expect(status.pending.merge).toEqual({ username: 'admin#oidc-1a2b3c4d5e' });
       expect(database.countAuthUsers()).toBe(2);
 
@@ -723,7 +804,9 @@ describe('linking local and SSO sign-in', () => {
     test('its saved filters move over and its sessions end', async () => {
       const ssoId = addSsoAccount();
       const now = new Date().toISOString();
-      const insert = database.db.prepare('INSERT INTO saved_search_filters (id, owner_id, name, query, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)');
+      const insert = database.db.prepare(
+        'INSERT INTO saved_search_filters (id, owner_id, name, query, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      );
       insert.run('moved', ssoId, 'Moved', 'ip:1.2.3.4', now, now);
       insert.run('kept', adminId, 'Taken', 'ip:5.6.7.8', now, now);
       insert.run('dropped', ssoId, 'Taken', 'ip:9.9.9.9', now, now);
@@ -793,10 +876,15 @@ describe('linking local and SSO sign-in', () => {
 
     test('another administrator can remove the link; the owner uses their profile', async () => {
       const client = await linkedAdmin();
-      const otherId = database.createAuthUser({ username: 'other', passwordHash, role: 'admin', authProvider: 'password' });
+      const otherId = database.createAuthUser({
+        username: 'other',
+        passwordHash,
+        role: 'admin',
+        authProvider: 'password',
+      });
       const other = await signedIn('other');
 
-      const list = await (await other.request('/api/auth/users')).json() as {
+      const list = (await (await other.request('/api/auth/users')).json()) as {
         users: Array<{ username: string; source: string; oidcLink: Record<string, unknown> | null }>;
       };
       const admin = list.users.find((user) => user.username === 'admin')!;
@@ -814,7 +902,7 @@ describe('linking local and SSO sign-in', () => {
     });
 
     async function linkProvider(client: Browser): Promise<string> {
-      const status = await (await client.linkStatus()).json() as { link: { provider: string } };
+      const status = (await (await client.linkStatus()).json()) as { link: { provider: string } };
       return status.link.provider;
     }
 
@@ -824,17 +912,23 @@ describe('linking local and SSO sign-in', () => {
 
     test('an unreachable provider does not make a link stale', async () => {
       addLinkedUser('reachable');
-      vi.stubGlobal('fetch', vi.fn(async () => {
-        throw new TypeError('fetch failed');
-      }));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          throw new TypeError('fetch failed');
+        }),
+      );
       expect(await linkProvider(await signedIn('reachable'))).toBe('unavailable');
     });
 
     test('a provider that goes offline after the link is reported as unavailable', async () => {
       const client = await linkedAdmin();
-      vi.stubGlobal('fetch', vi.fn(async () => {
-        throw new TypeError('fetch failed');
-      }));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          throw new TypeError('fetch failed');
+        }),
+      );
       expect(await linkProvider(client)).toBe('unavailable');
     });
 
@@ -864,9 +958,15 @@ describe('linking local and SSO sign-in', () => {
       const client = await linkedAdmin();
       const timeout = AbortSignal.timeout.bind(AbortSignal);
       const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => timeout(10));
-      vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
-      })));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_input: RequestInfo | URL, init?: RequestInit) =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+            }),
+        ),
+      );
 
       expect(await linkProvider(client)).toBe('unavailable');
       expect(timeoutSpy).toHaveBeenCalledWith(5000);
@@ -900,12 +1000,16 @@ describe('linking local and SSO sign-in', () => {
       await ssoSignIn(sso, adminClaims({ groups: ['viewers'] }));
 
       expect(database.countAuthUsers()).toBe(1);
-      expect(database.getAuthUserById(adminId)).toMatchObject({ role: 'admin', oidc_role: 'read-only', oidc_link_method: 'username' });
+      expect(database.getAuthUserById(adminId)).toMatchObject({
+        role: 'admin',
+        oidc_role: 'read-only',
+        oidc_link_method: 'username',
+      });
       expect(await local.me()).toMatchObject({ role: 'admin', authMethod: 'password' });
       expect(await sso.me()).toMatchObject({ userId: adminId, role: 'read-only', linkedSso: true });
     });
 
-    test('merges the identity\'s separate SSO account', async () => {
+    test("merges the identity's separate SSO account", async () => {
       addSsoAccount();
       await ssoSignIn(browser(), adminClaims());
       expect(database.listAuthUsers().map((user) => user.username)).toEqual(['admin']);
@@ -934,7 +1038,10 @@ describe('linking local and SSO sign-in', () => {
 
     test('leaves out accounts created while it is on', async () => {
       const admin = await signedIn();
-      const created = await admin.request('/api/auth/users', { method: 'POST', body: { username: 'bob', password: PASSWORD, role: 'read-only' } });
+      const created = await admin.request('/api/auth/users', {
+        method: 'POST',
+        body: { username: 'bob', password: PASSWORD, role: 'read-only' },
+      });
       expect(created.status).toBe(201);
 
       await ssoSignIn(browser(), identity({ sub: 'bob-sub', preferred_username: 'bob' }));
@@ -969,13 +1076,18 @@ describe('linking local and SSO sign-in', () => {
     test('an automatically linked SSO session gets no local credentials', async () => {
       const sso = browser();
       await ssoSignIn(sso, adminClaims());
-      const change = await sso.request('/api/auth/change-password', { method: 'POST', body: { currentPassword: PASSWORD, newPassword: 'NewPassword2' } });
+      const change = await sso.request('/api/auth/change-password', {
+        method: 'POST',
+        body: { currentPassword: PASSWORD, newPassword: 'NewPassword2' },
+      });
       expect(change.status).toBe(403);
     });
 
     test('can be changed in Settings unless the application config sets it', async () => {
       const admin = await signedIn();
-      expect((await admin.request('/api/auth/settings', { method: 'PUT', body: { oidcAutoLinkUsername: false } })).status).toBe(200);
+      expect(
+        (await admin.request('/api/auth/settings', { method: 'PUT', body: { oidcAutoLinkUsername: false } })).status,
+      ).toBe(200);
       expect(await (await admin.request('/api/auth/settings')).json()).toMatchObject({ oidcAutoLinkUsername: false });
 
       ({ controller } = createOidcController({ CONFIG_AUTH_OIDC_AUTO_LINK_USERNAME: 'true' }, database));
@@ -984,7 +1096,10 @@ describe('linking local and SSO sign-in', () => {
         oidcAutoLinkUsername: true,
         managedSettings: { oidcAutoLinkUsername: { path: 'auth.oidc.autoLinkUsername' } },
       });
-      const refused = await managed.request('/api/auth/settings', { method: 'PUT', body: { oidcAutoLinkUsername: false } });
+      const refused = await managed.request('/api/auth/settings', {
+        method: 'PUT',
+        body: { oidcAutoLinkUsername: false },
+      });
       expect(refused.status).toBe(409);
       expect(await refused.json()).toMatchObject({ code: 'MANAGED_BY_CONFIG' });
     });

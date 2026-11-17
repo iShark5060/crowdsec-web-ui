@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { BrandingContext, type BrandingContextValue } from "./branding-context";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+
 import {
   applyDocumentBranding,
   applyThemeBranding,
   fetchBranding,
   getInitialBranding,
   type PublicBranding,
-} from "../lib/branding";
+} from '../lib/branding';
+import { BrandingContext, type BrandingContextValue } from './branding-context';
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
   const [branding, setBranding] = useState<PublicBranding>(getInitialBranding);

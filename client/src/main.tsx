@@ -1,10 +1,12 @@
+import './index.css';
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import './index.css';
+
 import App from './App';
-import { I18nProvider } from './lib/I18nProvider';
 import { DateTimeProvider } from './lib/DateTimeProvider';
 import { FontProvider } from './lib/FontProvider';
+import { I18nProvider } from './lib/I18nProvider';
 
 const root = document.getElementById('root');
 

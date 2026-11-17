@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatAlertSessionDuration } from '../alertGrouping';
+
 import ar from '../../locales/ar.json';
 import de from '../../locales/de.json';
 import en from '../../locales/en.json';
@@ -11,6 +11,7 @@ import ko from '../../locales/ko.json';
 import pt from '../../locales/pt.json';
 import ru from '../../locales/ru.json';
 import zh from '../../locales/zh.json';
+import { formatAlertSessionDuration } from '../alertGrouping';
 
 const at = (minutes: number, seconds = 0) => new Date(Date.UTC(2026, 10, 1, 12, minutes, seconds)).toISOString();
 
@@ -38,11 +39,14 @@ describe('alert session locale coverage', () => {
     expect(keys.length).toBeGreaterThan(0);
   });
 
-  test.each(Object.entries({ ar, de, es, fr, hi, ja, ko, pt, ru, zh }))('%s contains every key and placeholder', (_language, locale) => {
-    const translations = locale as Record<string, string>;
-    const placeholders = (value: string) => (value.match(/\{\w+\}/g) || []).sort();
-    for (const key of keys) {
-      expect(placeholders(translations[key] ?? '')).toEqual(placeholders((en as Record<string, string>)[key]));
-    }
-  });
+  test.each(Object.entries({ ar, de, es, fr, hi, ja, ko, pt, ru, zh }))(
+    '%s contains every key and placeholder',
+    (_language, locale) => {
+      const translations = locale as Record<string, string>;
+      const placeholders = (value: string) => (value.match(/\{\w+\}/g) || []).sort();
+      for (const key of keys) {
+        expect(placeholders(translations[key] ?? '')).toEqual(placeholders((en as Record<string, string>)[key]));
+      }
+    },
+  );
 });

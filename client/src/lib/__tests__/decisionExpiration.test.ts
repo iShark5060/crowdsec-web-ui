@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import type { DecisionListItem } from '../../types';
 import { formatRemainingDuration, getDecisionExpirationState } from '../decisionExpiration';
 
@@ -35,10 +36,7 @@ describe('decision expiration formatting', () => {
   });
 
   test('calculates live remaining time from the absolute expiration timestamp', () => {
-    const state = getDecisionExpirationState(
-      createDecision(),
-      Date.parse('2026-07-05T12:21:15.000Z'),
-    );
+    const state = getDecisionExpirationState(createDecision(), Date.parse('2026-07-05T12:21:15.000Z'));
 
     expect(state).toMatchObject({
       isExpired: false,
@@ -48,19 +46,18 @@ describe('decision expiration formatting', () => {
   });
 
   test('marks decisions expired once the expiration timestamp passes', () => {
-    const state = getDecisionExpirationState(
-      createDecision(),
-      Date.parse('2026-07-05T16:00:01.000Z'),
-    );
+    const state = getDecisionExpirationState(createDecision(), Date.parse('2026-07-05T16:00:01.000Z'));
 
     expect(state.isExpired).toBe(true);
     expect(state.label).toBe('0s');
   });
 
   test('falls back to server duration when no absolute expiration is available', () => {
-    const state = getDecisionExpirationState(createDecision({
-      detail: { origin: 'manual', duration: '44m40s', expiration: undefined },
-    }));
+    const state = getDecisionExpirationState(
+      createDecision({
+        detail: { origin: 'manual', duration: '44m40s', expiration: undefined },
+      }),
+    );
 
     expect(state).toEqual({
       isExpired: false,

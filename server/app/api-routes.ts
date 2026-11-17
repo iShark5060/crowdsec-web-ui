@@ -1,4 +1,5 @@
 import type { Hono } from 'hono';
+
 import type {
   AddDecisionRequest,
   AlertRecord,
@@ -6,7 +7,6 @@ import type {
   AllowlistMatch,
   BulkAddDecisionRequest,
   BulkAddDecisionResponse,
-  BulkDeleteResult,
   BulkDeleteRequest,
   CleanupByIpRequest,
   ConfigResponse,
@@ -27,14 +27,19 @@ import type {
   UpsertNotificationChannelRequest,
   UpsertNotificationRuleRequest,
 } from '../../shared/contracts';
-import { BULK_ADD_DECISIONS_MAX, DEFAULT_MANUAL_DECISION_SCENARIO, MANUAL_DECISION_LOOKUP_MAX, isValidDecisionScenario } from '../../shared/contracts';
+import {
+  BULK_ADD_DECISIONS_MAX,
+  DEFAULT_MANUAL_DECISION_SCENARIO,
+  MANUAL_DECISION_LOOKUP_MAX,
+  isValidDecisionScenario,
+} from '../../shared/contracts';
 import type { AuditOutcome } from '../audit-log';
 import { resolveManagedSettingSource, type RuntimeConfig } from '../config';
 import type { CrowdsecDatabase } from '../database';
 import type { LapiClient } from '../lapi';
-import type { AllowlistService } from './allowlists';
-import type { DatabaseQueryWorker } from '../query-worker-client';
 import type { PrometheusSample } from '../metrics';
+import type { DatabaseQueryWorker } from '../query-worker-client';
+import type { AllowlistService } from './allowlists';
 import type { DashboardStatsFilters } from './types';
 
 type HonoContext = any;
@@ -86,8 +91,18 @@ export interface ApiRouteDependencies extends Record<string, any> {
  * Scenarios offered for manual decisions on an instance: the default, the instance's
  * configured list (or the global one), and the scenarios added in Settings for every instance.
  */
-export function manualDecisionScenariosOf(config: RuntimeConfig, instance: RuntimeConfig['instances'][number], custom: string[]): string[] {
-  return [...new Set([DEFAULT_MANUAL_DECISION_SCENARIO, ...(instance.manualDecisionScenarios ?? config.manualDecisionScenarios), ...custom])];
+export function manualDecisionScenariosOf(
+  config: RuntimeConfig,
+  instance: RuntimeConfig['instances'][number],
+  custom: string[],
+): string[] {
+  return [
+    ...new Set([
+      DEFAULT_MANUAL_DECISION_SCENARIO,
+      ...(instance.manualDecisionScenarios ?? config.manualDecisionScenarios),
+      ...custom,
+    ]),
+  ];
 }
 
 export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
@@ -97,7 +112,6 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
     ALERT_FACET_FIELDS,
     DECISION_FACET_FIELDS,
     analyticsQueryWorker,
-    attackLocationResolver,
     aggregateHistoricalSyncStatus,
     aggregateLapiStatus,
     allowlistService,
@@ -113,7 +127,6 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
     createSqlWhere,
     dashboardAuth,
     database,
-    deleteAlertFromLapi,
     deleteAlertsByIds,
     deleteAlertsByRefs,
     deleteDecisionFromLapi,
@@ -121,7 +134,6 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
     deleteEntriesByIp,
     deleteEntriesByIpOnInstance,
     enrichAlertLocations,
-    enrichAlertRecordLocations,
     enrichDecisionLocations,
     ensureAuth,
     ensureBootstrapReady,
@@ -135,11 +147,8 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
     getAlertListFilters,
     getDashboardStatsFilters,
     getDecisionListFilters,
-    getEffectiveRequestTimeZone,
     getFacetRequest,
-    getInstanceSyncRuntime,
     getIntervalName,
-    getLapiErrorMessage,
     getPageRequest,
     getStaleDashboardStatsResponseCacheKey,
     handleApiError,
@@ -149,7 +158,6 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
     invalidateDashboardStatsCache,
     instanceSyncStatuses,
     isDashboardStatsBuildInProgress,
-    isPermissionError,
     isValidIpOrRange,
     lapiClient,
     lapiClients,
@@ -177,7 +185,6 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
     refreshFullHistory,
     refreshLatestWindow,
     resolveOperationInstances,
-    runConsistentDatabaseRefresh,
     runNotificationEvaluation,
     saveLanguagePreference,
     saveManualDecisionScenarios,
@@ -192,7 +199,6 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
     summarizeCrowdsecMetrics,
     toDecisionListItem,
     toFailure,
-    toPaginatedResponse,
     toSearchErrorResponse,
     toSlimAlert,
     updateCache,
@@ -225,10 +231,14 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
 
   // Deletions are requested by decision ID, so the banned value (IP or range)
   // is resolved from the local cache while the rows still exist.
-  function resolveDecisionAuditTargets(refs: Array<{ id: string | number; instance_id?: string }>): Array<{ id: string; value?: string }> {
+  function resolveDecisionAuditTargets(
+    refs: Array<{ id: string | number; instance_id?: string }>,
+  ): Array<{ id: string; value?: string }> {
     const targets: Array<{ id: string; value?: string }> = [];
     for (const ref of refs) {
-      const internalId = ref.instance_id ? database.getDecisionInternalId(ref.instance_id, ref.id) : String(ref.id);
+      const internalId = ref.instance_id
+        ? database.getDecisionInternalId(ref.instance_id, ref.id)
+        : String(ref.id);
       const value = internalId === null ? undefined : database.getDecisionById(internalId)?.value;
       targets.push({
         id: ref.instance_id ? `${ref.instance_id}:${ref.id}` : String(ref.id),
@@ -239,622 +249,814 @@ export function registerApiRoutes(dependencies: ApiRouteDependencies): void {
   }
 
   function decisionAuditValues(targets: Array<{ value?: string }>): string[] {
-    return Array.from(new Set(targets.flatMap((target) => target.value ? [target.value] : [])));
+    return Array.from(new Set(targets.flatMap((target) => (target.value ? [target.value] : []))));
   }
 
-app.get(`${config.basePath}/api/alerts`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  try {
-    await prepareOnDemandRefresh(context);
+  app.get(
+    `${config.basePath}/api/alerts`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      try {
+        await prepareOnDemandRefresh(context);
 
-    await prepareReadCache('alerts request');
+        await prepareReadCache('alerts request');
 
-    const pageRequest = getPageRequest(context);
-    if (pageRequest) {
-      const filters = getAlertListFilters(context, config.timeZone);
-      const compiledSearch = compileAlertSearch(filters.q, {
-        machineEnabled: true,
-        originEnabled: true,
-      }, {
-        timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
-        timeZone: filters.timeZone,
-      });
-      if (!compiledSearch.ok) {
-        return context.json(toSearchErrorResponse(compiledSearch.error), 400);
+        const pageRequest = getPageRequest(context);
+        if (pageRequest) {
+          const filters = getAlertListFilters(context, config.timeZone);
+          const compiledSearch = compileAlertSearch(
+            filters.q,
+            {
+              machineEnabled: true,
+              originEnabled: true,
+            },
+            {
+              timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
+              timeZone: filters.timeZone,
+            },
+          );
+          if (!compiledSearch.ok) {
+            return context.json(toSearchErrorResponse(compiledSearch.error), 400);
+          }
+          return context.json(
+            await queryPaginatedAlerts(
+              pageRequest,
+              filters,
+              compiledSearch.ast,
+              context.req.query('include_decisions') !== 'false',
+            ),
+          );
+        }
+
+        const since = new Date(Date.now() - config.lookbackMs).toISOString();
+        const alerts = hydrateAlertsBatch(database.getAlertsSince(since))
+          .map((alert: AlertRecord) => applySimulationModeToAlert(alert, config.simulationsEnabled))
+          .filter((alert: AlertRecord | null): alert is AlertRecord => alert !== null)
+          .map((alert: AlertRecord) => toSlimAlert(alert))
+          .sort(
+            (left: { created_at: string }, right: { created_at: string }) =>
+              new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+          );
+
+        return context.json(await enrichAlertLocations(alerts));
+      } catch (error: any) {
+        if (error instanceof QueryWorkerTimeoutError) {
+          console.warn('Timed out serving alerts from database:', error.message);
+          return context.json({ error: 'Alert query timed out' }, 504);
+        }
+        console.error('Error serving alerts from database:', error.message);
+        return context.json({ error: 'Failed to retrieve alerts' }, 500);
       }
-      return context.json(await queryPaginatedAlerts(
-        pageRequest,
-        filters,
-        compiledSearch.ast,
-        context.req.query('include_decisions') !== 'false',
-      ));
-    }
+    },
+  );
 
-    const since = new Date(Date.now() - config.lookbackMs).toISOString();
-    const alerts = hydrateAlertsBatch(database.getAlertsSince(since))
-      .map((alert: AlertRecord) => applySimulationModeToAlert(alert, config.simulationsEnabled))
-      .filter((alert: AlertRecord | null): alert is AlertRecord => alert !== null)
-      .map((alert: AlertRecord) => toSlimAlert(alert))
-      .sort((left: { created_at: string }, right: { created_at: string }) =>
-        new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
+  app.get(
+    `${config.basePath}/api/alerts/facets`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      const request = getFacetRequest(context, ALERT_FACET_FIELDS);
+      if ('error' in request) {
+        return context.json({ error: request.error }, 400);
+      }
 
-    return context.json(await enrichAlertLocations(alerts));
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      console.warn('Timed out serving alerts from database:', error.message);
-      return context.json({ error: 'Alert query timed out' }, 504);
-    }
-    console.error('Error serving alerts from database:', error.message);
-    return context.json({ error: 'Failed to retrieve alerts' }, 500);
-  }
-});
+      try {
+        await prepareOnDemandRefresh(context);
+        await prepareReadCache('alert facets request');
 
-app.get(`${config.basePath}/api/alerts/facets`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  const request = getFacetRequest(context, ALERT_FACET_FIELDS);
-  if ('error' in request) {
-    return context.json({ error: request.error }, 400);
-  }
+        const filters = getAlertListFilters(context, config.timeZone);
+        const compiledSearch = compileAlertSearch(
+          filters.q,
+          {
+            machineEnabled: true,
+            originEnabled: true,
+          },
+          {
+            timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
+            timeZone: filters.timeZone,
+          },
+        );
+        if (!compiledSearch.ok) {
+          return context.json(toSearchErrorResponse(compiledSearch.error), 400);
+        }
 
-  try {
-    await prepareOnDemandRefresh(context);
-    await prepareReadCache('alert facets request');
+        return context.json(await queryAlertFacet(request, filters, compiledSearch.ast));
+      } catch (error: any) {
+        if (error instanceof QueryWorkerTimeoutError) {
+          return context.json({ error: 'Facet query timed out' }, 504);
+        }
+        console.error('Error serving alert facets from database:', error.message);
+        return context.json({ error: 'Failed to retrieve alert facets' }, 500);
+      }
+    },
+  );
 
-    const filters = getAlertListFilters(context, config.timeZone);
-    const compiledSearch = compileAlertSearch(filters.q, {
-      machineEnabled: true,
-      originEnabled: true,
-    }, {
-      timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
-      timeZone: filters.timeZone,
-    });
-    if (!compiledSearch.ok) {
-      return context.json(toSearchErrorResponse(compiledSearch.error), 400);
-    }
+  app.get(
+    `${config.basePath}/api/alerts/sessions`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      try {
+        await prepareOnDemandRefresh(context);
+        await prepareReadCache('alert sessions request');
 
-    return context.json(await queryAlertFacet(request, filters, compiledSearch.ast));
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      return context.json({ error: 'Facet query timed out' }, 504);
-    }
-    console.error('Error serving alert facets from database:', error.message);
-    return context.json({ error: 'Failed to retrieve alert facets' }, 500);
-  }
-});
+        const filters = getAlertListFilters(context, config.timeZone);
+        const compiledSearch = compileAlertSearch(
+          filters.q,
+          {
+            machineEnabled: true,
+            originEnabled: true,
+          },
+          {
+            timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
+            timeZone: filters.timeZone,
+          },
+        );
+        if (!compiledSearch.ok) {
+          return context.json(toSearchErrorResponse(compiledSearch.error), 400);
+        }
 
-app.get(`${config.basePath}/api/alerts/sessions`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  try {
-    await prepareOnDemandRefresh(context);
-    await prepareReadCache('alert sessions request');
+        return context.json(
+          await queryAlertSessions(
+            getPageRequest(context) ?? { page: 1, pageSize: 50 },
+            filters,
+            compiledSearch.ast,
+          ),
+        );
+      } catch (error: any) {
+        if (error instanceof QueryWorkerTimeoutError) {
+          console.warn('Timed out serving alert sessions from database:', error.message);
+          return context.json({ error: 'Alert session query timed out' }, 504);
+        }
+        console.error('Error serving alert sessions from database:', error.message);
+        return context.json({ error: 'Failed to retrieve alert sessions' }, 500);
+      }
+    },
+  );
 
-    const filters = getAlertListFilters(context, config.timeZone);
-    const compiledSearch = compileAlertSearch(filters.q, {
-      machineEnabled: true,
-      originEnabled: true,
-    }, {
-      timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
-      timeZone: filters.timeZone,
-    });
-    if (!compiledSearch.ok) {
-      return context.json(toSearchErrorResponse(compiledSearch.error), 400);
-    }
+  app.post(`${config.basePath}/api/alerts/bulk-delete`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
 
-    return context.json(await queryAlertSessions(
-      getPageRequest(context) ?? { page: 1, pageSize: 50 },
-      filters,
-      compiledSearch.ast,
-    ));
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      console.warn('Timed out serving alert sessions from database:', error.message);
-      return context.json({ error: 'Alert session query timed out' }, 504);
-    }
-    console.error('Error serving alert sessions from database:', error.message);
-    return context.json({ error: 'Failed to retrieve alert sessions' }, 500);
-  }
-});
+    const doRequest = async () => {
+      const body = await context.req.json<BulkDeleteRequest>();
+      if (Array.isArray(body.refs) && body.refs.length > 0) {
+        const validated = validateInstanceEntityRefs(body.refs);
+        if ('error' in validated) return context.json({ error: validated.error }, 400);
+        const result = await deleteAlertsByRefs(validated);
+        const failedIds = new Set(result.failed.map((failure: { id: string }) => failure.id));
+        const alertIds = capAuditEntries(
+          validated.map((ref: InstanceEntityRef) => `${ref.instance_id}:${ref.id}`),
+        );
+        const targetResults = capAuditEntries(
+          validated.map((ref: InstanceEntityRef) => {
+            const id = `${ref.instance_id}:${ref.id}`;
+            return { id, outcome: failedIds.has(id) ? ('failure' as const) : ('queued' as const) };
+          }),
+        );
+        auditLog.record(context, {
+          action: 'alert.delete',
+          alert_ids: alertIds.entries,
+          target_results: targetResults.entries,
+          ...(alertIds.truncated || targetResults.truncated ? { truncated: true } : {}),
+          requested_alerts: result.requested_alerts,
+          deleted_alerts: result.deleted_alerts,
+          requested_decisions: result.requested_decisions,
+          deleted_decisions: result.deleted_decisions,
+          outcome:
+            result.failed.length === 0
+              ? 'queued'
+              : result.deleted_alerts > 0
+                ? 'partial'
+                : 'failure',
+        });
+        if (result.deleted_decisions > 0) {
+          void runNotificationEvaluation('bulk alert delete');
+        }
+        return context.json(result);
+      }
+      if (!Array.isArray(body.ids) || body.ids.length === 0) {
+        return context.json({ error: 'At least one alert ID is required' }, 400);
+      }
+      if (config.instances.length > 1) {
+        return context.json(
+          {
+            error:
+              'Structured instance refs are required when multiple CrowdSec instances are configured',
+          },
+          400,
+        );
+      }
+      const ids = normalizeDeleteIds(body.ids);
+      if (ids.length !== body.ids.length) {
+        return context.json({ error: 'Alert IDs must be numeric' }, 400);
+      }
 
-app.post(`${config.basePath}/api/alerts/bulk-delete`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const doRequest = async () => {
-    const body = await context.req.json<BulkDeleteRequest>();
-    if (Array.isArray(body.refs) && body.refs.length > 0) {
-      const validated = validateInstanceEntityRefs(body.refs);
-      if ('error' in validated) return context.json({ error: validated.error }, 400);
-      const result = await deleteAlertsByRefs(validated);
-      const failedIds = new Set(result.failed.map((failure: { id: string }) => failure.id));
-      const alertIds = capAuditEntries(validated.map((ref: InstanceEntityRef) => `${ref.instance_id}:${ref.id}`));
-      const targetResults = capAuditEntries(validated.map((ref: InstanceEntityRef) => {
-        const id = `${ref.instance_id}:${ref.id}`;
-        return { id, outcome: failedIds.has(id) ? 'failure' as const : 'queued' as const };
-      }));
+      const result = await deleteAlertsByIds(ids);
+      const alertIds = capAuditEntries(ids);
+      const targetResults = capAuditEntries(
+        ids.map((id: string) => ({ id, outcome: 'queued' as const })),
+      );
       auditLog.record(context, {
         action: 'alert.delete',
         alert_ids: alertIds.entries,
         target_results: targetResults.entries,
         ...(alertIds.truncated || targetResults.truncated ? { truncated: true } : {}),
         requested_alerts: result.requested_alerts,
-        deleted_alerts: result.deleted_alerts,
         requested_decisions: result.requested_decisions,
+        deleted_alerts: result.deleted_alerts,
         deleted_decisions: result.deleted_decisions,
-        outcome: result.failed.length === 0 ? 'queued' : result.deleted_alerts > 0 ? 'partial' : 'failure',
+        outcome: 'queued',
       });
       if (result.deleted_decisions > 0) {
         void runNotificationEvaluation('bulk alert delete');
       }
       return context.json(result);
-    }
-    if (!Array.isArray(body.ids) || body.ids.length === 0) {
-      return context.json({ error: 'At least one alert ID is required' }, 400);
-    }
-    if (config.instances.length > 1) {
-      return context.json({ error: 'Structured instance refs are required when multiple CrowdSec instances are configured' }, 400);
-    }
-    const ids = normalizeDeleteIds(body.ids);
-    if (ids.length !== body.ids.length) {
-      return context.json({ error: 'Alert IDs must be numeric' }, 400);
-    }
+    };
 
-    const result = await deleteAlertsByIds(ids);
-    const alertIds = capAuditEntries(ids);
-    const targetResults = capAuditEntries(ids.map((id: string) => ({ id, outcome: 'queued' as const })));
-    auditLog.record(context, {
-      action: 'alert.delete',
-      alert_ids: alertIds.entries,
-      target_results: targetResults.entries,
-      ...(alertIds.truncated || targetResults.truncated ? { truncated: true } : {}),
-      requested_alerts: result.requested_alerts,
-      requested_decisions: result.requested_decisions,
-      deleted_alerts: result.deleted_alerts,
-      deleted_decisions: result.deleted_decisions,
-      outcome: 'queued',
-    });
-    if (result.deleted_decisions > 0) {
-      void runNotificationEvaluation('bulk alert delete');
-    }
-    return context.json(result);
-  };
-
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'bulk deleting alerts', doRequest);
-  }
-});
-
-app.get(`${config.basePath}/api/alerts/:id`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  if (config.instances.length > 1) return context.json({ error: 'instance_id is required when multiple CrowdSec instances are configured' }, 400);
-  const alertId = String(context.req.param('id'));
-  if (!/^\d+$/.test(alertId)) {
-    return context.json({ error: 'Invalid alert ID' }, 400);
-  }
-
-  const doRequest = async () => {
-    if (context.req.query('include_decisions') === 'false') {
-      const snapshot = database.getAlertDecisionSnapshot(alertId);
-      let alert = snapshot ? normalizeAlertDetail(JSON.parse(snapshot.raw_data), alertId) : null;
-      if (!alert) {
-        alert = normalizeAlertDetail(await lapiClient.getAlertById(alertId), alertId);
-      }
-      if (!alert) {
-        return context.json({ error: 'Alert not found' }, 404);
-      }
-      const payload = applySimulationModeToAlert({ ...withAlertTargetSummary(alert), decisions: [] }, config.simulationsEnabled);
-      return payload ? context.json(payload) : context.json({ error: 'Alert not found' }, 404);
-    }
-
-    const alertData = await lapiClient.getAlertById(alertId);
-    const normalizedAlert = normalizeAlertDetail(alertData, alertId);
-    if (!normalizedAlert) {
-      return context.json({ error: 'Alert not found' }, 404);
-    }
-
-    const payload = applySimulationModeToAlert(hydrateAlertWithDecisions(withAlertTargetSummary(normalizedAlert)), config.simulationsEnabled);
-    if (!payload) {
-      return context.json({ error: 'Alert not found' }, 404);
-    }
-    return context.json(payload);
-  };
-
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'fetching alert details', doRequest);
-  }
-});
-
-app.delete(`${config.basePath}/api/alerts/:id`, ensureAuth, async (context) => {
-  if (config.instances.length > 1) return context.json({ error: 'instance_id is required when multiple CrowdSec instances are configured' }, 400);
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const alertId = String(context.req.param('id'));
-  if (!/^\d+$/.test(alertId)) {
-    return context.json({ error: 'Invalid alert ID' }, 400);
-  }
-
-  const doRequest = async () => {
-    const result = await deleteAlertsByIds([alertId]);
-    auditLog.record(context, {
-      action: 'alert.delete',
-      alert_ids: [alertId],
-      target_results: [{ id: alertId, outcome: 'queued' }],
-      requested_alerts: result.requested_alerts,
-      requested_decisions: result.requested_decisions,
-      deleted_alerts: result.deleted_alerts,
-      deleted_decisions: result.deleted_decisions,
-      outcome: 'queued',
-    });
-    if (result.deleted_decisions > 0) {
-      void runNotificationEvaluation('alert decision delete');
-    }
-    return context.json(result);
-  };
-
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'deleting alert', doRequest);
-  }
-});
-
-app.get(`${config.basePath}/api/decisions`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  try {
-    await prepareOnDemandRefresh(context);
-
-    await prepareReadCache('decisions request');
-
-    const pageRequest = getPageRequest(context);
-    const includeExpired = context.req.query('include_expired') === 'true';
-    if (pageRequest) {
-      const filters = getDecisionListFilters(context, config.timeZone);
-      const compiledSearch = compileDecisionSearch(filters.q, {
-        machineEnabled: true,
-        originEnabled: true,
-      }, {
-        timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
-        timeZone: filters.timeZone,
-      });
-      if (!compiledSearch.ok) {
-        return context.json(toSearchErrorResponse(compiledSearch.error), 400);
-      }
-      return context.json(await queryPaginatedDecisions(pageRequest, filters, compiledSearch.ast, includeExpired));
-    }
-
-    const now = new Date().toISOString();
-    const since = new Date(Date.now() - config.lookbackMs).toISOString();
-    const rows = includeExpired
-      ? database.getDecisionsSince(since, now)
-      : database.getActiveDecisions(now);
-
-    const [alertCoordinates, alertKinds] = await Promise.all([
-      getAlertCoordinatesByIds(rows.map((row) => row.alert_id)),
-      getAlertKindsByIds(rows.map((row) => row.alert_id)),
-    ]);
-
-    let decisions = rows.map((row) => {
-      const decision = decisionFromRow(row);
-      const kind = row.alert_id === undefined || row.alert_id === null
-        ? undefined
-        : alertKinds.get(String(row.alert_id));
-      if (kind) decision.kind = kind;
-      return toDecisionListItem(decision, includeExpired);
-    });
-    if (!config.simulationsEnabled) {
-      decisions = decisions.filter((decision) => !decision.simulated);
-    }
-    decisions = markDuplicateDecisions(decisions);
-    decisions.sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime());
-    decisions = await enrichDecisionLocations(decisions, alertCoordinates);
-
-    return context.json(decisions);
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      console.warn('Timed out serving decisions from database:', error.message);
-      return context.json({ error: 'Decision query timed out' }, 504);
-    }
-    console.error('Error serving decisions from database:', error.message);
-    return context.json({ error: 'Failed to retrieve decisions' }, 500);
-  }
-});
-
-app.get(`${config.basePath}/api/decisions/facets`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  const request = getFacetRequest(context, DECISION_FACET_FIELDS);
-  if ('error' in request) {
-    return context.json({ error: request.error }, 400);
-  }
-
-  try {
-    await prepareOnDemandRefresh(context);
-    await prepareReadCache('decision facets request');
-
-    const filters = getDecisionListFilters(context, config.timeZone);
-    const compiledSearch = compileDecisionSearch(filters.q, {
-      machineEnabled: true,
-      originEnabled: true,
-    }, {
-      timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
-      timeZone: filters.timeZone,
-    });
-    if (!compiledSearch.ok) {
-      return context.json(toSearchErrorResponse(compiledSearch.error), 400);
-    }
-
-    return context.json(await queryDecisionFacet(
-      request,
-      filters,
-      compiledSearch.ast,
-      context.req.query('include_expired') === 'true',
-    ));
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      return context.json({ error: 'Facet query timed out' }, 504);
-    }
-    console.error('Error serving decision facets from database:', error.message);
-    return context.json({ error: 'Failed to retrieve decision facets' }, 500);
-  }
-});
-
-app.get(`${config.basePath}/api/instances/:instanceId/alerts/:id`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  const instanceId = String(context.req.param('instanceId'));
-  const instance = config.instances.find((candidate) => candidate.id === instanceId);
-  if (!instance) return context.json({ error: 'Unknown CrowdSec instance' }, 404);
-  try {
-    const alert = normalizeAlertDetail(await lapiClients.get(instanceId)!.getAlertById(context.req.param('id')), context.req.param('id'));
-    return alert
-      ? context.json(withInstanceName({ ...withAlertTargetSummary(alert), instance_id: instanceId }))
-      : context.json({ error: 'Alert not found' }, 404);
-  } catch (error: any) {
-    return context.json({ error: error?.message || 'Failed to retrieve alert' }, error?.status === 404 ? 404 : 502);
-  }
-});
-
-app.delete(`${config.basePath}/api/instances/:instanceId/alerts/:id`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-  const instanceId = String(context.req.param('instanceId'));
-  const instance = config.instances.find((candidate) => candidate.id === instanceId);
-  if (!instance) return context.json({ error: 'Unknown CrowdSec instance' }, 404);
-  try {
-    const alertId = String(context.req.param('id'));
-    if (!/^\d+$/.test(alertId)) return context.json({ error: 'Invalid alert ID' }, 400);
-    const result = await deleteAlertsByRefs([{ instance_id: instanceId, id: alertId }]);
-    if (result.failed.length > 0) return context.json({ error: result.failed[0].error }, 502);
-    auditLog.record(context, {
-      action: 'alert.delete',
-      alert_ids: [alertId],
-      target_results: [{ id: `${instanceId}:${alertId}`, outcome: 'queued' }],
-      instance: instance.name,
-      instance_id: instance.id,
-      outcome: 'queued',
-    });
-    if (result.deleted_decisions > 0) {
-      void runNotificationEvaluation('alert decision delete');
-    }
-    return context.json(result);
-  } catch (error: any) {
-    return context.json({ error: error?.message || 'Failed to delete alert' }, 502);
-  }
-});
-
-app.delete(`${config.basePath}/api/instances/:instanceId/decisions/:id`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-  const instanceId = String(context.req.param('instanceId'));
-  const instance = config.instances.find((candidate) => candidate.id === instanceId);
-  if (!instance) return context.json({ error: 'Unknown CrowdSec instance' }, 404);
-  try {
-    const decisionId = String(context.req.param('id'));
-    const targets = resolveDecisionAuditTargets([{ id: decisionId, instance_id: instanceId }]);
-    const values = decisionAuditValues(targets);
-    await lapiClients.get(instanceId)!.deleteDecision(decisionId);
     try {
-      await syncWorker.runExclusive(() => {
-        database.deleteDecisionByInstanceId(instanceId, decisionId);
-        database.refreshDecisionDuplicateFlags(new Date().toISOString());
-      });
+      return await doRequest();
     } catch (error) {
-      auditLog.record(context, {
-        action: 'decision.delete',
-        decision_ids: [decisionId],
-        target_results: targets.map((target) => ({ ...target, outcome: 'partial' })),
-        ...(values.length > 0 ? { values } : {}),
-        instance: instance.name,
-        instance_id: instance.id,
-        remote_deleted: true,
-        local_cache_updated: false,
-        outcome: 'partial',
-      });
-      throw error;
+      return handleApiError(error as AnyError, context, 'bulk deleting alerts', doRequest);
     }
-    invalidateDashboardStatsCache();
-    auditLog.record(context, {
-      action: 'decision.delete',
-      decision_ids: [decisionId],
-      target_results: targets.map((target) => ({ ...target, outcome: 'success' })),
-      ...(values.length > 0 ? { values } : {}),
-      instance: instance.name,
-      instance_id: instance.id,
-      outcome: 'success',
-    });
-    return context.json({ message: 'Deleted' });
-  } catch (error: any) {
-    return context.json({ error: error?.message || 'Failed to delete decision' }, 502);
-  }
-});
+  });
 
-// Only shapes the Web UI's Add Decision form; POST /api/decisions accepts any valid scenario.
-// Scenarios added in Settings apply to every instance on top of the configured list.
-const manualDecisionScenarios = (instance: RuntimeConfig['instances'][number]): string[] => manualDecisionScenariosOf(config, instance, state.manualDecisionScenarios);
-const configuredManualDecisionScenarios = (): string[] => [
-  ...new Set([
-    ...config.manualDecisionScenarios,
-    ...config.instances.flatMap((instance) => instance.manualDecisionScenarios ?? []),
-  ]),
-];
-const MAX_CUSTOM_MANUAL_DECISION_SCENARIOS = 100;
-const managedConfigSettings: Partial<Record<ManagedConfigSetting, ManagedSettingSource>> = {
-  ...(config.metricsSidebarVisibleManaged
-    ? { metrics_sidebar_visible: resolveManagedSettingSource(config.configEnvironmentOverrides, 'ui.metricsSidebarVisible') }
-    : {}),
-  ...(config.allowlistsSidebarVisibleManaged
-    ? { allowlists_sidebar_visible: resolveManagedSettingSource(config.configEnvironmentOverrides, 'ui.allowlistsSidebarVisible') }
-    : {}),
-  ...(config.statisticsSidebarVisibleManaged
-    ? { statistics_sidebar_visible: resolveManagedSettingSource(config.configEnvironmentOverrides, 'ui.statisticsSidebarVisible') }
-    : {}),
-  ...(config.refreshIntervalManaged
-    ? { refresh_interval: resolveManagedSettingSource(config.configEnvironmentOverrides, 'crowdsec.sync.refreshInterval') }
-    : {}),
-  ...(config.manualRefreshEnabledManaged
-    ? { manual_refresh_enabled: resolveManagedSettingSource(config.configEnvironmentOverrides, 'crowdsec.sync.manualRefreshEnabled') }
-    : {}),
-};
-// Personal preferences belong to the signed-in user. Without dashboard authentication there
-// are no users, so they stay instance-wide.
-const preferenceUserId = (context: HonoContext): number | null => {
-  if (!dashboardAuth.enabled) return null;
-  const userId = dashboardAuth.getSession(context)?.userId;
-  return userId && userId > 0 ? userId : null;
-};
-const SIDEBAR_PREFERENCE_KEYS = ['metrics_sidebar_visible', 'allowlists_sidebar_visible', 'statistics_sidebar_visible'] as const;
-// The configuration locks a sidebar for everyone; otherwise a user's choice wins over the instance-wide value.
-const resolveSidebarVisibility = (context: HonoContext) => {
-  const userId = preferenceUserId(context);
-  const preferences = userId ? database.getUserPreferences(userId) : {};
-  const [metricsKey, allowlistsKey, statisticsKey] = SIDEBAR_PREFERENCE_KEYS;
-  return {
-    metrics_sidebar_visible: !config.metricsSidebarVisibleManaged && preferences[metricsKey] !== undefined
-      ? preferences[metricsKey] === 'true'
-      : state.metricsSidebarVisible,
-    allowlists_sidebar_visible: !config.allowlistsSidebarVisibleManaged && preferences[allowlistsKey] !== undefined
-      ? preferences[allowlistsKey] === 'true'
-      : state.allowlistsSidebarVisible,
-    statistics_sidebar_visible: !config.statisticsSidebarVisibleManaged && preferences[statisticsKey] !== undefined
-      ? preferences[statisticsKey] === 'true'
-      : state.statisticsSidebarVisible,
-  };
-};
-const FONT_PREFERENCE_PATTERN = /^[a-z0-9-]{1,64}$/;
+  app.get(
+    `${config.basePath}/api/alerts/:id`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      if (config.instances.length > 1)
+        return context.json(
+          { error: 'instance_id is required when multiple CrowdSec instances are configured' },
+          400,
+        );
+      const alertId = String(context.req.param('id'));
+      if (!/^\d+$/.test(alertId)) {
+        return context.json({ error: 'Invalid alert ID' }, 400);
+      }
 
-const managedByConfigResponse = (context: HonoContext, setting: string) => context.json({
-  error: `${setting} is managed by the application configuration`,
-  code: 'MANAGED_BY_CONFIG',
-}, 409);
+      const doRequest = async () => {
+        if (context.req.query('include_decisions') === 'false') {
+          const snapshot = database.getAlertDecisionSnapshot(alertId);
+          let alert = snapshot
+            ? normalizeAlertDetail(JSON.parse(snapshot.raw_data), alertId)
+            : null;
+          if (!alert) {
+            alert = normalizeAlertDetail(await lapiClient.getAlertById(alertId), alertId);
+          }
+          if (!alert) {
+            return context.json({ error: 'Alert not found' }, 404);
+          }
+          const payload = applySimulationModeToAlert(
+            { ...withAlertTargetSummary(alert), decisions: [] },
+            config.simulationsEnabled,
+          );
+          return payload ? context.json(payload) : context.json({ error: 'Alert not found' }, 404);
+        }
 
-app.get(`${config.basePath}/api/config`, ensureAuth, (context) => {
-  const hours = lookbackHours(config.lookbackPeriod);
-  const payload: ConfigResponse = {
-    statistics: dependencies.statistics.configuration(),
-    lookback_period: config.lookbackPeriod,
-    lookback_hours: hours,
-    lookback_days: Math.max(1, Math.round(hours / 24)),
-    refresh_interval: state.refreshIntervalMs,
-    manual_refresh_enabled: state.manualRefreshEnabled,
-    managed_settings: managedConfigSettings,
-    current_interval_name: getIntervalName(state.refreshIntervalMs),
-    lapi_status: lapiClient.getStatus(),
-    instances: config.instances.map((instance) => ({
-      id: instance.id,
-      name: instance.name,
-      icon: instance.icon,
-      lapi_status: lapiClients.get(instance.id)!.getStatus(),
-      sync_status: { ...(instanceSyncStatuses.get(instance.id) || syncStatus) },
-      prometheus: instance.prometheus.map((endpoint) => ({ id: endpoint.id, name: endpoint.name, icon: endpoint.icon })),
-      sync_overrides: { ...instance.sync },
-      manual_decision_scenarios: manualDecisionScenarios(instance),
-    })),
-    aggregate_lapi_status: aggregateLapiStatus(),
-    sync_status: aggregateHistoricalSyncStatus(),
-    cache_last_update: state.cacheRefreshCompletedAt,
-    next_refresh_at: state.nextRefreshAt,
-    simulations_enabled: config.simulationsEnabled,
-    machine_features_enabled: true,
-    origin_features_enabled: true,
-    time_zone: config.timeZone,
-    time_format: config.timeFormat,
-    date_format: config.dateFormat,
-    metrics_enabled: config.instances.some((instance) => instance.prometheus.length > 0),
-    ...resolveSidebarVisibility(context),
-    manual_decision_scenario_settings: {
-      configured: configuredManualDecisionScenarios(),
-      custom: [...state.manualDecisionScenarios],
+        const alertData = await lapiClient.getAlertById(alertId);
+        const normalizedAlert = normalizeAlertDetail(alertData, alertId);
+        if (!normalizedAlert) {
+          return context.json({ error: 'Alert not found' }, 404);
+        }
+
+        const payload = applySimulationModeToAlert(
+          hydrateAlertWithDecisions(withAlertTargetSummary(normalizedAlert)),
+          config.simulationsEnabled,
+        );
+        if (!payload) {
+          return context.json({ error: 'Alert not found' }, 404);
+        }
+        return context.json(payload);
+      };
+
+      try {
+        return await doRequest();
+      } catch (error) {
+        return handleApiError(error as AnyError, context, 'fetching alert details', doRequest);
+      }
     },
-    ...(config.deploymentMode === 'load-test' ? { deployment_mode: config.deploymentMode } : {}),
-    ...(config.loadTestProfile ? { load_test_profile: config.loadTestProfile } : {}),
-    permissions: dashboardAuth.getPermissions(context),
+  );
+
+  app.delete(`${config.basePath}/api/alerts/:id`, ensureAuth, async (context) => {
+    if (config.instances.length > 1)
+      return context.json(
+        { error: 'instance_id is required when multiple CrowdSec instances are configured' },
+        400,
+      );
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const alertId = String(context.req.param('id'));
+    if (!/^\d+$/.test(alertId)) {
+      return context.json({ error: 'Invalid alert ID' }, 400);
+    }
+
+    const doRequest = async () => {
+      const result = await deleteAlertsByIds([alertId]);
+      auditLog.record(context, {
+        action: 'alert.delete',
+        alert_ids: [alertId],
+        target_results: [{ id: alertId, outcome: 'queued' }],
+        requested_alerts: result.requested_alerts,
+        requested_decisions: result.requested_decisions,
+        deleted_alerts: result.deleted_alerts,
+        deleted_decisions: result.deleted_decisions,
+        outcome: 'queued',
+      });
+      if (result.deleted_decisions > 0) {
+        void runNotificationEvaluation('alert decision delete');
+      }
+      return context.json(result);
+    };
+
+    try {
+      return await doRequest();
+    } catch (error) {
+      return handleApiError(error as AnyError, context, 'deleting alert', doRequest);
+    }
+  });
+
+  app.get(
+    `${config.basePath}/api/decisions`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      try {
+        await prepareOnDemandRefresh(context);
+
+        await prepareReadCache('decisions request');
+
+        const pageRequest = getPageRequest(context);
+        const includeExpired = context.req.query('include_expired') === 'true';
+        if (pageRequest) {
+          const filters = getDecisionListFilters(context, config.timeZone);
+          const compiledSearch = compileDecisionSearch(
+            filters.q,
+            {
+              machineEnabled: true,
+              originEnabled: true,
+            },
+            {
+              timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
+              timeZone: filters.timeZone,
+            },
+          );
+          if (!compiledSearch.ok) {
+            return context.json(toSearchErrorResponse(compiledSearch.error), 400);
+          }
+          return context.json(
+            await queryPaginatedDecisions(pageRequest, filters, compiledSearch.ast, includeExpired),
+          );
+        }
+
+        const now = new Date().toISOString();
+        const since = new Date(Date.now() - config.lookbackMs).toISOString();
+        const rows = includeExpired
+          ? database.getDecisionsSince(since, now)
+          : database.getActiveDecisions(now);
+
+        const [alertCoordinates, alertKinds] = await Promise.all([
+          getAlertCoordinatesByIds(rows.map((row) => row.alert_id)),
+          getAlertKindsByIds(rows.map((row) => row.alert_id)),
+        ]);
+
+        let decisions = rows.map((row) => {
+          const decision = decisionFromRow(row);
+          const kind =
+            row.alert_id === undefined || row.alert_id === null
+              ? undefined
+              : alertKinds.get(String(row.alert_id));
+          if (kind) decision.kind = kind;
+          return toDecisionListItem(decision, includeExpired);
+        });
+        if (!config.simulationsEnabled) {
+          decisions = decisions.filter((decision) => !decision.simulated);
+        }
+        decisions = markDuplicateDecisions(decisions);
+        decisions.sort(
+          (left, right) =>
+            new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
+        );
+        decisions = await enrichDecisionLocations(decisions, alertCoordinates);
+
+        return context.json(decisions);
+      } catch (error: any) {
+        if (error instanceof QueryWorkerTimeoutError) {
+          console.warn('Timed out serving decisions from database:', error.message);
+          return context.json({ error: 'Decision query timed out' }, 504);
+        }
+        console.error('Error serving decisions from database:', error.message);
+        return context.json({ error: 'Failed to retrieve decisions' }, 500);
+      }
+    },
+  );
+
+  app.get(
+    `${config.basePath}/api/decisions/facets`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      const request = getFacetRequest(context, DECISION_FACET_FIELDS);
+      if ('error' in request) {
+        return context.json({ error: request.error }, 400);
+      }
+
+      try {
+        await prepareOnDemandRefresh(context);
+        await prepareReadCache('decision facets request');
+
+        const filters = getDecisionListFilters(context, config.timeZone);
+        const compiledSearch = compileDecisionSearch(
+          filters.q,
+          {
+            machineEnabled: true,
+            originEnabled: true,
+          },
+          {
+            timezoneOffsetMinutes: filters.timezoneOffsetMinutes,
+            timeZone: filters.timeZone,
+          },
+        );
+        if (!compiledSearch.ok) {
+          return context.json(toSearchErrorResponse(compiledSearch.error), 400);
+        }
+
+        return context.json(
+          await queryDecisionFacet(
+            request,
+            filters,
+            compiledSearch.ast,
+            context.req.query('include_expired') === 'true',
+          ),
+        );
+      } catch (error: any) {
+        if (error instanceof QueryWorkerTimeoutError) {
+          return context.json({ error: 'Facet query timed out' }, 504);
+        }
+        console.error('Error serving decision facets from database:', error.message);
+        return context.json({ error: 'Failed to retrieve decision facets' }, 500);
+      }
+    },
+  );
+
+  app.get(
+    `${config.basePath}/api/instances/:instanceId/alerts/:id`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      const instanceId = String(context.req.param('instanceId'));
+      const instance = config.instances.find((candidate) => candidate.id === instanceId);
+      if (!instance) return context.json({ error: 'Unknown CrowdSec instance' }, 404);
+      try {
+        const alert = normalizeAlertDetail(
+          await lapiClients.get(instanceId)!.getAlertById(context.req.param('id')),
+          context.req.param('id'),
+        );
+        return alert
+          ? context.json(
+              withInstanceName({ ...withAlertTargetSummary(alert), instance_id: instanceId }),
+            )
+          : context.json({ error: 'Alert not found' }, 404);
+      } catch (error: any) {
+        return context.json(
+          { error: error?.message || 'Failed to retrieve alert' },
+          error?.status === 404 ? 404 : 502,
+        );
+      }
+    },
+  );
+
+  app.delete(
+    `${config.basePath}/api/instances/:instanceId/alerts/:id`,
+    ensureAuth,
+    async (context) => {
+      const readOnlyResponse = ensureCanManageEnforcement(context);
+      if (readOnlyResponse) return readOnlyResponse;
+      const instanceId = String(context.req.param('instanceId'));
+      const instance = config.instances.find((candidate) => candidate.id === instanceId);
+      if (!instance) return context.json({ error: 'Unknown CrowdSec instance' }, 404);
+      try {
+        const alertId = String(context.req.param('id'));
+        if (!/^\d+$/.test(alertId)) return context.json({ error: 'Invalid alert ID' }, 400);
+        const result = await deleteAlertsByRefs([{ instance_id: instanceId, id: alertId }]);
+        if (result.failed.length > 0) return context.json({ error: result.failed[0].error }, 502);
+        auditLog.record(context, {
+          action: 'alert.delete',
+          alert_ids: [alertId],
+          target_results: [{ id: `${instanceId}:${alertId}`, outcome: 'queued' }],
+          instance: instance.name,
+          instance_id: instance.id,
+          outcome: 'queued',
+        });
+        if (result.deleted_decisions > 0) {
+          void runNotificationEvaluation('alert decision delete');
+        }
+        return context.json(result);
+      } catch (error: any) {
+        return context.json({ error: error?.message || 'Failed to delete alert' }, 502);
+      }
+    },
+  );
+
+  app.delete(
+    `${config.basePath}/api/instances/:instanceId/decisions/:id`,
+    ensureAuth,
+    async (context) => {
+      const readOnlyResponse = ensureCanManageEnforcement(context);
+      if (readOnlyResponse) return readOnlyResponse;
+      const instanceId = String(context.req.param('instanceId'));
+      const instance = config.instances.find((candidate) => candidate.id === instanceId);
+      if (!instance) return context.json({ error: 'Unknown CrowdSec instance' }, 404);
+      try {
+        const decisionId = String(context.req.param('id'));
+        const targets = resolveDecisionAuditTargets([{ id: decisionId, instance_id: instanceId }]);
+        const values = decisionAuditValues(targets);
+        await lapiClients.get(instanceId)!.deleteDecision(decisionId);
+        try {
+          await syncWorker.runExclusive(() => {
+            database.deleteDecisionByInstanceId(instanceId, decisionId);
+            database.refreshDecisionDuplicateFlags(new Date().toISOString());
+          });
+        } catch (error) {
+          auditLog.record(context, {
+            action: 'decision.delete',
+            decision_ids: [decisionId],
+            target_results: targets.map((target) => ({ ...target, outcome: 'partial' })),
+            ...(values.length > 0 ? { values } : {}),
+            instance: instance.name,
+            instance_id: instance.id,
+            remote_deleted: true,
+            local_cache_updated: false,
+            outcome: 'partial',
+          });
+          throw error;
+        }
+        invalidateDashboardStatsCache();
+        auditLog.record(context, {
+          action: 'decision.delete',
+          decision_ids: [decisionId],
+          target_results: targets.map((target) => ({ ...target, outcome: 'success' })),
+          ...(values.length > 0 ? { values } : {}),
+          instance: instance.name,
+          instance_id: instance.id,
+          outcome: 'success',
+        });
+        return context.json({ message: 'Deleted' });
+      } catch (error: any) {
+        return context.json({ error: error?.message || 'Failed to delete decision' }, 502);
+      }
+    },
+  );
+
+  // Only shapes the Web UI's Add Decision form; POST /api/decisions accepts any valid scenario.
+  // Scenarios added in Settings apply to every instance on top of the configured list.
+  const manualDecisionScenarios = (instance: RuntimeConfig['instances'][number]): string[] =>
+    manualDecisionScenariosOf(config, instance, state.manualDecisionScenarios);
+  const configuredManualDecisionScenarios = (): string[] => [
+    ...new Set([
+      ...config.manualDecisionScenarios,
+      ...config.instances.flatMap((instance) => instance.manualDecisionScenarios ?? []),
+    ]),
+  ];
+  const MAX_CUSTOM_MANUAL_DECISION_SCENARIOS = 100;
+  const managedConfigSettings: Partial<Record<ManagedConfigSetting, ManagedSettingSource>> = {
+    ...(config.metricsSidebarVisibleManaged
+      ? {
+          metrics_sidebar_visible: resolveManagedSettingSource(
+            config.configEnvironmentOverrides,
+            'ui.metricsSidebarVisible',
+          ),
+        }
+      : {}),
+    ...(config.allowlistsSidebarVisibleManaged
+      ? {
+          allowlists_sidebar_visible: resolveManagedSettingSource(
+            config.configEnvironmentOverrides,
+            'ui.allowlistsSidebarVisible',
+          ),
+        }
+      : {}),
+    ...(config.statisticsSidebarVisibleManaged
+      ? {
+          statistics_sidebar_visible: resolveManagedSettingSource(
+            config.configEnvironmentOverrides,
+            'ui.statisticsSidebarVisible',
+          ),
+        }
+      : {}),
+    ...(config.refreshIntervalManaged
+      ? {
+          refresh_interval: resolveManagedSettingSource(
+            config.configEnvironmentOverrides,
+            'crowdsec.sync.refreshInterval',
+          ),
+        }
+      : {}),
+    ...(config.manualRefreshEnabledManaged
+      ? {
+          manual_refresh_enabled: resolveManagedSettingSource(
+            config.configEnvironmentOverrides,
+            'crowdsec.sync.manualRefreshEnabled',
+          ),
+        }
+      : {}),
   };
+  // Personal preferences belong to the signed-in user. Without dashboard authentication there
+  // are no users, so they stay instance-wide.
+  const preferenceUserId = (context: HonoContext): number | null => {
+    if (!dashboardAuth.enabled) return null;
+    const userId = dashboardAuth.getSession(context)?.userId;
+    return userId && userId > 0 ? userId : null;
+  };
+  const SIDEBAR_PREFERENCE_KEYS = [
+    'metrics_sidebar_visible',
+    'allowlists_sidebar_visible',
+    'statistics_sidebar_visible',
+  ] as const;
+  // The configuration locks a sidebar for everyone; otherwise a user's choice wins over the instance-wide value.
+  const resolveSidebarVisibility = (context: HonoContext) => {
+    const userId = preferenceUserId(context);
+    const preferences = userId ? database.getUserPreferences(userId) : {};
+    const [metricsKey, allowlistsKey, statisticsKey] = SIDEBAR_PREFERENCE_KEYS;
+    return {
+      metrics_sidebar_visible:
+        !config.metricsSidebarVisibleManaged && preferences[metricsKey] !== undefined
+          ? preferences[metricsKey] === 'true'
+          : state.metricsSidebarVisible,
+      allowlists_sidebar_visible:
+        !config.allowlistsSidebarVisibleManaged && preferences[allowlistsKey] !== undefined
+          ? preferences[allowlistsKey] === 'true'
+          : state.allowlistsSidebarVisible,
+      statistics_sidebar_visible:
+        !config.statisticsSidebarVisibleManaged && preferences[statisticsKey] !== undefined
+          ? preferences[statisticsKey] === 'true'
+          : state.statisticsSidebarVisible,
+    };
+  };
+  const FONT_PREFERENCE_PATTERN = /^[a-z0-9-]{1,64}$/;
 
-  return context.json(payload);
-});
+  const managedByConfigResponse = (context: HonoContext, setting: string) =>
+    context.json(
+      {
+        error: `${setting} is managed by the application configuration`,
+        code: 'MANAGED_BY_CONFIG',
+      },
+      409,
+    );
 
-app.get(`${config.basePath}/api/instances`, ensureAuth, (context) => context.json({
-  data: config.instances.map((instance) => ({
-    id: instance.id,
-    name: instance.name,
-    icon: instance.icon,
-    lapi_status: lapiClients.get(instance.id)!.getStatus(),
-    sync_status: { ...(instanceSyncStatuses.get(instance.id) || syncStatus) },
-    prometheus: instance.prometheus.map((endpoint) => ({ id: endpoint.id, name: endpoint.name, icon: endpoint.icon })),
-    sync_overrides: { ...instance.sync },
-    manual_decision_scenarios: manualDecisionScenarios(instance),
-  })),
-  aggregate_status: aggregateLapiStatus(),
-}));
-
-app.get(`${config.basePath}/api/metrics/crowdsec`, ensureAuth, async (context) => {
-  const endpoint = primaryInstance.prometheus[0];
-  if (!endpoint) {
-    return context.json({ error: 'CrowdSec Prometheus metrics are not enabled' }, 404);
-  }
-
-  try {
-    const payload: CrowdsecMetricsResponse = await fetchCrowdsecMetrics({
-      url: endpoint.url,
-      timeoutMs: endpoint.requestTimeoutMs || config.prometheusRequestTimeoutMs,
-      auth: endpoint.auth,
-      tls: endpoint.tls,
-      fetchImpl: options.metricsFetchImpl,
-    });
+  app.get(`${config.basePath}/api/config`, ensureAuth, (context) => {
+    const hours = lookbackHours(config.lookbackPeriod);
+    const payload: ConfigResponse = {
+      statistics: dependencies.statistics.configuration(),
+      lookback_period: config.lookbackPeriod,
+      lookback_hours: hours,
+      lookback_days: Math.max(1, Math.round(hours / 24)),
+      refresh_interval: state.refreshIntervalMs,
+      manual_refresh_enabled: state.manualRefreshEnabled,
+      managed_settings: managedConfigSettings,
+      current_interval_name: getIntervalName(state.refreshIntervalMs),
+      lapi_status: lapiClient.getStatus(),
+      instances: config.instances.map((instance) => ({
+        id: instance.id,
+        name: instance.name,
+        icon: instance.icon,
+        lapi_status: lapiClients.get(instance.id)!.getStatus(),
+        sync_status: { ...(instanceSyncStatuses.get(instance.id) || syncStatus) },
+        prometheus: instance.prometheus.map((endpoint) => ({
+          id: endpoint.id,
+          name: endpoint.name,
+          icon: endpoint.icon,
+        })),
+        sync_overrides: { ...instance.sync },
+        manual_decision_scenarios: manualDecisionScenarios(instance),
+      })),
+      aggregate_lapi_status: aggregateLapiStatus(),
+      sync_status: aggregateHistoricalSyncStatus(),
+      cache_last_update: state.cacheRefreshCompletedAt,
+      next_refresh_at: state.nextRefreshAt,
+      simulations_enabled: config.simulationsEnabled,
+      machine_features_enabled: true,
+      origin_features_enabled: true,
+      time_zone: config.timeZone,
+      time_format: config.timeFormat,
+      date_format: config.dateFormat,
+      metrics_enabled: config.instances.some((instance) => instance.prometheus.length > 0),
+      ...resolveSidebarVisibility(context),
+      manual_decision_scenario_settings: {
+        configured: configuredManualDecisionScenarios(),
+        custom: [...state.manualDecisionScenarios],
+      },
+      ...(config.deploymentMode === 'load-test' ? { deployment_mode: config.deploymentMode } : {}),
+      ...(config.loadTestProfile ? { load_test_profile: config.loadTestProfile } : {}),
+      permissions: dashboardAuth.getPermissions(context),
+    };
 
     return context.json(payload);
-  } catch (error: any) {
-    const message = error?.message || 'Failed to read CrowdSec Prometheus metrics';
-    console.error('Error fetching CrowdSec Prometheus metrics:', message);
-    return context.json({ error: message }, 502);
-  }
-});
+  });
 
-app.get(`${config.basePath}/api/metrics/crowdsec/combined`, ensureAuth, async (context) => {
-  const requestedScope = context.req.query('instance') || primaryInstance.id;
-  const selectedInstances = requestedScope === 'all'
-    ? config.instances
-    : config.instances.filter((instance) => instance.id === requestedScope);
-  if (selectedInstances.length === 0) {
-    return context.json({ error: `Unknown CrowdSec instance scope "${requestedScope}"` }, 404);
-  }
+  app.get(`${config.basePath}/api/instances`, ensureAuth, (context) =>
+    context.json({
+      data: config.instances.map((instance) => ({
+        id: instance.id,
+        name: instance.name,
+        icon: instance.icon,
+        lapi_status: lapiClients.get(instance.id)!.getStatus(),
+        sync_status: { ...(instanceSyncStatuses.get(instance.id) || syncStatus) },
+        prometheus: instance.prometheus.map((endpoint) => ({
+          id: endpoint.id,
+          name: endpoint.name,
+          icon: endpoint.icon,
+        })),
+        sync_overrides: { ...instance.sync },
+        manual_decision_scenarios: manualDecisionScenarios(instance),
+      })),
+      aggregate_status: aggregateLapiStatus(),
+    }),
+  );
 
-  const configuredSources = selectedInstances.flatMap((instance) => instance.prometheus.map((endpoint) => ({
-    instance,
-    endpoint,
-    id: `${instance.id}:${endpoint.id}`,
-  })));
-  if (configuredSources.length === 0) {
-    return context.json({ error: 'No CrowdSec Prometheus metrics endpoints are configured for this scope' }, 404);
-  }
+  app.get(`${config.basePath}/api/metrics/crowdsec`, ensureAuth, async (context) => {
+    const endpoint = primaryInstance.prometheus[0];
+    if (!endpoint) {
+      return context.json({ error: 'CrowdSec Prometheus metrics are not enabled' }, 404);
+    }
 
-  const results = await Promise.allSettled(configuredSources.map(async ({ instance, endpoint, id }) => {
-    const samples = await fetchCrowdsecMetricsSamples({
-      url: endpoint.url,
-      timeoutMs: endpoint.requestTimeoutMs || config.prometheusRequestTimeoutMs,
-      auth: endpoint.auth,
-      tls: endpoint.tls,
-      fetchImpl: options.metricsFetchImpl,
-    });
-    const sourceSummary = summarizeCrowdsecMetrics(samples);
-    return {
-      samples: samples.map((sample: PrometheusSample) => ({ ...sample, source_id: id })),
-      source: {
+    try {
+      const payload: CrowdsecMetricsResponse = await fetchCrowdsecMetrics({
+        url: endpoint.url,
+        timeoutMs: endpoint.requestTimeoutMs || config.prometheusRequestTimeoutMs,
+        auth: endpoint.auth,
+        tls: endpoint.tls,
+        fetchImpl: options.metricsFetchImpl,
+      });
+
+      return context.json(payload);
+    } catch (error: any) {
+      const message = error?.message || 'Failed to read CrowdSec Prometheus metrics';
+      console.error('Error fetching CrowdSec Prometheus metrics:', message);
+      return context.json({ error: message }, 502);
+    }
+  });
+
+  app.get(`${config.basePath}/api/metrics/crowdsec/combined`, ensureAuth, async (context) => {
+    const requestedScope = context.req.query('instance') || primaryInstance.id;
+    const selectedInstances =
+      requestedScope === 'all'
+        ? config.instances
+        : config.instances.filter((instance) => instance.id === requestedScope);
+    if (selectedInstances.length === 0) {
+      return context.json({ error: `Unknown CrowdSec instance scope "${requestedScope}"` }, 404);
+    }
+
+    const configuredSources = selectedInstances.flatMap((instance) =>
+      instance.prometheus.map((endpoint) => ({
+        instance,
+        endpoint,
+        id: `${instance.id}:${endpoint.id}`,
+      })),
+    );
+    if (configuredSources.length === 0) {
+      return context.json(
+        { error: 'No CrowdSec Prometheus metrics endpoints are configured for this scope' },
+        404,
+      );
+    }
+
+    const results = await Promise.allSettled(
+      configuredSources.map(async ({ instance, endpoint, id }) => {
+        const samples = await fetchCrowdsecMetricsSamples({
+          url: endpoint.url,
+          timeoutMs: endpoint.requestTimeoutMs || config.prometheusRequestTimeoutMs,
+          auth: endpoint.auth,
+          tls: endpoint.tls,
+          fetchImpl: options.metricsFetchImpl,
+        });
+        const sourceSummary = summarizeCrowdsecMetrics(samples);
+        return {
+          samples: samples.map((sample: PrometheusSample) => ({ ...sample, source_id: id })),
+          source: {
+            id,
+            instance_id: instance.id,
+            instance_name: instance.name,
+            ...(instance.icon ? { instance_icon: instance.icon } : {}),
+            endpoint_id: endpoint.id,
+            endpoint_name: endpoint.name,
+            ...(endpoint.icon ? { endpoint_icon: endpoint.icon } : {}),
+            status: 'available' as const,
+            fetched_at: sourceSummary.fetched_at,
+            crowdsecVersion: sourceSummary.crowdsecVersion,
+            crowdsecStartedAt: sourceSummary.crowdsecStartedAt,
+          },
+        };
+      }),
+    );
+
+    const sources: CrowdsecMetricsSource[] = results.map((result, index) => {
+      if (result.status === 'fulfilled') return result.value.source;
+      const { instance, endpoint, id } = configuredSources[index];
+      return {
         id,
         instance_id: instance.id,
         instance_name: instance.name,
@@ -862,689 +1064,815 @@ app.get(`${config.basePath}/api/metrics/crowdsec/combined`, ensureAuth, async (c
         endpoint_id: endpoint.id,
         endpoint_name: endpoint.name,
         ...(endpoint.icon ? { endpoint_icon: endpoint.icon } : {}),
-        status: 'available' as const,
-        fetched_at: sourceSummary.fetched_at,
-        crowdsecVersion: sourceSummary.crowdsecVersion,
-        crowdsecStartedAt: sourceSummary.crowdsecStartedAt,
-      },
-    };
-  }));
-
-  const sources: CrowdsecMetricsSource[] = results.map((result, index) => {
-    if (result.status === 'fulfilled') return result.value.source;
-    const { instance, endpoint, id } = configuredSources[index];
-    return {
-      id,
-      instance_id: instance.id,
-      instance_name: instance.name,
-      ...(instance.icon ? { instance_icon: instance.icon } : {}),
-      endpoint_id: endpoint.id,
-      endpoint_name: endpoint.name,
-      ...(endpoint.icon ? { endpoint_icon: endpoint.icon } : {}),
-      status: 'unavailable',
-      error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-    };
-  });
-  const successfulResults = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
-
-  if (successfulResults.length === 0) {
-    return context.json({
-      error: 'Failed to read every CrowdSec Prometheus metrics endpoint in this scope',
-      sources,
-    }, 502);
-  }
-
-  const summary = summarizeCrowdsecMetrics(successfulResults.flatMap((result) => result.samples));
-  const { crowdsecVersion: _combinedVersion, crowdsecStartedAt: _combinedStartedAt, ...combinedSummary } = summary;
-  return context.json({
-    ...combinedSummary,
-    aggregation: {
-      partial: successfulResults.length !== configuredSources.length,
-      sources,
-    },
-  });
-});
-
-app.get(`${config.basePath}/api/instances/:instanceId/metrics/:endpointId`, ensureAuth, async (context) => {
-  const instance = config.instances.find((candidate) => candidate.id === context.req.param('instanceId'));
-  const endpoint = instance?.prometheus.find((candidate) => candidate.id === context.req.param('endpointId'));
-  if (!instance || !endpoint) return context.json({ error: 'Unknown CrowdSec instance or Prometheus endpoint' }, 404);
-  try {
-    return context.json(await fetchCrowdsecMetrics({
-      url: endpoint.url,
-      timeoutMs: endpoint.requestTimeoutMs || config.prometheusRequestTimeoutMs,
-      auth: endpoint.auth,
-      tls: endpoint.tls,
-      fetchImpl: options.metricsFetchImpl,
-    }));
-  } catch (error: any) {
-    return context.json({ error: error?.message || 'Failed to read CrowdSec Prometheus metrics' }, 502);
-  }
-});
-
-app.put(`${config.basePath}/api/config/allowlists-sidebar`, ensureAuth, async (context) => {
-  const userId = preferenceUserId(context);
-  // Display preferences remain editable in read-only mode, including without dashboard authentication.
-  if (config.allowlistsSidebarVisibleManaged) return managedByConfigResponse(context, 'Allowlists sidebar visibility');
-
-  try {
-    const body = await context.req.json<UpdateAllowlistsSidebarPreferenceRequest>();
-    if (typeof body.visible !== 'boolean') {
-      return context.json({ error: 'visible must be a boolean' }, 400);
-    }
-
-    if (userId) {
-      await syncWorker.runExclusive(() => database.setUserPreference(userId, 'allowlists_sidebar_visible', String(body.visible)));
-    } else {
-      await syncWorker.runExclusive(() => saveAllowlistsSidebarVisible(database, body.visible));
-      state.allowlistsSidebarVisible = body.visible;
-    }
-
-    return context.json({ success: true, allowlists_sidebar_visible: body.visible });
-  } catch (error: any) {
-    console.error('Error updating allowlists sidebar preference:', error.message);
-    return context.json({ error: 'Failed to update allowlists sidebar preference' }, 500);
-  }
-});
-
-app.put(`${config.basePath}/api/config/statistics-sidebar`, ensureAuth, async (context) => {
-  const userId = preferenceUserId(context);
-  // Display preferences remain editable in read-only mode, including without dashboard authentication.
-  if (config.statisticsSidebarVisibleManaged) return managedByConfigResponse(context, 'Statistics sidebar visibility');
-
-  try {
-    const body = await context.req.json<UpdateStatisticsSidebarPreferenceRequest>();
-    if (typeof body.visible !== 'boolean') {
-      return context.json({ error: 'visible must be a boolean' }, 400);
-    }
-
-    if (userId) {
-      await syncWorker.runExclusive(() => database.setUserPreference(userId, 'statistics_sidebar_visible', String(body.visible)));
-    } else {
-      await syncWorker.runExclusive(() => saveStatisticsSidebarVisible(database, body.visible));
-      state.statisticsSidebarVisible = body.visible;
-    }
-
-    return context.json({ success: true, statistics_sidebar_visible: body.visible });
-  } catch (error: any) {
-    console.error('Error updating statistics sidebar preference:', error.message);
-    return context.json({ error: 'Failed to update statistics sidebar preference' }, 500);
-  }
-});
-
-app.put(`${config.basePath}/api/config/metrics-sidebar`, ensureAuth, async (context) => {
-  if (config.metricsSidebarVisibleManaged) return managedByConfigResponse(context, 'Metrics sidebar visibility');
-
-  try {
-    const body = await context.req.json<UpdateMetricsSidebarPreferenceRequest>();
-    if (typeof body.visible !== 'boolean') {
-      return context.json({ error: 'visible must be a boolean' }, 400);
-    }
-
-    const userId = preferenceUserId(context);
-    if (userId) {
-      await syncWorker.runExclusive(() => database.setUserPreference(userId, 'metrics_sidebar_visible', String(body.visible)));
-    } else {
-      await syncWorker.runExclusive(() => saveMetricsSidebarVisible(database, body.visible));
-      state.metricsSidebarVisible = body.visible;
-    }
-
-    return context.json({
-      success: true,
-      metrics_sidebar_visible: body.visible,
+        status: 'unavailable',
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      };
     });
-  } catch (error: any) {
-    console.error('Error updating metrics sidebar preference:', error.message);
-    return context.json({ error: 'Failed to update metrics sidebar preference' }, 500);
-  }
-});
+    const successfulResults = results.flatMap((result) =>
+      result.status === 'fulfilled' ? [result.value] : [],
+    );
 
-app.put(`${config.basePath}/api/config/manual-decision-scenarios`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    const body = await context.req.json<UpdateManualDecisionScenariosRequest>();
-    if (!Array.isArray(body?.scenarios) || body.scenarios.some((scenario) => typeof scenario !== 'string')) {
-      return context.json({ error: 'scenarios must be an array of strings' }, 400);
-    }
-    const configured = new Set([DEFAULT_MANUAL_DECISION_SCENARIO, ...configuredManualDecisionScenarios()]);
-    const scenarios = [...new Set(body.scenarios.map((scenario) => scenario.trim()))]
-      .filter((scenario) => scenario && !configured.has(scenario));
-    const invalid = scenarios.find((scenario) => !isValidDecisionScenario(scenario));
-    if (invalid) {
-      return context.json({ error: `Invalid scenario format: "${invalid}". Use e.g. "${DEFAULT_MANUAL_DECISION_SCENARIO}"` }, 400);
-    }
-    if (scenarios.length > MAX_CUSTOM_MANUAL_DECISION_SCENARIOS) {
-      return context.json({ error: `At most ${MAX_CUSTOM_MANUAL_DECISION_SCENARIOS} scenarios can be added` }, 400);
+    if (successfulResults.length === 0) {
+      return context.json(
+        {
+          error: 'Failed to read every CrowdSec Prometheus metrics endpoint in this scope',
+          sources,
+        },
+        502,
+      );
     }
 
-    await syncWorker.runExclusive(() => saveManualDecisionScenarios(database, scenarios));
-    state.manualDecisionScenarios = scenarios;
-    console.log(`Manual decision scenarios updated: ${scenarios.join(', ') || '(none)'}`);
-
+    const summary = summarizeCrowdsecMetrics(successfulResults.flatMap((result) => result.samples));
+    const {
+      crowdsecVersion: _combinedVersion,
+      crowdsecStartedAt: _combinedStartedAt,
+      ...combinedSummary
+    } = summary;
     return context.json({
-      success: true,
-      manual_decision_scenario_settings: {
-        configured: configuredManualDecisionScenarios(),
-        custom: scenarios,
+      ...combinedSummary,
+      aggregation: {
+        partial: successfulResults.length !== configuredSources.length,
+        sources,
       },
     });
-  } catch (error: any) {
-    console.error('Error updating manual decision scenarios:', error.message);
-    return context.json({ error: 'Failed to update manual decision scenarios' }, 500);
-  }
-});
+  });
 
-app.put(`${config.basePath}/api/config/refresh-interval`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-  if (config.refreshIntervalManaged) return managedByConfigResponse(context, 'Refresh interval');
-
-  try {
-    const body = await context.req.json<{ interval?: string }>();
-    const interval = body.interval;
-
-    if (!interval) {
-      return context.json({ error: 'interval is required' }, 400);
-    }
-
-    const validIntervals = ['manual', '0', '5s', '30s', '1m', '5m'];
-    if (!validIntervals.includes(interval)) {
-      return context.json({ error: `Invalid interval. Must be one of: ${validIntervals.join(', ')}` }, 400);
-    }
-
-    const nextInterval = parseRefreshInterval(interval);
-    const previous = getIntervalName(state.refreshIntervalMs);
-    state.refreshIntervalMs = nextInterval;
-    await syncWorker.runExclusive(() => savePersistedConfig(database, { refresh_interval_ms: nextInterval }));
-    startRefreshScheduler();
-    console.log(`Refresh interval changed: ${previous} -> ${interval} (${nextInterval}ms)`);
-
-    return context.json({
-      success: true,
-      old_interval: previous,
-      new_interval: interval,
-      new_interval_ms: nextInterval,
-      next_refresh_at: state.nextRefreshAt,
-      message: `Refresh interval updated to ${interval}`,
-    });
-  } catch (error: any) {
-    console.error('Error updating refresh interval:', error.message);
-    return context.json({ error: 'Failed to update refresh interval' }, 500);
-  }
-});
-
-app.put(`${config.basePath}/api/config/manual-refresh`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-  if (config.manualRefreshEnabledManaged) return managedByConfigResponse(context, 'Manual refresh');
-
-  try {
-    const body = await context.req.json<UpdateManualRefreshSettingRequest>();
-    if (typeof body.enabled !== 'boolean') {
-      return context.json({ error: 'enabled must be a boolean' }, 400);
-    }
-
-    state.manualRefreshEnabled = body.enabled;
-    await syncWorker.runExclusive(() => savePersistedConfig(database, {
-      manual_refresh_enabled: state.manualRefreshEnabled,
-    }));
-    console.log(`Manual refresh ${state.manualRefreshEnabled ? 'enabled' : 'disabled'}`);
-
-    return context.json({
-      success: true,
-      manual_refresh_enabled: state.manualRefreshEnabled,
-    });
-  } catch (error: any) {
-    console.error('Error updating manual refresh setting:', error.message);
-    return context.json({ error: 'Failed to update manual refresh setting' }, 500);
-  }
-});
-
-app.post(`${config.basePath}/api/cache/refresh`, ensureAuth, async (context) => {
-  if (!state.manualRefreshEnabled) {
-    return context.json({
-      error: 'Manual refresh is disabled',
-      code: 'MANUAL_REFRESH_DISABLED',
-    }, 403);
-  }
-
-  let body: { mode?: string };
-  try {
-    body = await context.req.json<{ mode?: string }>();
-  } catch {
-    return context.json({ error: 'A JSON request body is required' }, 400);
-  }
-
-  if (body.mode !== 'delta' && body.mode !== 'latest' && body.mode !== 'full') {
-    return context.json({ error: 'mode must be one of: delta, latest, full' }, 400);
-  }
-  if (state.cacheRefreshPromise || state.initializationPromise || state.bootstrapPromise) {
-    return context.json({ error: 'A cache refresh is already in progress', code: 'REFRESH_IN_PROGRESS' }, 409);
-  }
-
-  try {
-    if (body.mode === 'delta') {
-      // An explicit refresh always notifies pages, even without new data.
-      await updateCache({ throwOnError: true, reconcile: false, publishUnchanged: true });
-    } else if (body.mode === 'latest') {
-      await refreshLatestWindow();
-    } else {
-      await refreshFullHistory();
-    }
-    return context.json({ success: true, mode: body.mode, completed_at: state.cacheRefreshCompletedAt });
-  } catch (error: any) {
-    const message = error?.message || 'Cache refresh failed';
-    console.error(`Manual ${body.mode} refresh failed:`, message);
-    return context.json({ error: message }, 502);
-  }
-});
-
-app.put(`${config.basePath}/api/config/language`, ensureAuth, async (context) => {
-  try {
-    const body = await context.req.json<{ language?: string }>();
-    const language = body.language;
-    const normalizedLanguage = normalizeLanguagePreference(language);
-    if (language !== normalizedLanguage && normalizedLanguage === 'browser') {
-      return context.json({ error: 'Invalid language preference' }, 400);
-    }
-
-    const userId = preferenceUserId(context);
-    await syncWorker.runExclusive(() => {
-      if (userId) database.setUserPreference(userId, 'language', normalizedLanguage);
-      // The instance-wide language is used for notification texts, so only administrators change it.
-      if (!userId || dashboardAuth.getPermissions(context).can_manage_settings) {
-        saveLanguagePreference(database, normalizedLanguage);
-      }
-    });
-    return context.json({
-      success: true,
-      language: normalizedLanguage,
-    });
-  } catch (error: any) {
-    console.error('Error updating language preference:', error.message);
-    return context.json({ error: 'Failed to update language preference' }, 500);
-  }
-});
-
-app.put(`${config.basePath}/api/config/font`, ensureAuth, async (context) => {
-  const body = await context.req.json<{ font?: unknown }>().catch(() => null);
-  const font = body?.font;
-  if (typeof font !== 'string' || !FONT_PREFERENCE_PATTERN.test(font)) {
-    return context.json({ error: 'Invalid font preference' }, 400);
-  }
-  // Without users the browser keeps the font on its own.
-  const userId = preferenceUserId(context);
-  if (userId) await syncWorker.runExclusive(() => database.setUserPreference(userId, 'font', font));
-  return context.json({ success: true, font });
-});
-
-app.get(`${config.basePath}/api/notifications`, ensureAuth, (context) => {
-  const pageRequest = getPageRequest(context) || { page: 1, pageSize: 50 };
-  return context.json(notificationService.listNotifications(pageRequest.page, pageRequest.pageSize));
-});
-
-app.post(`${config.basePath}/api/cleanup/by-ip`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const doRequest = async () => {
-    const body = await context.req.json<CleanupByIpRequest>();
-    const ip = String(body.ip || '').trim();
-    if (!isValidIpOrRange(ip)) {
-      return context.json({ error: 'Invalid IP address format' }, 400);
-    }
-
-    const targets = resolveOperationInstances(body.scope, body.instance_id);
-    if ('error' in targets) return context.json({ error: targets.error }, 400);
-    const results = await Promise.all(targets.map(async (instance: RuntimeConfig['instances'][number]) => {
+  app.get(
+    `${config.basePath}/api/instances/:instanceId/metrics/:endpointId`,
+    ensureAuth,
+    async (context) => {
+      const instance = config.instances.find(
+        (candidate) => candidate.id === context.req.param('instanceId'),
+      );
+      const endpoint = instance?.prometheus.find(
+        (candidate) => candidate.id === context.req.param('endpointId'),
+      );
+      if (!instance || !endpoint)
+        return context.json({ error: 'Unknown CrowdSec instance or Prometheus endpoint' }, 404);
       try {
-        const result = instance.id === primaryInstance.id && body.scope === undefined
-          ? await deleteEntriesByIp(ip)
-          : await deleteEntriesByIpOnInstance(instance.id, ip);
-        return {
-          instance_id: instance.id,
-          instance_name: instance.name,
-          success: result.failed.length === 0,
-          ...(result.failed.length > 0 ? { error: `${result.failed.length} item(s) failed` } : {}),
-          result,
-        };
+        return context.json(
+          await fetchCrowdsecMetrics({
+            url: endpoint.url,
+            timeoutMs: endpoint.requestTimeoutMs || config.prometheusRequestTimeoutMs,
+            auth: endpoint.auth,
+            tls: endpoint.tls,
+            fetchImpl: options.metricsFetchImpl,
+          }),
+        );
       } catch (error: any) {
-        return { instance_id: instance.id, instance_name: instance.name, success: false, error: error?.message || String(error) };
+        return context.json(
+          { error: error?.message || 'Failed to read CrowdSec Prometheus metrics' },
+          502,
+        );
       }
-    }));
-    const succeeded = results.filter((result) => result.success).length;
-    const payload = { results, succeeded, failed: results.length - succeeded };
-    const instanceResultEntries = results.map((result) => ({
-      instance_id: result.instance_id,
-      instance: result.instance_name,
-      outcome: result.success
-        ? ('result' in result && result.result?.deleted_alerts > 0 ? 'queued' as const : 'success' as const)
-        : ('result' in result && result.result
-          && result.result.deleted_alerts + result.result.deleted_decisions > 0 ? 'partial' as const : 'failure' as const),
-    }));
-    const instanceResults = capAuditEntries(instanceResultEntries);
-    auditLog.record(context, {
-      action: 'cleanup.by-ip',
-      ip,
-      instances: results.map((result) => result.instance_name),
-      instance_results: instanceResults.entries,
-      ...(instanceResults.truncated ? { truncated: true } : {}),
-      deleted_alerts: results.reduce((total, entry) => total + ('result' in entry && entry.result ? entry.result.deleted_alerts : 0), 0),
-      deleted_decisions: results.reduce((total, entry) => total + ('result' in entry && entry.result ? entry.result.deleted_decisions : 0), 0),
-      outcome: auditTargetOutcome(instanceResultEntries.map((result) => result.outcome)),
-    });
-    if (succeeded > 0) void runNotificationEvaluation('cleanup by ip');
-    if (results.length === 1 && body.scope === undefined && results[0].success && 'result' in results[0]) {
-      return context.json(results[0].result);
+    },
+  );
+
+  app.put(`${config.basePath}/api/config/allowlists-sidebar`, ensureAuth, async (context) => {
+    const userId = preferenceUserId(context);
+    // Display preferences remain editable in read-only mode, including without dashboard authentication.
+    if (config.allowlistsSidebarVisibleManaged)
+      return managedByConfigResponse(context, 'Allowlists sidebar visibility');
+
+    try {
+      const body = await context.req.json<UpdateAllowlistsSidebarPreferenceRequest>();
+      if (typeof body.visible !== 'boolean') {
+        return context.json({ error: 'visible must be a boolean' }, 400);
+      }
+
+      if (userId) {
+        await syncWorker.runExclusive(() =>
+          database.setUserPreference(userId, 'allowlists_sidebar_visible', String(body.visible)),
+        );
+      } else {
+        await syncWorker.runExclusive(() => saveAllowlistsSidebarVisible(database, body.visible));
+        state.allowlistsSidebarVisible = body.visible;
+      }
+
+      return context.json({ success: true, allowlists_sidebar_visible: body.visible });
+    } catch (error: any) {
+      console.error('Error updating allowlists sidebar preference:', error.message);
+      return context.json({ error: 'Failed to update allowlists sidebar preference' }, 500);
     }
-    return context.json(payload, succeeded === results.length ? 200 : succeeded > 0 ? 207 : 502);
-  };
+  });
 
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'deleting entries by IP', doRequest);
-  }
-});
+  app.put(`${config.basePath}/api/config/statistics-sidebar`, ensureAuth, async (context) => {
+    const userId = preferenceUserId(context);
+    // Display preferences remain editable in read-only mode, including without dashboard authentication.
+    if (config.statisticsSidebarVisibleManaged)
+      return managedByConfigResponse(context, 'Statistics sidebar visibility');
 
-app.post(`${config.basePath}/api/notifications/:id/read`, ensureAuth, async (context) => {
-  const id = String(context.req.param('id'));
-  const updated = await notificationService.markNotificationRead(id);
-  if (!updated) {
-    return context.json({ error: 'Notification not found' }, 404);
-  }
-  return context.json({ success: true });
-});
+    try {
+      const body = await context.req.json<UpdateStatisticsSidebarPreferenceRequest>();
+      if (typeof body.visible !== 'boolean') {
+        return context.json({ error: 'visible must be a boolean' }, 400);
+      }
 
-app.post(`${config.basePath}/api/notifications/bulk-read`, ensureAuth, async (context) => {
-  const body = await context.req.json<BulkDeleteRequest>();
-  const ids = normalizeNotificationIds(body.ids);
-  if (ids.length === 0) {
-    return context.json({ error: 'At least one notification ID is required' }, 400);
-  }
+      if (userId) {
+        await syncWorker.runExclusive(() =>
+          database.setUserPreference(userId, 'statistics_sidebar_visible', String(body.visible)),
+        );
+      } else {
+        await syncWorker.runExclusive(() => saveStatisticsSidebarVisible(database, body.visible));
+        state.statisticsSidebarVisible = body.visible;
+      }
 
-  return context.json({ updated: await notificationService.markNotificationsRead(ids) });
-});
-
-app.post(`${config.basePath}/api/notifications/bulk-delete`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const body = await context.req.json<BulkDeleteRequest>();
-  const ids = normalizeNotificationIds(body.ids);
-  if (ids.length === 0) {
-    return context.json({ error: 'At least one notification ID is required' }, 400);
-  }
-
-  return context.json({ deleted: await notificationService.deleteNotifications(ids) });
-});
-
-app.post(`${config.basePath}/api/notifications/delete-read`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  return Response.json({ deleted: await notificationService.deleteReadNotifications() });
-});
-
-app.delete(`${config.basePath}/api/notifications/:id`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const id = String(context.req.param('id'));
-  if (!await notificationService.deleteNotification(id)) {
-    return context.json({ error: 'Notification not found' }, 404);
-  }
-
-  return context.json({ success: true });
-});
-
-app.get(`${config.basePath}/api/notifications/settings`, ensureAuth, () => Response.json(notificationService.listSettings()));
-
-app.post(`${config.basePath}/api/notification-channels`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    const body = await context.req.json<UpsertNotificationChannelRequest>();
-    return context.json(await notificationService.createChannel(body), 201);
-  } catch (error: any) {
-    return context.json({ error: error.message || 'Failed to create notification channel' }, 400);
-  }
-});
-
-app.put(`${config.basePath}/api/notification-channels/:id`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    const id = String(context.req.param('id'));
-    const body = await context.req.json<UpsertNotificationChannelRequest>();
-    return context.json(await notificationService.updateChannel(id, body));
-  } catch (error: any) {
-    const status = error.message === 'Notification channel not found' ? 404 : 400;
-    return context.json({ error: error.message || 'Failed to update notification channel' }, status);
-  }
-});
-
-app.delete(`${config.basePath}/api/notification-channels/:id`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const id = String(context.req.param('id'));
-  await notificationService.deleteChannel(id);
-  return context.json({ success: true });
-});
-
-app.post(`${config.basePath}/api/notification-channels/:id/test`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    const id = String(context.req.param('id'));
-    return context.json(await notificationService.testChannel(id));
-  } catch (error: any) {
-    const status = error.message === 'Notification channel not found' ? 404 : 400;
-    return context.json({ error: error.message || 'Failed to send test notification' }, status);
-  }
-});
-
-app.post(`${config.basePath}/api/notification-rules`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    const body = await context.req.json<UpsertNotificationRuleRequest>();
-    return context.json(await notificationService.createRule(body), 201);
-  } catch (error: any) {
-    return context.json({ error: error.message || 'Failed to create notification rule' }, 400);
-  }
-});
-
-app.put(`${config.basePath}/api/notification-rules/:id`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    const id = String(context.req.param('id'));
-    const body = await context.req.json<UpsertNotificationRuleRequest>();
-    return context.json(await notificationService.updateRule(id, body));
-  } catch (error: any) {
-    const status = error.message === 'Notification rule not found' ? 404 : 400;
-    return context.json({ error: error.message || 'Failed to update notification rule' }, status);
-  }
-});
-
-app.post(`${config.basePath}/api/notification-rules/:id/test`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    const id = String(context.req.param('id'));
-    return context.json(await notificationService.testRule(id));
-  } catch (error: any) {
-    const status = error.message === 'Notification rule not found' ? 404 : 400;
-    return context.json({ error: error.message || 'Failed to send rule test' }, status);
-  }
-});
-
-app.delete(`${config.basePath}/api/notification-rules/:id`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageSettings(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const id = String(context.req.param('id'));
-  await notificationService.deleteRule(id);
-  return context.json({ success: true });
-});
-
-app.post(`${config.basePath}/api/cache/clear`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  try {
-    console.log('Manual cache clear requested');
-    await syncWorker.clearSyncData();
-    await resetReconcileWindowState();
-    state.cache.isInitialized = false;
-    state.cache.isComplete = false;
-    state.cache.lastUpdate = null;
-    for (const instance of config.instances) {
-      state.initialHistorySyncs.add(instance.id);
-      state.instanceLastUpdates.set(instance.id, null);
+      return context.json({ success: true, statistics_sidebar_visible: body.visible });
+    } catch (error: any) {
+      console.error('Error updating statistics sidebar preference:', error.message);
+      return context.json({ error: 'Failed to update statistics sidebar preference' }, 500);
     }
-    state.cacheRefreshCompletedAt = null;
-    state.staleDashboardStatsResponseCache.clear();
-    invalidateDashboardStatsCache();
-    await ensureBootstrapReady('manual cache clear');
+  });
 
-    return context.json({
-      success: true,
-      message: 'Cache cleared and re-synced',
-      alert_count: database.countAlerts(),
-    });
-  } catch (error: any) {
-    console.error('Error clearing cache:', error.message);
-    return context.json({ error: 'Failed to clear cache' }, 500);
-  }
-});
+  app.put(`${config.basePath}/api/config/metrics-sidebar`, ensureAuth, async (context) => {
+    if (config.metricsSidebarVisibleManaged)
+      return managedByConfigResponse(context, 'Metrics sidebar visibility');
 
-app.get(`${config.basePath}/api/stats/alerts`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  try {
-    await prepareOnDemandRefresh(context);
+    try {
+      const body = await context.req.json<UpdateMetricsSidebarPreferenceRequest>();
+      if (typeof body.visible !== 'boolean') {
+        return context.json({ error: 'visible must be a boolean' }, 400);
+      }
 
-    await prepareReadCache('stats alerts request');
+      const userId = preferenceUserId(context);
+      if (userId) {
+        await syncWorker.runExclusive(() =>
+          database.setUserPreference(userId, 'metrics_sidebar_visible', String(body.visible)),
+        );
+      } else {
+        await syncWorker.runExclusive(() => saveMetricsSidebarVisible(database, body.visible));
+        state.metricsSidebarVisible = body.visible;
+      }
 
-    const where = createSqlWhere();
-    where.add('created_at >= ?', new Date(Date.now() - config.lookbackMs).toISOString());
-    if (!config.simulationsEnabled) {
-      where.add('simulated = 0');
+      return context.json({
+        success: true,
+        metrics_sidebar_visible: body.visible,
+      });
+    } catch (error: any) {
+      console.error('Error updating metrics sidebar preference:', error.message);
+      return context.json({ error: 'Failed to update metrics sidebar preference' }, 500);
     }
-    const alerts = (await analyticsQueryWorker.all<{
-      created_at: string;
-      scenario?: string | null;
-      kind?: string | null;
-      source_ip?: string | null;
-      country?: string | null;
-      as_name?: string | null;
-      target?: string | null;
-      simulated?: number | null;
-    }>(`
+  });
+
+  app.put(
+    `${config.basePath}/api/config/manual-decision-scenarios`,
+    ensureAuth,
+    async (context) => {
+      const readOnlyResponse = ensureCanManageSettings(context);
+      if (readOnlyResponse) return readOnlyResponse;
+
+      try {
+        const body = await context.req.json<UpdateManualDecisionScenariosRequest>();
+        if (
+          !Array.isArray(body?.scenarios) ||
+          body.scenarios.some((scenario) => typeof scenario !== 'string')
+        ) {
+          return context.json({ error: 'scenarios must be an array of strings' }, 400);
+        }
+        const configured = new Set([
+          DEFAULT_MANUAL_DECISION_SCENARIO,
+          ...configuredManualDecisionScenarios(),
+        ]);
+        const scenarios = [...new Set(body.scenarios.map((scenario) => scenario.trim()))].filter(
+          (scenario) => scenario && !configured.has(scenario),
+        );
+        const invalid = scenarios.find((scenario) => !isValidDecisionScenario(scenario));
+        if (invalid) {
+          return context.json(
+            {
+              error: `Invalid scenario format: "${invalid}". Use e.g. "${DEFAULT_MANUAL_DECISION_SCENARIO}"`,
+            },
+            400,
+          );
+        }
+        if (scenarios.length > MAX_CUSTOM_MANUAL_DECISION_SCENARIOS) {
+          return context.json(
+            { error: `At most ${MAX_CUSTOM_MANUAL_DECISION_SCENARIOS} scenarios can be added` },
+            400,
+          );
+        }
+
+        await syncWorker.runExclusive(() => saveManualDecisionScenarios(database, scenarios));
+        state.manualDecisionScenarios = scenarios;
+        console.log(`Manual decision scenarios updated: ${scenarios.join(', ') || '(none)'}`);
+
+        return context.json({
+          success: true,
+          manual_decision_scenario_settings: {
+            configured: configuredManualDecisionScenarios(),
+            custom: scenarios,
+          },
+        });
+      } catch (error: any) {
+        console.error('Error updating manual decision scenarios:', error.message);
+        return context.json({ error: 'Failed to update manual decision scenarios' }, 500);
+      }
+    },
+  );
+
+  app.put(`${config.basePath}/api/config/refresh-interval`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+    if (config.refreshIntervalManaged) return managedByConfigResponse(context, 'Refresh interval');
+
+    try {
+      const body = await context.req.json<{ interval?: string }>();
+      const interval = body.interval;
+
+      if (!interval) {
+        return context.json({ error: 'interval is required' }, 400);
+      }
+
+      const validIntervals = ['manual', '0', '5s', '30s', '1m', '5m'];
+      if (!validIntervals.includes(interval)) {
+        return context.json(
+          { error: `Invalid interval. Must be one of: ${validIntervals.join(', ')}` },
+          400,
+        );
+      }
+
+      const nextInterval = parseRefreshInterval(interval);
+      const previous = getIntervalName(state.refreshIntervalMs);
+      state.refreshIntervalMs = nextInterval;
+      await syncWorker.runExclusive(() =>
+        savePersistedConfig(database, { refresh_interval_ms: nextInterval }),
+      );
+      startRefreshScheduler();
+      console.log(`Refresh interval changed: ${previous} -> ${interval} (${nextInterval}ms)`);
+
+      return context.json({
+        success: true,
+        old_interval: previous,
+        new_interval: interval,
+        new_interval_ms: nextInterval,
+        next_refresh_at: state.nextRefreshAt,
+        message: `Refresh interval updated to ${interval}`,
+      });
+    } catch (error: any) {
+      console.error('Error updating refresh interval:', error.message);
+      return context.json({ error: 'Failed to update refresh interval' }, 500);
+    }
+  });
+
+  app.put(`${config.basePath}/api/config/manual-refresh`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+    if (config.manualRefreshEnabledManaged)
+      return managedByConfigResponse(context, 'Manual refresh');
+
+    try {
+      const body = await context.req.json<UpdateManualRefreshSettingRequest>();
+      if (typeof body.enabled !== 'boolean') {
+        return context.json({ error: 'enabled must be a boolean' }, 400);
+      }
+
+      state.manualRefreshEnabled = body.enabled;
+      await syncWorker.runExclusive(() =>
+        savePersistedConfig(database, {
+          manual_refresh_enabled: state.manualRefreshEnabled,
+        }),
+      );
+      console.log(`Manual refresh ${state.manualRefreshEnabled ? 'enabled' : 'disabled'}`);
+
+      return context.json({
+        success: true,
+        manual_refresh_enabled: state.manualRefreshEnabled,
+      });
+    } catch (error: any) {
+      console.error('Error updating manual refresh setting:', error.message);
+      return context.json({ error: 'Failed to update manual refresh setting' }, 500);
+    }
+  });
+
+  app.post(`${config.basePath}/api/cache/refresh`, ensureAuth, async (context) => {
+    if (!state.manualRefreshEnabled) {
+      return context.json(
+        {
+          error: 'Manual refresh is disabled',
+          code: 'MANUAL_REFRESH_DISABLED',
+        },
+        403,
+      );
+    }
+
+    let body: { mode?: string };
+    try {
+      body = await context.req.json<{ mode?: string }>();
+    } catch {
+      return context.json({ error: 'A JSON request body is required' }, 400);
+    }
+
+    if (body.mode !== 'delta' && body.mode !== 'latest' && body.mode !== 'full') {
+      return context.json({ error: 'mode must be one of: delta, latest, full' }, 400);
+    }
+    if (state.cacheRefreshPromise || state.initializationPromise || state.bootstrapPromise) {
+      return context.json(
+        { error: 'A cache refresh is already in progress', code: 'REFRESH_IN_PROGRESS' },
+        409,
+      );
+    }
+
+    try {
+      if (body.mode === 'delta') {
+        // An explicit refresh always notifies pages, even without new data.
+        await updateCache({ throwOnError: true, reconcile: false, publishUnchanged: true });
+      } else if (body.mode === 'latest') {
+        await refreshLatestWindow();
+      } else {
+        await refreshFullHistory();
+      }
+      return context.json({
+        success: true,
+        mode: body.mode,
+        completed_at: state.cacheRefreshCompletedAt,
+      });
+    } catch (error: any) {
+      const message = error?.message || 'Cache refresh failed';
+      console.error(`Manual ${body.mode} refresh failed:`, message);
+      return context.json({ error: message }, 502);
+    }
+  });
+
+  app.put(`${config.basePath}/api/config/language`, ensureAuth, async (context) => {
+    try {
+      const body = await context.req.json<{ language?: string }>();
+      const language = body.language;
+      const normalizedLanguage = normalizeLanguagePreference(language);
+      if (language !== normalizedLanguage && normalizedLanguage === 'browser') {
+        return context.json({ error: 'Invalid language preference' }, 400);
+      }
+
+      const userId = preferenceUserId(context);
+      await syncWorker.runExclusive(() => {
+        if (userId) database.setUserPreference(userId, 'language', normalizedLanguage);
+        // The instance-wide language is used for notification texts, so only administrators change it.
+        if (!userId || dashboardAuth.getPermissions(context).can_manage_settings) {
+          saveLanguagePreference(database, normalizedLanguage);
+        }
+      });
+      return context.json({
+        success: true,
+        language: normalizedLanguage,
+      });
+    } catch (error: any) {
+      console.error('Error updating language preference:', error.message);
+      return context.json({ error: 'Failed to update language preference' }, 500);
+    }
+  });
+
+  app.put(`${config.basePath}/api/config/font`, ensureAuth, async (context) => {
+    const body = await context.req.json<{ font?: unknown }>().catch(() => null);
+    const font = body?.font;
+    if (typeof font !== 'string' || !FONT_PREFERENCE_PATTERN.test(font)) {
+      return context.json({ error: 'Invalid font preference' }, 400);
+    }
+    // Without users the browser keeps the font on its own.
+    const userId = preferenceUserId(context);
+    if (userId)
+      await syncWorker.runExclusive(() => database.setUserPreference(userId, 'font', font));
+    return context.json({ success: true, font });
+  });
+
+  app.get(`${config.basePath}/api/notifications`, ensureAuth, (context) => {
+    const pageRequest = getPageRequest(context) || { page: 1, pageSize: 50 };
+    return context.json(
+      notificationService.listNotifications(pageRequest.page, pageRequest.pageSize),
+    );
+  });
+
+  app.post(`${config.basePath}/api/cleanup/by-ip`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const doRequest = async () => {
+      const body = await context.req.json<CleanupByIpRequest>();
+      const ip = String(body.ip || '').trim();
+      if (!isValidIpOrRange(ip)) {
+        return context.json({ error: 'Invalid IP address format' }, 400);
+      }
+
+      const targets = resolveOperationInstances(body.scope, body.instance_id);
+      if ('error' in targets) return context.json({ error: targets.error }, 400);
+      const results = await Promise.all(
+        targets.map(async (instance: RuntimeConfig['instances'][number]) => {
+          try {
+            const result =
+              instance.id === primaryInstance.id && body.scope === undefined
+                ? await deleteEntriesByIp(ip)
+                : await deleteEntriesByIpOnInstance(instance.id, ip);
+            return {
+              instance_id: instance.id,
+              instance_name: instance.name,
+              success: result.failed.length === 0,
+              ...(result.failed.length > 0
+                ? { error: `${result.failed.length} item(s) failed` }
+                : {}),
+              result,
+            };
+          } catch (error: any) {
+            return {
+              instance_id: instance.id,
+              instance_name: instance.name,
+              success: false,
+              error: error?.message || String(error),
+            };
+          }
+        }),
+      );
+      const succeeded = results.filter((result) => result.success).length;
+      const payload = { results, succeeded, failed: results.length - succeeded };
+      const instanceResultEntries = results.map((result) => ({
+        instance_id: result.instance_id,
+        instance: result.instance_name,
+        outcome: result.success
+          ? 'result' in result && result.result?.deleted_alerts > 0
+            ? ('queued' as const)
+            : ('success' as const)
+          : 'result' in result &&
+              result.result &&
+              result.result.deleted_alerts + result.result.deleted_decisions > 0
+            ? ('partial' as const)
+            : ('failure' as const),
+      }));
+      const instanceResults = capAuditEntries(instanceResultEntries);
+      auditLog.record(context, {
+        action: 'cleanup.by-ip',
+        ip,
+        instances: results.map((result) => result.instance_name),
+        instance_results: instanceResults.entries,
+        ...(instanceResults.truncated ? { truncated: true } : {}),
+        deleted_alerts: results.reduce(
+          (total, entry) =>
+            total + ('result' in entry && entry.result ? entry.result.deleted_alerts : 0),
+          0,
+        ),
+        deleted_decisions: results.reduce(
+          (total, entry) =>
+            total + ('result' in entry && entry.result ? entry.result.deleted_decisions : 0),
+          0,
+        ),
+        outcome: auditTargetOutcome(instanceResultEntries.map((result) => result.outcome)),
+      });
+      if (succeeded > 0) void runNotificationEvaluation('cleanup by ip');
+      if (
+        results.length === 1 &&
+        body.scope === undefined &&
+        results[0].success &&
+        'result' in results[0]
+      ) {
+        return context.json(results[0].result);
+      }
+      return context.json(payload, succeeded === results.length ? 200 : succeeded > 0 ? 207 : 502);
+    };
+
+    try {
+      return await doRequest();
+    } catch (error) {
+      return handleApiError(error as AnyError, context, 'deleting entries by IP', doRequest);
+    }
+  });
+
+  app.post(`${config.basePath}/api/notifications/:id/read`, ensureAuth, async (context) => {
+    const id = String(context.req.param('id'));
+    const updated = await notificationService.markNotificationRead(id);
+    if (!updated) {
+      return context.json({ error: 'Notification not found' }, 404);
+    }
+    return context.json({ success: true });
+  });
+
+  app.post(`${config.basePath}/api/notifications/bulk-read`, ensureAuth, async (context) => {
+    const body = await context.req.json<BulkDeleteRequest>();
+    const ids = normalizeNotificationIds(body.ids);
+    if (ids.length === 0) {
+      return context.json({ error: 'At least one notification ID is required' }, 400);
+    }
+
+    return context.json({ updated: await notificationService.markNotificationsRead(ids) });
+  });
+
+  app.post(`${config.basePath}/api/notifications/bulk-delete`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const body = await context.req.json<BulkDeleteRequest>();
+    const ids = normalizeNotificationIds(body.ids);
+    if (ids.length === 0) {
+      return context.json({ error: 'At least one notification ID is required' }, 400);
+    }
+
+    return context.json({ deleted: await notificationService.deleteNotifications(ids) });
+  });
+
+  app.post(`${config.basePath}/api/notifications/delete-read`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    return Response.json({ deleted: await notificationService.deleteReadNotifications() });
+  });
+
+  app.delete(`${config.basePath}/api/notifications/:id`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const id = String(context.req.param('id'));
+    if (!(await notificationService.deleteNotification(id))) {
+      return context.json({ error: 'Notification not found' }, 404);
+    }
+
+    return context.json({ success: true });
+  });
+
+  app.get(`${config.basePath}/api/notifications/settings`, ensureAuth, () =>
+    Response.json(notificationService.listSettings()),
+  );
+
+  app.post(`${config.basePath}/api/notification-channels`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    try {
+      const body = await context.req.json<UpsertNotificationChannelRequest>();
+      return context.json(await notificationService.createChannel(body), 201);
+    } catch (error: any) {
+      return context.json({ error: error.message || 'Failed to create notification channel' }, 400);
+    }
+  });
+
+  app.put(`${config.basePath}/api/notification-channels/:id`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    try {
+      const id = String(context.req.param('id'));
+      const body = await context.req.json<UpsertNotificationChannelRequest>();
+      return context.json(await notificationService.updateChannel(id, body));
+    } catch (error: any) {
+      const status = error.message === 'Notification channel not found' ? 404 : 400;
+      return context.json(
+        { error: error.message || 'Failed to update notification channel' },
+        status,
+      );
+    }
+  });
+
+  app.delete(`${config.basePath}/api/notification-channels/:id`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const id = String(context.req.param('id'));
+    await notificationService.deleteChannel(id);
+    return context.json({ success: true });
+  });
+
+  app.post(`${config.basePath}/api/notification-channels/:id/test`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    try {
+      const id = String(context.req.param('id'));
+      return context.json(await notificationService.testChannel(id));
+    } catch (error: any) {
+      const status = error.message === 'Notification channel not found' ? 404 : 400;
+      return context.json({ error: error.message || 'Failed to send test notification' }, status);
+    }
+  });
+
+  app.post(`${config.basePath}/api/notification-rules`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    try {
+      const body = await context.req.json<UpsertNotificationRuleRequest>();
+      return context.json(await notificationService.createRule(body), 201);
+    } catch (error: any) {
+      return context.json({ error: error.message || 'Failed to create notification rule' }, 400);
+    }
+  });
+
+  app.put(`${config.basePath}/api/notification-rules/:id`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    try {
+      const id = String(context.req.param('id'));
+      const body = await context.req.json<UpsertNotificationRuleRequest>();
+      return context.json(await notificationService.updateRule(id, body));
+    } catch (error: any) {
+      const status = error.message === 'Notification rule not found' ? 404 : 400;
+      return context.json({ error: error.message || 'Failed to update notification rule' }, status);
+    }
+  });
+
+  app.post(`${config.basePath}/api/notification-rules/:id/test`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    try {
+      const id = String(context.req.param('id'));
+      return context.json(await notificationService.testRule(id));
+    } catch (error: any) {
+      const status = error.message === 'Notification rule not found' ? 404 : 400;
+      return context.json({ error: error.message || 'Failed to send rule test' }, status);
+    }
+  });
+
+  app.delete(`${config.basePath}/api/notification-rules/:id`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageSettings(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const id = String(context.req.param('id'));
+    await notificationService.deleteRule(id);
+    return context.json({ success: true });
+  });
+
+  app.post(`${config.basePath}/api/cache/clear`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    try {
+      console.log('Manual cache clear requested');
+      await syncWorker.clearSyncData();
+      await resetReconcileWindowState();
+      state.cache.isInitialized = false;
+      state.cache.isComplete = false;
+      state.cache.lastUpdate = null;
+      for (const instance of config.instances) {
+        state.initialHistorySyncs.add(instance.id);
+        state.instanceLastUpdates.set(instance.id, null);
+      }
+      state.cacheRefreshCompletedAt = null;
+      state.staleDashboardStatsResponseCache.clear();
+      invalidateDashboardStatsCache();
+      await ensureBootstrapReady('manual cache clear');
+
+      return context.json({
+        success: true,
+        message: 'Cache cleared and re-synced',
+        alert_count: database.countAlerts(),
+      });
+    } catch (error: any) {
+      console.error('Error clearing cache:', error.message);
+      return context.json({ error: 'Failed to clear cache' }, 500);
+    }
+  });
+
+  app.get(
+    `${config.basePath}/api/stats/alerts`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      try {
+        await prepareOnDemandRefresh(context);
+
+        await prepareReadCache('stats alerts request');
+
+        const where = createSqlWhere();
+        where.add('created_at >= ?', new Date(Date.now() - config.lookbackMs).toISOString());
+        if (!config.simulationsEnabled) {
+          where.add('simulated = 0');
+        }
+        const alerts = (
+          await analyticsQueryWorker.all<{
+            created_at: string;
+            scenario?: string | null;
+            kind?: string | null;
+            source_ip?: string | null;
+            country?: string | null;
+            as_name?: string | null;
+            target?: string | null;
+            simulated?: number | null;
+          }>(
+            `
       SELECT created_at, scenario, kind, source_ip, country, as_name, target, simulated
       FROM alerts
       ${where.toSql()}
       ORDER BY created_at DESC, id DESC
-    `, where.params, { label: 'alert statistics' })).map((row): StatsAlert => ({
-      created_at: row.created_at,
-      scenario: row.scenario || undefined,
-      kind: row.kind || undefined,
-      source: row.source_ip || row.country || row.as_name
-        ? {
-            ip: row.source_ip && !row.source_ip.includes('/') ? row.source_ip : undefined,
-            value: row.source_ip || undefined,
-            range: row.source_ip && row.source_ip.includes('/') ? row.source_ip : undefined,
-            cn: row.country || undefined,
-            as_name: row.as_name || undefined,
-          }
-        : null,
-      target: row.target || undefined,
-      simulated: row.simulated === 1,
-    }));
+    `,
+            where.params,
+            { label: 'alert statistics' },
+          )
+        ).map((row): StatsAlert => ({
+          created_at: row.created_at,
+          scenario: row.scenario || undefined,
+          kind: row.kind || undefined,
+          source:
+            row.source_ip || row.country || row.as_name
+              ? {
+                  ip: row.source_ip && !row.source_ip.includes('/') ? row.source_ip : undefined,
+                  value: row.source_ip || undefined,
+                  range: row.source_ip && row.source_ip.includes('/') ? row.source_ip : undefined,
+                  cn: row.country || undefined,
+                  as_name: row.as_name || undefined,
+                }
+              : null,
+          target: row.target || undefined,
+          simulated: row.simulated === 1,
+        }));
 
-    return context.json(alerts);
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      console.warn('Timed out serving stats alerts from database:', error.message);
-      return context.json({ error: 'Alert statistics query timed out' }, 504);
-    }
-    console.error('Error serving stats alerts from database:', error.message);
-    return context.json({ error: 'Failed to retrieve alert statistics' }, 500);
-  }
-});
+        return context.json(alerts);
+      } catch (error: any) {
+        if (error instanceof QueryWorkerTimeoutError) {
+          console.warn('Timed out serving stats alerts from database:', error.message);
+          return context.json({ error: 'Alert statistics query timed out' }, 504);
+        }
+        console.error('Error serving stats alerts from database:', error.message);
+        return context.json({ error: 'Failed to retrieve alert statistics' }, 500);
+      }
+    },
+  );
 
-app.get(`${config.basePath}/api/stats/decisions`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  try {
-    await prepareOnDemandRefresh(context);
+  app.get(
+    `${config.basePath}/api/stats/decisions`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
+      try {
+        await prepareOnDemandRefresh(context);
 
-    await prepareReadCache('stats decisions request');
+        await prepareReadCache('stats decisions request');
 
-    const now = new Date().toISOString();
-    const where = createSqlWhere();
-    where.add('(created_at >= ? OR stop_at > ?)', new Date(Date.now() - config.lookbackMs).toISOString(), now);
-    if (!config.simulationsEnabled) {
-      where.add('simulated = 0');
-    }
-    const decisions = (await analyticsQueryWorker.all<{
-      id: string | number;
-      created_at: string;
-      scenario?: string | null;
-      value?: string | null;
-      stop_at?: string | null;
-      target?: string | null;
-      simulated?: number | null;
-    }>(`
+        const now = new Date().toISOString();
+        const where = createSqlWhere();
+        where.add(
+          '(created_at >= ? OR stop_at > ?)',
+          new Date(Date.now() - config.lookbackMs).toISOString(),
+          now,
+        );
+        if (!config.simulationsEnabled) {
+          where.add('simulated = 0');
+        }
+        const decisions = (
+          await analyticsQueryWorker.all<{
+            id: string | number;
+            created_at: string;
+            scenario?: string | null;
+            value?: string | null;
+            stop_at?: string | null;
+            target?: string | null;
+            simulated?: number | null;
+          }>(
+            `
       SELECT id, created_at, scenario, value, stop_at, target, simulated
       FROM decisions
       ${where.toSql()}
       ORDER BY created_at DESC, id DESC
-    `, where.params, { label: 'decision statistics' })).map((row): StatsDecision => ({
-      id: row.id,
-      created_at: row.created_at,
-      scenario: row.scenario || undefined,
-      value: row.value || undefined,
-      stop_at: row.stop_at || undefined,
-      target: row.target || undefined,
-      simulated: row.simulated === 1,
-    }));
+    `,
+            where.params,
+            { label: 'decision statistics' },
+          )
+        ).map((row): StatsDecision => ({
+          id: row.id,
+          created_at: row.created_at,
+          scenario: row.scenario || undefined,
+          value: row.value || undefined,
+          stop_at: row.stop_at || undefined,
+          target: row.target || undefined,
+          simulated: row.simulated === 1,
+        }));
 
-    return context.json(decisions);
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      console.warn('Timed out serving stats decisions from database:', error.message);
-      return context.json({ error: 'Decision statistics query timed out' }, 504);
+        return context.json(decisions);
+      } catch (error: any) {
+        if (error instanceof QueryWorkerTimeoutError) {
+          console.warn('Timed out serving stats decisions from database:', error.message);
+          return context.json({ error: 'Decision statistics query timed out' }, 504);
+        }
+        console.error('Error serving stats decisions from database:', error.message);
+        return context.json({ error: 'Failed to retrieve decision statistics' }, 500);
+      }
+    },
+  );
+
+  // Lets the Statistics page show which listed values already received a manual decision.
+  // Like the statistics routes, it reads the cache as it is: an on-demand LAPI refresh per lookup would make
+  // opening the page or a finding sync, and decisions added in this UI reach the cache before their request returns.
+  app.post(`${config.basePath}/api/decisions/manual-lookup`, ensureAuth, async (context) => {
+    let body: ManualDecisionLookupRequest;
+    try {
+      body = await context.req.json<ManualDecisionLookupRequest>();
+    } catch {
+      return context.json({ error: 'Invalid JSON body' }, 400);
     }
-    console.error('Error serving stats decisions from database:', error.message);
-    return context.json({ error: 'Failed to retrieve decision statistics' }, 500);
-  }
-});
-
-// Lets the Statistics page show which listed values already received a manual decision.
-// Like the statistics routes, it reads the cache as it is: an on-demand LAPI refresh per lookup would make
-// opening the page or a finding sync, and decisions added in this UI reach the cache before their request returns.
-app.post(`${config.basePath}/api/decisions/manual-lookup`, ensureAuth, async (context) => {
-  let body: ManualDecisionLookupRequest;
-  try { body = await context.req.json<ManualDecisionLookupRequest>(); } catch { return context.json({ error: 'Invalid JSON body' }, 400); }
-  if (!Array.isArray(body?.values) || !body.values.every((value) => typeof value === 'string')) {
-    return context.json({ error: 'values must be an array of strings' }, 400);
-  }
-  const values = [...new Set(body.values.map((value) => value.trim()).filter(Boolean))];
-  if (values.length > MANUAL_DECISION_LOOKUP_MAX) {
-    return context.json({ error: `At most ${MANUAL_DECISION_LOOKUP_MAX} values can be looked up at once` }, 400);
-  }
-  if (values.length === 0) return context.json({ decisions: [] } satisfies ManualDecisionLookupResponse);
-  try {
-    await prepareReadCache('manual decision lookup');
-    const rows = await analyticsQueryWorker.all<{ value: string; instance_id: string; stop_at: string }>(`
+    if (!Array.isArray(body?.values) || !body.values.every((value) => typeof value === 'string')) {
+      return context.json({ error: 'values must be an array of strings' }, 400);
+    }
+    const values = [...new Set(body.values.map((value) => value.trim()).filter(Boolean))];
+    if (values.length > MANUAL_DECISION_LOOKUP_MAX) {
+      return context.json(
+        { error: `At most ${MANUAL_DECISION_LOOKUP_MAX} values can be looked up at once` },
+        400,
+      );
+    }
+    if (values.length === 0)
+      return context.json({ decisions: [] } satisfies ManualDecisionLookupResponse);
+    try {
+      await prepareReadCache('manual decision lookup');
+      const rows = await analyticsQueryWorker.all<{
+        value: string;
+        instance_id: string;
+        stop_at: string;
+      }>(
+        `
       SELECT value, instance_id, MAX(stop_at) AS stop_at
       FROM decisions
       WHERE value IN (${values.map(() => '?').join(', ')})
@@ -1552,429 +1880,560 @@ app.post(`${config.basePath}/api/decisions/manual-lookup`, ensureAuth, async (co
         AND simulated = 0
         AND origin IN (${MANUAL_DECISION_ORIGINS.map(() => '?').join(', ')})
       GROUP BY value, instance_id
-    `, [...values, new Date().toISOString(), ...MANUAL_DECISION_ORIGINS], { label: 'manual decision lookup' });
-    return context.json({ decisions: rows } satisfies ManualDecisionLookupResponse);
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      console.warn('Timed out looking up manual decisions:', error.message);
-      return context.json({ error: 'Manual decision lookup timed out' }, 504);
-    }
-    console.error('Error looking up manual decisions:', error.message);
-    return context.json({ error: 'Failed to look up manual decisions' }, 500);
-  }
-});
-
-app.get(`${config.basePath}/api/dashboard/stats`, ensureAuth, ensurePublishedRevisionRead, async (context) => {
-  try {
-    await prepareOnDemandRefresh(context);
-
-    await prepareReadCache('dashboard stats request');
-    const filters = getDashboardStatsFilters(context, config.timeZone);
-    noteDashboardStatsRequest(filters);
-    state.lastDashboardStatsFilters = { ...filters };
-    state.lastDashboardStatsRequestedAt = Date.now();
-    const initialScopePending = filters.instanceId === 'all'
-      ? state.historicalInstanceSyncPending.size > 0
-      : state.historicalInstanceSyncPending.has(filters.instanceId);
-    if (initialScopePending) {
-      return context.json(createEmptyDashboardStatsResponse({ pending: true }));
-    }
-    if (isDashboardStatsBuildInProgress(filters)) {
-      warmDashboardStatsCache(filters);
-      const staleResponse = state.staleDashboardStatsResponseCache.get(getStaleDashboardStatsResponseCacheKey(filters));
-      if (staleResponse) {
-        return context.json({
-          ...staleResponse,
-          pending: true,
-          stale: true,
-          retryAfterMs: 1_500,
-        });
+    `,
+        [...values, new Date().toISOString(), ...MANUAL_DECISION_ORIGINS],
+        { label: 'manual decision lookup' },
+      );
+      return context.json({ decisions: rows } satisfies ManualDecisionLookupResponse);
+    } catch (error: any) {
+      if (error instanceof QueryWorkerTimeoutError) {
+        console.warn('Timed out looking up manual decisions:', error.message);
+        return context.json({ error: 'Manual decision lookup timed out' }, 504);
       }
-      return context.json(createEmptyDashboardStatsResponse({ pending: true }));
+      console.error('Error looking up manual decisions:', error.message);
+      return context.json({ error: 'Failed to look up manual decisions' }, 500);
     }
+  });
 
-    return context.json(await buildDashboardStats(filters, context.req.raw.signal));
-  } catch (error: any) {
-    if (error instanceof QueryWorkerTimeoutError) {
-      console.warn('Timed out serving dashboard statistics from database:', error.message);
-      return context.json({ error: 'Dashboard statistics query timed out' }, 504);
-    }
-    console.error('Error serving dashboard statistics from database:', error.message);
-    return context.json({ error: 'Failed to retrieve dashboard statistics' }, 500);
-  }
-});
-
-/** Validates the settings shared by single and bulk decision adds. */
-function parseDecisionSettings(body: Omit<AddDecisionRequest, 'ip'>): { error: string } | { duration: string; reason: string; type: string; scenario: string } {
-  const duration = body.duration || '4h';
-  const reason = body.reason || 'manual';
-  const type = body.type || 'ban';
-  const scenario = typeof body.scenario === 'string' && body.scenario.trim()
-    ? body.scenario.trim()
-    : DEFAULT_MANUAL_DECISION_SCENARIO;
-  const validTypes = ['ban', 'captcha'];
-  if (!validTypes.includes(type)) return { error: `Invalid type. Must be one of: ${validTypes.join(', ')}` };
-  if (!/^\d+[smhd]$/.test(duration)) return { error: 'Invalid duration format. Use e.g. "4h", "30m", "1d"' };
-  if ((body.scenario != null && typeof body.scenario !== 'string') || !isValidDecisionScenario(scenario)) {
-    return { error: `Invalid scenario format. Use e.g. "${DEFAULT_MANUAL_DECISION_SCENARIO}"` };
-  }
-  return { duration, reason, type, scenario };
-}
-
-app.post(`${config.basePath}/api/decisions`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const doRequest = async () => {
-    const body = await context.req.json<AddDecisionRequest>();
-    const ip = body.ip;
-
-    if (!ip) {
-      return context.json({ error: 'IP address is required' }, 400);
-    }
-
-    if (!isValidIpOrRange(ip)) {
-      return context.json({ error: 'Invalid IP address format' }, 400);
-    }
-
-    const settings = parseDecisionSettings(body);
-    if ('error' in settings) return context.json({ error: settings.error }, 400);
-    const { duration, reason, type, scenario } = settings;
-
-    const targets = resolveOperationInstances(body.scope, body.instance_id);
-    if ('error' in targets) return context.json({ error: targets.error }, 400);
-    const bypassAllowlist = body.bypass_allowlist === true;
-    // LAPI skips its allowlist check for alerts that already carry decisions,
-    // so mirror `cscli decisions add` and refuse unless explicitly bypassed.
-    if (!bypassAllowlist) {
-      const check = await allowlistService.checkValue(targets, ip);
-      for (const result of check.results) {
-        if (result.status === 'unavailable') {
-          console.warn(`[decisions] Allowlist check for ${ip} failed on ${result.instance_name}: ${result.error}`);
-        }
-      }
-      const allowlisted: AllowlistMatch[] = check.results.flatMap((result) => result.allowlisted
-        ? [{ instance_id: result.instance_id, instance_name: result.instance_name, ...(result.reason ? { reason: result.reason } : {}) }]
-        : []);
-      if (allowlisted.length > 0) {
-        const response: AllowlistedDecisionResponse = { error: `${ip} is allowlisted`, code: 'ALLOWLISTED', allowlisted };
-        return context.json(response, 409);
-      }
-    }
-    const targetOutcomes = new Map<string, AuditOutcome>();
-    const results = await Promise.all(targets.map(async (instance: RuntimeConfig['instances'][number]) => {
-      const client = lapiClients.get(instance.id)!;
-      let upstreamAdded = false;
+  app.get(
+    `${config.basePath}/api/dashboard/stats`,
+    ensureAuth,
+    ensurePublishedRevisionRead,
+    async (context) => {
       try {
-        const result = await client.addDecision(ip, type, duration, reason.slice(0, 256), scenario);
-        upstreamAdded = true;
-        if (instance.id === primaryInstance.id) await updateCacheDelta({ publishUnchanged: true });
-        else await syncInstanceDelta(instance.id);
-        targetOutcomes.set(instance.id, 'success');
-        return { instance_id: instance.id, instance_name: instance.name, success: true, result };
-      } catch (error: any) {
-        targetOutcomes.set(instance.id, upstreamAdded ? 'partial' : 'failure');
-        return { instance_id: instance.id, instance_name: instance.name, success: false, error: error?.message || String(error) };
-      }
-    }));
-    const succeeded = results.filter((result) => result.success).length;
-    const payload = { results, succeeded, failed: results.length - succeeded };
-    for (const result of results) {
-      if (result.success) console.log(`[decisions] Added ${type} decision for ${ip} (${duration}, ${scenario}). Instance: ${result.instance_name}.`);
-    }
-    const instanceResultEntries = results.map((result) => ({
-      instance_id: result.instance_id,
-      instance: result.instance_name,
-      outcome: targetOutcomes.get(result.instance_id) || 'failure',
-    }));
-    const instanceResults = capAuditEntries(instanceResultEntries);
-    auditLog.record(context, {
-      action: 'decision.add',
-      ip,
-      type,
-      scenario,
-      duration,
-      reason: reason.slice(0, 256),
-      ...(bypassAllowlist ? { bypass_allowlist: true } : {}),
-      instances: results.map((result) => result.instance_name),
-      instance_results: instanceResults.entries,
-      ...(instanceResults.truncated ? { truncated: true } : {}),
-      outcome: auditTargetOutcome(instanceResultEntries.map((result) => result.outcome)),
-    });
-    if (succeeded > 0) void runNotificationEvaluation('manual decision add');
-    if (results.length === 1 && body.scope === undefined && results[0].success) {
-      return context.json({ message: 'Decision added (via Alert)', result: results[0].result });
-    }
-    return context.json(payload, succeeded === results.length ? 200 : succeeded > 0 ? 207 : 502);
-  };
+        await prepareOnDemandRefresh(context);
 
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'adding decision', doRequest);
-  }
-});
-
-app.post(`${config.basePath}/api/decisions/bulk-add`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const doRequest = async () => {
-    const body = await context.req.json<BulkAddDecisionRequest>();
-    if (!Array.isArray(body.values) || body.values.length === 0) {
-      return context.json({ error: 'At least one value is required' }, 400);
-    }
-    const values = [...new Set(body.values.map((value) => (typeof value === 'string' ? value.trim() : '')))];
-    if (values.length > BULK_ADD_DECISIONS_MAX) {
-      return context.json({ error: `At most ${BULK_ADD_DECISIONS_MAX} values can be added at once` }, 400);
-    }
-    const invalid = values.find((value) => !value || !isValidIpOrRange(value));
-    if (invalid !== undefined) return context.json({ error: `Invalid IP address format: ${invalid}` }, 400);
-    const settings = parseDecisionSettings(body);
-    if ('error' in settings) return context.json({ error: settings.error }, 400);
-    const { duration, reason, type, scenario } = settings;
-
-    const targets = resolveOperationInstances(body.scope, body.instance_id);
-    if ('error' in targets) return context.json({ error: targets.error }, 400);
-    const bypassAllowlist = body.bypass_allowlist === true;
-    // Allowlisted values are skipped rather than failing the whole request,
-    // and reported so they can be resent with an explicit bypass.
-    const allowlisted: BulkAddDecisionResponse['allowlisted'] = [];
-    if (!bypassAllowlist) {
-      let next = 0;
-      await Promise.all(Array.from({ length: Math.min(BULK_ALLOWLIST_CHECK_CONCURRENCY, values.length) }, async () => {
-        while (next < values.length) {
-          const value = values[next++];
-          const check = await allowlistService.checkValue(targets, value);
-          const matches: AllowlistMatch[] = check.results.flatMap((result) => {
-            if (result.status === 'unavailable') console.warn(`[decisions] Allowlist check for ${value} failed on ${result.instance_name}: ${result.error}`);
-            return result.allowlisted
-              ? [{ instance_id: result.instance_id, instance_name: result.instance_name, ...(result.reason ? { reason: result.reason } : {}) }]
-              : [];
-          });
-          if (matches.length > 0) allowlisted.push({ value, allowlisted: matches });
+        await prepareReadCache('dashboard stats request');
+        const filters = getDashboardStatsFilters(context, config.timeZone);
+        noteDashboardStatsRequest(filters);
+        state.lastDashboardStatsFilters = { ...filters };
+        state.lastDashboardStatsRequestedAt = Date.now();
+        const initialScopePending =
+          filters.instanceId === 'all'
+            ? state.historicalInstanceSyncPending.size > 0
+            : state.historicalInstanceSyncPending.has(filters.instanceId);
+        if (initialScopePending) {
+          return context.json(createEmptyDashboardStatsResponse({ pending: true }));
         }
-      }));
-    }
-    const skipped = new Set(allowlisted.map((entry) => entry.value));
-    const added = values.filter((value) => !skipped.has(value));
-    allowlisted.sort((a, b) => values.indexOf(a.value) - values.indexOf(b.value));
-    if (added.length === 0) {
-      const response: BulkAddDecisionResponse = { added, allowlisted, results: [], succeeded: 0, failed: 0 };
-      return context.json(response);
-    }
+        if (isDashboardStatsBuildInProgress(filters)) {
+          warmDashboardStatsCache(filters);
+          const staleResponse = state.staleDashboardStatsResponseCache.get(
+            getStaleDashboardStatsResponseCacheKey(filters),
+          );
+          if (staleResponse) {
+            return context.json({
+              ...staleResponse,
+              pending: true,
+              stale: true,
+              retryAfterMs: 1_500,
+            });
+          }
+          return context.json(createEmptyDashboardStatsResponse({ pending: true }));
+        }
 
-    const targetOutcomes = new Map<string, AuditOutcome>();
-    const results = await Promise.all(targets.map(async (instance: RuntimeConfig['instances'][number]) => {
-      const client = lapiClients.get(instance.id)!;
-      let upstreamAdded = false;
-      try {
-        const result = await client.addDecisions(added, type, duration, reason.slice(0, 256), scenario);
-        upstreamAdded = true;
-        if (instance.id === primaryInstance.id) await updateCacheDelta({ publishUnchanged: true });
-        else await syncInstanceDelta(instance.id);
-        targetOutcomes.set(instance.id, 'success');
-        return { instance_id: instance.id, instance_name: instance.name, success: true, result };
+        return context.json(await buildDashboardStats(filters, context.req.raw.signal));
       } catch (error: any) {
-        targetOutcomes.set(instance.id, upstreamAdded ? 'partial' : 'failure');
-        return { instance_id: instance.id, instance_name: instance.name, success: false, error: error?.message || String(error) };
+        if (error instanceof QueryWorkerTimeoutError) {
+          console.warn('Timed out serving dashboard statistics from database:', error.message);
+          return context.json({ error: 'Dashboard statistics query timed out' }, 504);
+        }
+        console.error('Error serving dashboard statistics from database:', error.message);
+        return context.json({ error: 'Failed to retrieve dashboard statistics' }, 500);
       }
-    }));
-    const succeeded = results.filter((result) => result.success).length;
-    for (const result of results) {
-      if (result.success) console.log(`[decisions] Added ${added.length} ${type} decisions (${duration}, ${scenario}). Instance: ${result.instance_name}.`);
+    },
+  );
+
+  /** Validates the settings shared by single and bulk decision adds. */
+  function parseDecisionSettings(
+    body: Omit<AddDecisionRequest, 'ip'>,
+  ): { error: string } | { duration: string; reason: string; type: string; scenario: string } {
+    const duration = body.duration || '4h';
+    const reason = body.reason || 'manual';
+    const type = body.type || 'ban';
+    const scenario =
+      typeof body.scenario === 'string' && body.scenario.trim()
+        ? body.scenario.trim()
+        : DEFAULT_MANUAL_DECISION_SCENARIO;
+    const validTypes = ['ban', 'captcha'];
+    if (!validTypes.includes(type))
+      return { error: `Invalid type. Must be one of: ${validTypes.join(', ')}` };
+    if (!/^\d+[smhd]$/.test(duration))
+      return { error: 'Invalid duration format. Use e.g. "4h", "30m", "1d"' };
+    if (
+      (body.scenario != null && typeof body.scenario !== 'string') ||
+      !isValidDecisionScenario(scenario)
+    ) {
+      return { error: `Invalid scenario format. Use e.g. "${DEFAULT_MANUAL_DECISION_SCENARIO}"` };
     }
-    const instanceResultEntries = results.map((result) => ({
-      instance_id: result.instance_id,
-      instance: result.instance_name,
-      outcome: targetOutcomes.get(result.instance_id) || 'failure',
-    }));
-    const instanceResults = capAuditEntries(instanceResultEntries);
-    const auditValues = capAuditEntries(added);
-    auditLog.record(context, {
-      action: 'decision.add',
-      values: auditValues.entries,
-      type,
-      scenario,
-      duration,
-      reason: reason.slice(0, 256),
-      ...(bypassAllowlist ? { bypass_allowlist: true } : {}),
-      instances: results.map((result) => result.instance_name),
-      instance_results: instanceResults.entries,
-      ...(instanceResults.truncated || auditValues.truncated ? { truncated: true } : {}),
-      outcome: auditTargetOutcome(instanceResultEntries.map((result) => result.outcome)),
-    });
-    if (succeeded > 0) void runNotificationEvaluation('manual decision add');
-    const response: BulkAddDecisionResponse = { added, allowlisted, results, succeeded, failed: results.length - succeeded };
-    return context.json(response, succeeded === results.length ? 200 : succeeded > 0 ? 207 : 502);
-  };
-
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'adding decisions', doRequest);
+    return { duration, reason, type, scenario };
   }
-});
 
-app.post(`${config.basePath}/api/decisions/bulk-delete`, ensureAuth, async (context) => {
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
+  app.post(`${config.basePath}/api/decisions`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
 
-  const doRequest = async () => {
-    const body = await context.req.json<BulkDeleteRequest>();
-    if (Array.isArray(body.refs) && body.refs.length > 0) {
-      const validated = validateInstanceEntityRefs(body.refs);
-      if ('error' in validated) return context.json({ error: validated.error }, 400);
-      const resolvedTargets = resolveDecisionAuditTargets(validated);
-      const auditValues = capAuditEntries(decisionAuditValues(resolvedTargets));
-      const result = createDeleteResult({ requested_decisions: validated.length });
-      const groups = groupInstanceEntityRefs(validated);
-      const targetOutcomes = new Map<string, AuditOutcome>();
-      await Promise.all(Array.from(groups, async ([instanceId, ids]) => {
-        const client = lapiClients.get(instanceId)!;
-        for (const id of ids) {
-          const targetId = `${instanceId}:${id}`;
-          let upstreamDeleted = false;
-          try {
-            await client.deleteDecision(id);
-            upstreamDeleted = true;
-            await syncWorker.runExclusive(() => database.deleteDecisionByInstanceId(instanceId, id));
-            result.deleted_decisions += 1;
-            targetOutcomes.set(targetId, 'success');
-          } catch (error) {
-            result.failed.push(toFailure('decision', targetId, error as AnyError));
-            targetOutcomes.set(targetId, upstreamDeleted ? 'partial' : 'failure');
+    const doRequest = async () => {
+      const body = await context.req.json<AddDecisionRequest>();
+      const ip = body.ip;
+
+      if (!ip) {
+        return context.json({ error: 'IP address is required' }, 400);
+      }
+
+      if (!isValidIpOrRange(ip)) {
+        return context.json({ error: 'Invalid IP address format' }, 400);
+      }
+
+      const settings = parseDecisionSettings(body);
+      if ('error' in settings) return context.json({ error: settings.error }, 400);
+      const { duration, reason, type, scenario } = settings;
+
+      const targets = resolveOperationInstances(body.scope, body.instance_id);
+      if ('error' in targets) return context.json({ error: targets.error }, 400);
+      const bypassAllowlist = body.bypass_allowlist === true;
+      // LAPI skips its allowlist check for alerts that already carry decisions,
+      // so mirror `cscli decisions add` and refuse unless explicitly bypassed.
+      if (!bypassAllowlist) {
+        const check = await allowlistService.checkValue(targets, ip);
+        for (const result of check.results) {
+          if (result.status === 'unavailable') {
+            console.warn(
+              `[decisions] Allowlist check for ${ip} failed on ${result.instance_name}: ${result.error}`,
+            );
           }
         }
+        const allowlisted: AllowlistMatch[] = check.results.flatMap((result) =>
+          result.allowlisted
+            ? [
+                {
+                  instance_id: result.instance_id,
+                  instance_name: result.instance_name,
+                  ...(result.reason ? { reason: result.reason } : {}),
+                },
+              ]
+            : [],
+        );
+        if (allowlisted.length > 0) {
+          const response: AllowlistedDecisionResponse = {
+            error: `${ip} is allowlisted`,
+            code: 'ALLOWLISTED',
+            allowlisted,
+          };
+          return context.json(response, 409);
+        }
+      }
+      const targetOutcomes = new Map<string, AuditOutcome>();
+      const results = await Promise.all(
+        targets.map(async (instance: RuntimeConfig['instances'][number]) => {
+          const client = lapiClients.get(instance.id)!;
+          let upstreamAdded = false;
+          try {
+            const result = await client.addDecision(
+              ip,
+              type,
+              duration,
+              reason.slice(0, 256),
+              scenario,
+            );
+            upstreamAdded = true;
+            if (instance.id === primaryInstance.id)
+              await updateCacheDelta({ publishUnchanged: true });
+            else await syncInstanceDelta(instance.id);
+            targetOutcomes.set(instance.id, 'success');
+            return {
+              instance_id: instance.id,
+              instance_name: instance.name,
+              success: true,
+              result,
+            };
+          } catch (error: any) {
+            targetOutcomes.set(instance.id, upstreamAdded ? 'partial' : 'failure');
+            return {
+              instance_id: instance.id,
+              instance_name: instance.name,
+              success: false,
+              error: error?.message || String(error),
+            };
+          }
+        }),
+      );
+      const succeeded = results.filter((result) => result.success).length;
+      const payload = { results, succeeded, failed: results.length - succeeded };
+      for (const result of results) {
+        if (result.success)
+          console.log(
+            `[decisions] Added ${type} decision for ${ip} (${duration}, ${scenario}). Instance: ${result.instance_name}.`,
+          );
+      }
+      const instanceResultEntries = results.map((result) => ({
+        instance_id: result.instance_id,
+        instance: result.instance_name,
+        outcome: targetOutcomes.get(result.instance_id) || 'failure',
       }));
-      await syncWorker.runExclusive(() => database.refreshDecisionDuplicateFlags(new Date().toISOString()));
-      invalidateDashboardStatsCache();
-      const decisionIds = capAuditEntries(validated.map((ref: InstanceEntityRef) => `${ref.instance_id}:${ref.id}`));
-      const targetResults = capAuditEntries(resolvedTargets.map((target) => ({
+      const instanceResults = capAuditEntries(instanceResultEntries);
+      auditLog.record(context, {
+        action: 'decision.add',
+        ip,
+        type,
+        scenario,
+        duration,
+        reason: reason.slice(0, 256),
+        ...(bypassAllowlist ? { bypass_allowlist: true } : {}),
+        instances: results.map((result) => result.instance_name),
+        instance_results: instanceResults.entries,
+        ...(instanceResults.truncated ? { truncated: true } : {}),
+        outcome: auditTargetOutcome(instanceResultEntries.map((result) => result.outcome)),
+      });
+      if (succeeded > 0) void runNotificationEvaluation('manual decision add');
+      if (results.length === 1 && body.scope === undefined && results[0].success) {
+        return context.json({ message: 'Decision added (via Alert)', result: results[0].result });
+      }
+      return context.json(payload, succeeded === results.length ? 200 : succeeded > 0 ? 207 : 502);
+    };
+
+    try {
+      return await doRequest();
+    } catch (error) {
+      return handleApiError(error as AnyError, context, 'adding decision', doRequest);
+    }
+  });
+
+  app.post(`${config.basePath}/api/decisions/bulk-add`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const doRequest = async () => {
+      const body = await context.req.json<BulkAddDecisionRequest>();
+      if (!Array.isArray(body.values) || body.values.length === 0) {
+        return context.json({ error: 'At least one value is required' }, 400);
+      }
+      const values = [
+        ...new Set(body.values.map((value) => (typeof value === 'string' ? value.trim() : ''))),
+      ];
+      if (values.length > BULK_ADD_DECISIONS_MAX) {
+        return context.json(
+          { error: `At most ${BULK_ADD_DECISIONS_MAX} values can be added at once` },
+          400,
+        );
+      }
+      const invalid = values.find((value) => !value || !isValidIpOrRange(value));
+      if (invalid !== undefined)
+        return context.json({ error: `Invalid IP address format: ${invalid}` }, 400);
+      const settings = parseDecisionSettings(body);
+      if ('error' in settings) return context.json({ error: settings.error }, 400);
+      const { duration, reason, type, scenario } = settings;
+
+      const targets = resolveOperationInstances(body.scope, body.instance_id);
+      if ('error' in targets) return context.json({ error: targets.error }, 400);
+      const bypassAllowlist = body.bypass_allowlist === true;
+      // Allowlisted values are skipped rather than failing the whole request,
+      // and reported so they can be resent with an explicit bypass.
+      const allowlisted: BulkAddDecisionResponse['allowlisted'] = [];
+      if (!bypassAllowlist) {
+        let next = 0;
+        await Promise.all(
+          Array.from(
+            { length: Math.min(BULK_ALLOWLIST_CHECK_CONCURRENCY, values.length) },
+            async () => {
+              while (next < values.length) {
+                const value = values[next++];
+                const check = await allowlistService.checkValue(targets, value);
+                const matches: AllowlistMatch[] = check.results.flatMap((result) => {
+                  if (result.status === 'unavailable')
+                    console.warn(
+                      `[decisions] Allowlist check for ${value} failed on ${result.instance_name}: ${result.error}`,
+                    );
+                  return result.allowlisted
+                    ? [
+                        {
+                          instance_id: result.instance_id,
+                          instance_name: result.instance_name,
+                          ...(result.reason ? { reason: result.reason } : {}),
+                        },
+                      ]
+                    : [];
+                });
+                if (matches.length > 0) allowlisted.push({ value, allowlisted: matches });
+              }
+            },
+          ),
+        );
+      }
+      const skipped = new Set(allowlisted.map((entry) => entry.value));
+      const added = values.filter((value) => !skipped.has(value));
+      allowlisted.sort((a, b) => values.indexOf(a.value) - values.indexOf(b.value));
+      if (added.length === 0) {
+        const response: BulkAddDecisionResponse = {
+          added,
+          allowlisted,
+          results: [],
+          succeeded: 0,
+          failed: 0,
+        };
+        return context.json(response);
+      }
+
+      const targetOutcomes = new Map<string, AuditOutcome>();
+      const results = await Promise.all(
+        targets.map(async (instance: RuntimeConfig['instances'][number]) => {
+          const client = lapiClients.get(instance.id)!;
+          let upstreamAdded = false;
+          try {
+            const result = await client.addDecisions(
+              added,
+              type,
+              duration,
+              reason.slice(0, 256),
+              scenario,
+            );
+            upstreamAdded = true;
+            if (instance.id === primaryInstance.id)
+              await updateCacheDelta({ publishUnchanged: true });
+            else await syncInstanceDelta(instance.id);
+            targetOutcomes.set(instance.id, 'success');
+            return {
+              instance_id: instance.id,
+              instance_name: instance.name,
+              success: true,
+              result,
+            };
+          } catch (error: any) {
+            targetOutcomes.set(instance.id, upstreamAdded ? 'partial' : 'failure');
+            return {
+              instance_id: instance.id,
+              instance_name: instance.name,
+              success: false,
+              error: error?.message || String(error),
+            };
+          }
+        }),
+      );
+      const succeeded = results.filter((result) => result.success).length;
+      for (const result of results) {
+        if (result.success)
+          console.log(
+            `[decisions] Added ${added.length} ${type} decisions (${duration}, ${scenario}). Instance: ${result.instance_name}.`,
+          );
+      }
+      const instanceResultEntries = results.map((result) => ({
+        instance_id: result.instance_id,
+        instance: result.instance_name,
+        outcome: targetOutcomes.get(result.instance_id) || 'failure',
+      }));
+      const instanceResults = capAuditEntries(instanceResultEntries);
+      const auditValues = capAuditEntries(added);
+      auditLog.record(context, {
+        action: 'decision.add',
+        values: auditValues.entries,
+        type,
+        scenario,
+        duration,
+        reason: reason.slice(0, 256),
+        ...(bypassAllowlist ? { bypass_allowlist: true } : {}),
+        instances: results.map((result) => result.instance_name),
+        instance_results: instanceResults.entries,
+        ...(instanceResults.truncated || auditValues.truncated ? { truncated: true } : {}),
+        outcome: auditTargetOutcome(instanceResultEntries.map((result) => result.outcome)),
+      });
+      if (succeeded > 0) void runNotificationEvaluation('manual decision add');
+      const response: BulkAddDecisionResponse = {
+        added,
+        allowlisted,
+        results,
+        succeeded,
+        failed: results.length - succeeded,
+      };
+      return context.json(response, succeeded === results.length ? 200 : succeeded > 0 ? 207 : 502);
+    };
+
+    try {
+      return await doRequest();
+    } catch (error) {
+      return handleApiError(error as AnyError, context, 'adding decisions', doRequest);
+    }
+  });
+
+  app.post(`${config.basePath}/api/decisions/bulk-delete`, ensureAuth, async (context) => {
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const doRequest = async () => {
+      const body = await context.req.json<BulkDeleteRequest>();
+      if (Array.isArray(body.refs) && body.refs.length > 0) {
+        const validated = validateInstanceEntityRefs(body.refs);
+        if ('error' in validated) return context.json({ error: validated.error }, 400);
+        const resolvedTargets = resolveDecisionAuditTargets(validated);
+        const auditValues = capAuditEntries(decisionAuditValues(resolvedTargets));
+        const result = createDeleteResult({ requested_decisions: validated.length });
+        const groups = groupInstanceEntityRefs(validated);
+        const targetOutcomes = new Map<string, AuditOutcome>();
+        await Promise.all(
+          Array.from(groups, async ([instanceId, ids]) => {
+            const client = lapiClients.get(instanceId)!;
+            for (const id of ids) {
+              const targetId = `${instanceId}:${id}`;
+              let upstreamDeleted = false;
+              try {
+                await client.deleteDecision(id);
+                upstreamDeleted = true;
+                await syncWorker.runExclusive(() =>
+                  database.deleteDecisionByInstanceId(instanceId, id),
+                );
+                result.deleted_decisions += 1;
+                targetOutcomes.set(targetId, 'success');
+              } catch (error) {
+                result.failed.push(toFailure('decision', targetId, error as AnyError));
+                targetOutcomes.set(targetId, upstreamDeleted ? 'partial' : 'failure');
+              }
+            }
+          }),
+        );
+        await syncWorker.runExclusive(() =>
+          database.refreshDecisionDuplicateFlags(new Date().toISOString()),
+        );
+        invalidateDashboardStatsCache();
+        const decisionIds = capAuditEntries(
+          validated.map((ref: InstanceEntityRef) => `${ref.instance_id}:${ref.id}`),
+        );
+        const targetResults = capAuditEntries(
+          resolvedTargets.map((target) => ({
+            ...target,
+            outcome: targetOutcomes.get(target.id) || 'failure',
+          })),
+        );
+        auditLog.record(context, {
+          action: 'decision.delete',
+          decision_ids: decisionIds.entries,
+          target_results: targetResults.entries,
+          ...(auditValues.entries.length > 0 ? { values: auditValues.entries } : {}),
+          ...(decisionIds.truncated || auditValues.truncated || targetResults.truncated
+            ? { truncated: true }
+            : {}),
+          requested_decisions: result.requested_decisions,
+          deleted_decisions: result.deleted_decisions,
+          outcome: auditTargetOutcome(Array.from(targetOutcomes.values())),
+        });
+        if (result.deleted_decisions > 0) void runNotificationEvaluation('bulk decision delete');
+        return context.json(result);
+      }
+      if (!Array.isArray(body.ids) || body.ids.length === 0) {
+        return context.json({ error: 'At least one decision ID is required' }, 400);
+      }
+      if (config.instances.length > 1) {
+        return context.json(
+          {
+            error:
+              'Structured instance refs are required when multiple CrowdSec instances are configured',
+          },
+          400,
+        );
+      }
+      const ids = normalizeDeleteIds(body.ids);
+      if (ids.length !== body.ids.length) {
+        return context.json({ error: 'Decision IDs must be numeric' }, 400);
+      }
+
+      const resolvedTargets = resolveDecisionAuditTargets(ids.map((id: string) => ({ id })));
+      const auditValues = capAuditEntries(decisionAuditValues(resolvedTargets));
+      const result = await deleteDecisionsByIdsInChunks(ids);
+      const decisionIds = capAuditEntries(ids);
+      const failedIds = new Set(result.failed.map((failure: { id: string }) => failure.id));
+      const targetResultEntries = resolvedTargets.map((target) => ({
         ...target,
-        outcome: targetOutcomes.get(target.id) || 'failure',
-      })));
+        outcome: failedIds.has(target.id) ? ('failure' as const) : ('success' as const),
+      }));
+      const targetResults = capAuditEntries(targetResultEntries);
       auditLog.record(context, {
         action: 'decision.delete',
         decision_ids: decisionIds.entries,
         target_results: targetResults.entries,
         ...(auditValues.entries.length > 0 ? { values: auditValues.entries } : {}),
-        ...(decisionIds.truncated || auditValues.truncated || targetResults.truncated ? { truncated: true } : {}),
+        ...(decisionIds.truncated || auditValues.truncated || targetResults.truncated
+          ? { truncated: true }
+          : {}),
         requested_decisions: result.requested_decisions,
         deleted_decisions: result.deleted_decisions,
-        outcome: auditTargetOutcome(Array.from(targetOutcomes.values())),
+        outcome: auditTargetOutcome(targetResultEntries.map((target) => target.outcome)),
       });
-      if (result.deleted_decisions > 0) void runNotificationEvaluation('bulk decision delete');
+      if (result.deleted_decisions > 0) {
+        void runNotificationEvaluation('bulk decision delete');
+      }
       return context.json(result);
-    }
-    if (!Array.isArray(body.ids) || body.ids.length === 0) {
-      return context.json({ error: 'At least one decision ID is required' }, 400);
-    }
-    if (config.instances.length > 1) {
-      return context.json({ error: 'Structured instance refs are required when multiple CrowdSec instances are configured' }, 400);
-    }
-    const ids = normalizeDeleteIds(body.ids);
-    if (ids.length !== body.ids.length) {
-      return context.json({ error: 'Decision IDs must be numeric' }, 400);
-    }
+    };
 
-    const resolvedTargets = resolveDecisionAuditTargets(ids.map((id: string) => ({ id })));
-    const auditValues = capAuditEntries(decisionAuditValues(resolvedTargets));
-    const result = await deleteDecisionsByIdsInChunks(ids);
-    const decisionIds = capAuditEntries(ids);
-    const failedIds = new Set(result.failed.map((failure: { id: string }) => failure.id));
-    const targetResultEntries = resolvedTargets.map((target) => ({
-      ...target,
-      outcome: failedIds.has(target.id) ? 'failure' as const : 'success' as const,
-    }));
-    const targetResults = capAuditEntries(targetResultEntries);
-    auditLog.record(context, {
-      action: 'decision.delete',
-      decision_ids: decisionIds.entries,
-      target_results: targetResults.entries,
-      ...(auditValues.entries.length > 0 ? { values: auditValues.entries } : {}),
-      ...(decisionIds.truncated || auditValues.truncated || targetResults.truncated ? { truncated: true } : {}),
-      requested_decisions: result.requested_decisions,
-      deleted_decisions: result.deleted_decisions,
-      outcome: auditTargetOutcome(targetResultEntries.map((target) => target.outcome)),
-    });
-    if (result.deleted_decisions > 0) {
-      void runNotificationEvaluation('bulk decision delete');
-    }
-    return context.json(result);
-  };
-
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'bulk deleting decisions', doRequest);
-  }
-});
-
-app.delete(`${config.basePath}/api/decisions/:id`, ensureAuth, async (context) => {
-  if (config.instances.length > 1) return context.json({ error: 'instance_id is required when multiple CrowdSec instances are configured' }, 400);
-  const readOnlyResponse = ensureCanManageEnforcement(context);
-  if (readOnlyResponse) return readOnlyResponse;
-
-  const decisionId = String(context.req.param('id'));
-  if (!/^\d+$/.test(decisionId)) {
-    return context.json({ error: 'Invalid decision ID' }, 400);
-  }
-
-  const doRequest = async () => {
-    const targets = resolveDecisionAuditTargets([{ id: decisionId }]);
-    const values = decisionAuditValues(targets);
-    const result = await deleteDecisionFromLapi(decisionId);
-    console.log(`Removing decision ${decisionId} from local cache...`);
     try {
-      await syncWorker.runExclusive(() => {
-        database.deleteDecision(decisionId);
-        database.refreshDecisionDuplicateFlags(new Date().toISOString());
-      });
+      return await doRequest();
     } catch (error) {
+      return handleApiError(error as AnyError, context, 'bulk deleting decisions', doRequest);
+    }
+  });
+
+  app.delete(`${config.basePath}/api/decisions/:id`, ensureAuth, async (context) => {
+    if (config.instances.length > 1)
+      return context.json(
+        { error: 'instance_id is required when multiple CrowdSec instances are configured' },
+        400,
+      );
+    const readOnlyResponse = ensureCanManageEnforcement(context);
+    if (readOnlyResponse) return readOnlyResponse;
+
+    const decisionId = String(context.req.param('id'));
+    if (!/^\d+$/.test(decisionId)) {
+      return context.json({ error: 'Invalid decision ID' }, 400);
+    }
+
+    const doRequest = async () => {
+      const targets = resolveDecisionAuditTargets([{ id: decisionId }]);
+      const values = decisionAuditValues(targets);
+      const result = await deleteDecisionFromLapi(decisionId);
+      console.log(`Removing decision ${decisionId} from local cache...`);
+      try {
+        await syncWorker.runExclusive(() => {
+          database.deleteDecision(decisionId);
+          database.refreshDecisionDuplicateFlags(new Date().toISOString());
+        });
+      } catch (error) {
+        auditLog.record(context, {
+          action: 'decision.delete',
+          decision_ids: [decisionId],
+          target_results: targets.map((target) => ({ ...target, outcome: 'partial' })),
+          ...(values.length > 0 ? { values } : {}),
+          remote_deleted: true,
+          local_cache_updated: false,
+          outcome: 'partial',
+        });
+        throw error;
+      }
+      invalidateDashboardStatsCache();
       auditLog.record(context, {
         action: 'decision.delete',
         decision_ids: [decisionId],
-        target_results: targets.map((target) => ({ ...target, outcome: 'partial' })),
+        target_results: targets.map((target) => ({ ...target, outcome: 'success' })),
         ...(values.length > 0 ? { values } : {}),
-        remote_deleted: true,
-        local_cache_updated: false,
-        outcome: 'partial',
+        outcome: 'success',
       });
-      throw error;
+      void runNotificationEvaluation('decision delete');
+      return context.json((result as object) || { message: 'Deleted' });
+    };
+
+    try {
+      return await doRequest();
+    } catch (error) {
+      return handleApiError(error as AnyError, context, 'deleting decision', doRequest);
     }
-    invalidateDashboardStatsCache();
-    auditLog.record(context, {
-      action: 'decision.delete',
-      decision_ids: [decisionId],
-      target_results: targets.map((target) => ({ ...target, outcome: 'success' })),
-      ...(values.length > 0 ? { values } : {}),
-      outcome: 'success',
-    });
-    void runNotificationEvaluation('decision delete');
-    return context.json((result as object) || { message: 'Deleted' });
-  };
+  });
 
-  try {
-    return await doRequest();
-  } catch (error) {
-    return handleApiError(error as AnyError, context, 'deleting decision', doRequest);
-  }
-});
-
-app.get(`${config.basePath}/api/update-check`, ensureAuth, async (context) => {
-  try {
-    const status = await checkForUpdates(readUpdateCheckOverrides(context.req.query()));
-    context.header('Cache-Control', 'no-store, no-cache, must-revalidate');
-    context.header('Pragma', 'no-cache');
-    return context.json(status);
-  } catch (error: any) {
-    console.error('Error checking for updates:', error.message);
-    context.header('Cache-Control', 'no-store, no-cache, must-revalidate');
-    context.header('Pragma', 'no-cache');
-    return context.json({ error: 'Update check failed' }, 500);
-  }
-});
-
-
+  app.get(`${config.basePath}/api/update-check`, ensureAuth, async (context) => {
+    try {
+      const status = await checkForUpdates(readUpdateCheckOverrides(context.req.query()));
+      context.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+      context.header('Pragma', 'no-cache');
+      return context.json(status);
+    } catch (error: any) {
+      console.error('Error checking for updates:', error.message);
+      context.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+      context.header('Pragma', 'no-cache');
+      return context.json({ error: 'Update check failed' }, 500);
+    }
+  });
 }

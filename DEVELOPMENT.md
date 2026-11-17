@@ -8,10 +8,10 @@ Contributor setup, build metadata, verification, and implementation notes for Cr
 
 ## Prerequisites
 
-| Tool | Version |
-| --- | --- |
-| Node.js | `24.22.2` (LTS) |
-| pnpm | `12.16.1` |
+| Tool     | Version                                 |
+| -------- | --------------------------------------- |
+| Node.js  | 26                                      |
+| pnpm     | `12.16.1`                               |
 | CrowdSec | A reachable LAPI for normal development |
 
 ### Install dependencies
@@ -76,21 +76,17 @@ pnpm start
 
 ### Project layout
 
-| Path | Purpose |
-| --- | --- |
-| `client/` | React, Vite, and Tailwind CSS frontend |
-| `server/` | Hono API and background services |
-| `scripts/` | Data, test, release, and load-test helpers |
-| `dist/client/` | Built static assets |
-| `dist/server/` | Compiled server output |
+| Path           | Purpose                                    |
+| -------------- | ------------------------------------------ |
+| `client/`      | React, Vite, and Tailwind CSS frontend     |
+| `server/`      | Hono API and background services           |
+| `scripts/`     | Data, test, release, and load-test helpers |
+| `dist/client/` | Built static assets                        |
+| `dist/server/` | Compiled server output                     |
 
 ## Verification
 
-### Complete verification
-
-```bash
-pnpm run verify
-```
+`pnpm validate` runs the preflight, format check, oxlint, type check, and tests. In CI the test step is the coverage run. `pnpm run build` is the production client and server build, and CI runs it as its own step after validate. `pnpm run verify` runs validate and then that build.
 
 ### Individual checks
 
@@ -99,12 +95,13 @@ pnpm run test
 pnpm run coverage
 pnpm run typecheck
 pnpm run lint
+pnpm validate
 pnpm run build
 ```
 
 Type checking uses TypeScript 7 through the `@typescript/native` package alias. The
-`typescript` alias provides Microsoft's TypeScript 6 API compatibility package for
-ESLint and other tools that still require the compiler API. This follows the
+`typescript` package provides Microsoft's TypeScript 6 API for tools that still
+require the compiler API. This follows the
 [upstream compatibility guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0).
 
 The synthetic large-dataset workflow is documented separately in [LOAD_TESTING.md](LOAD_TESTING.md).
@@ -117,23 +114,23 @@ With Chrome or Chromium installed, run `pnpm run screenshots:update` from the re
 
 These values apply when building a local production bundle or container image.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `DOCKER_IMAGE_REF` | `theduffman85/crowdsec-web-ui` | Image checked for updates; accepts `owner/repo` or a registry-prefixed reference such as `ghcr.io/owner/repo`. |
-| `VITE_VERSION` | `0.0.0` | UI version and update-comparison value. |
-| `VITE_BRANCH` | `main` | UI branch label; `dev` enables development-build update comparisons. |
-| `VITE_COMMIT_HASH` | Empty | Commit shown in the sidebar and used by update logic. |
-| `VITE_BUILD_DATE` | Generated at build time | Build timestamp shown in the UI. |
-| `VITE_REPO_URL` | `https://github.com/TheDuffman85/crowdsec-web-ui` | Repository used for release and commit links. |
+| Variable           | Default                                           | Purpose                                                                                                        |
+| ------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `DOCKER_IMAGE_REF` | `theduffman85/crowdsec-web-ui`                    | Image checked for updates; accepts `owner/repo` or a registry-prefixed reference such as `ghcr.io/owner/repo`. |
+| `VITE_VERSION`     | `0.0.0`                                           | UI version and update-comparison value.                                                                        |
+| `VITE_BRANCH`      | `main`                                            | UI branch label; `dev` enables development-build update comparisons.                                           |
+| `VITE_COMMIT_HASH` | Empty                                             | Commit shown in the sidebar and used by update logic.                                                          |
+| `VITE_BUILD_DATE`  | Generated at build time                           | Build timestamp shown in the UI.                                                                               |
+| `VITE_REPO_URL`    | `https://github.com/TheDuffman85/crowdsec-web-ui` | Repository used for release and commit links.                                                                  |
 
 ## Development and Test Environment
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `BACKEND_URL` | `http://localhost:3000` | Vite proxy target for `/api`. |
-| `CROWDSEC_MTLS_IMAGE` | `crowdsecurity/crowdsec:v1.8.1` | Image used by the CrowdSec mTLS smoke test. |
-| `CROWDSEC_MTLS_KEEP` | `0` | Set to `1` to retain the disposable test container. |
-| `CROWDSEC_MTLS_CONTAINER` | Generated | Override the disposable container name. |
+| Variable                  | Default                         | Purpose                                             |
+| ------------------------- | ------------------------------- | --------------------------------------------------- |
+| `BACKEND_URL`             | `http://localhost:3000`         | Vite proxy target for `/api`.                       |
+| `CROWDSEC_MTLS_IMAGE`     | `crowdsecurity/crowdsec:v1.8.1` | Image used by the CrowdSec mTLS smoke test.         |
+| `CROWDSEC_MTLS_KEEP`      | `0`                             | Set to `1` to retain the disposable test container. |
+| `CROWDSEC_MTLS_CONTAINER` | Generated                       | Override the disposable container name.             |
 
 `scripts/ensure-native-deps.mjs` also honors standard Node/npm cache variables: `COREPACK_HOME`, `XDG_CACHE_HOME`, `PREBUILD_INSTALL_CACHE`, `npm_config_cache`, `npm_config_devdir`, and `npm_config_nodedir`.
 
@@ -159,12 +156,12 @@ CROWDSEC_MTLS_CONTAINER=my-crowdsec-test pnpm run test:mtls:crowdsec
 
 Quick Filters are structured-search editors shared by Dashboard, Alerts, and Decisions.
 
-| Path | Responsibility |
-| --- | --- |
-| `client/src/components/QuickFilters.tsx` | Accessible side drawer, active counts, visible/hidden/unavailable sections, facet search, pagination, and clear controls |
-| `client/src/lib/quickFilters.ts` | Browser-local persistence, normalization, page-field compatibility, and synchronization between stored selections and search ASTs |
-| `shared/search.ts` | Parsing, compiling, editing, and serializing structured searches |
-| `server/app.ts` | Alert/decision facet queries and Dashboard `q` evaluation |
+| Path                                     | Responsibility                                                                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `client/src/components/QuickFilters.tsx` | Accessible side drawer, active counts, visible/hidden/unavailable sections, facet search, pagination, and clear controls          |
+| `client/src/lib/quickFilters.ts`         | Browser-local persistence, normalization, page-field compatibility, and synchronization between stored selections and search ASTs |
+| `shared/search.ts`                       | Parsing, compiling, editing, and serializing structured searches                                                                  |
+| `server/app.ts`                          | Alert/decision facet queries and Dashboard `q` evaluation                                                                         |
 
 Keep these invariants when changing filters:
 

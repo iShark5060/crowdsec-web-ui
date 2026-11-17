@@ -43,9 +43,11 @@ export class QueryWorkerTimeoutError extends Error {
   constructor(timeoutMs: number, options: { stage?: 'queue' | 'execution'; label?: string } = {}) {
     const stage = options.stage ?? 'execution';
     const label = options.label || 'database query';
-    super(stage === 'queue'
-      ? `${label} waited more than ${timeoutMs}ms for a database query worker`
-      : `${label} exceeded ${timeoutMs}ms execution timeout`);
+    super(
+      stage === 'queue'
+        ? `${label} waited more than ${timeoutMs}ms for a database query worker`
+        : `${label} exceeded ${timeoutMs}ms execution timeout`,
+    );
     this.name = 'QueryWorkerTimeoutError';
     this.stage = stage;
     this.label = label;
@@ -93,7 +95,12 @@ export class DatabaseQueryWorker {
     this.queue.length = 0;
   }
 
-  private execute<T>(method: QueryMethod, sql: string, params: unknown[], options: QueryOptions): Promise<T> {
+  private execute<T>(
+    method: QueryMethod,
+    sql: string,
+    params: unknown[],
+    options: QueryOptions,
+  ): Promise<T> {
     const id = this.nextId++;
     const label = options.label?.trim() || describeQuery(sql);
 
@@ -117,13 +124,15 @@ export class DatabaseQueryWorker {
         }
         const waitedMs = Date.now() - pending.queuedAt;
         console.warn(
-          `[query-worker] ${pending.label} timed out in queue after ${waitedMs}ms `
-          + `(queued=${this.queue.length}, active=${this.activeWorkerCount()}/${this.maxWorkers}).`,
+          `[query-worker] ${pending.label} timed out in queue after ${waitedMs}ms ` +
+            `(queued=${this.queue.length}, active=${this.activeWorkerCount()}/${this.maxWorkers}).`,
         );
-        reject(new QueryWorkerTimeoutError(this.queueTimeoutMs, {
-          stage: 'queue',
-          label: pending.label,
-        }));
+        reject(
+          new QueryWorkerTimeoutError(this.queueTimeoutMs, {
+            stage: 'queue',
+            label: pending.label,
+          }),
+        );
       }, this.queueTimeoutMs);
 
       const pending: PendingQuery = {
@@ -174,13 +183,15 @@ export class DatabaseQueryWorker {
         this.removeAbortListener(pending);
         const executedMs = Date.now() - (pending.startedAt || pending.queuedAt);
         console.warn(
-          `[query-worker] ${pending.label} timed out during execution after ${executedMs}ms `
-          + `(queued=${this.queue.length}, active=${this.activeWorkerCount()}/${this.maxWorkers}).`,
+          `[query-worker] ${pending.label} timed out during execution after ${executedMs}ms ` +
+            `(queued=${this.queue.length}, active=${this.activeWorkerCount()}/${this.maxWorkers}).`,
         );
-        pending.reject(new QueryWorkerTimeoutError(this.timeoutMs, {
-          stage: 'execution',
-          label: pending.label,
-        }));
+        pending.reject(
+          new QueryWorkerTimeoutError(this.timeoutMs, {
+            stage: 'execution',
+            label: pending.label,
+          }),
+        );
         this.restartWorker(slot);
       }, this.timeoutMs);
       slot.currentId = pending.id;
@@ -212,10 +223,13 @@ export class DatabaseQueryWorker {
     }
 
     const isTsRuntime = import.meta.url.endsWith('.ts');
-    const worker = new Worker(new URL(`./query-worker.${isTsRuntime ? 'ts' : 'js'}`, import.meta.url), {
-      workerData: { dbPath: this.dbPath },
-      execArgv: isTsRuntime ? ['--import', 'tsx'] : [],
-    });
+    const worker = new Worker(
+      new URL(`./query-worker.${isTsRuntime ? 'ts' : 'js'}`, import.meta.url),
+      {
+        workerData: { dbPath: this.dbPath },
+        execArgv: isTsRuntime ? ['--import', 'tsx'] : [],
+      },
+    );
     const slot: WorkerSlot = { worker, currentId: null, retiring: false };
 
     worker.on('message', (message: WorkerResponse | WorkerReadyMessage) => {

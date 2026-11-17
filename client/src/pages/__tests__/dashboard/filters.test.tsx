@@ -1,10 +1,18 @@
-import { buildDashboardStatsResponse, chartSpy, createDeferred, fetchConfigMock, fetchDashboardStatsMock, mapSpy } from './harness';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { Dashboard } from '../../Dashboard';
 import { describe, expect, test, vi } from 'vitest';
+
 import { QUICK_FILTERS_STORAGE_KEY } from '../../../lib/quickFilters';
+import { Dashboard } from '../../Dashboard';
+import {
+  buildDashboardStatsResponse,
+  chartSpy,
+  createDeferred,
+  fetchConfigMock,
+  fetchDashboardStatsMock,
+  mapSpy,
+} from './harness';
 
 async function openSimulationQuickFilter() {
   await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
@@ -45,11 +53,7 @@ describe('Dashboard filters and drilldowns', () => {
     );
 
     await screen.findByText('Top Countries');
-    expect(screen.getByRole('button', { name: 'Filters' })).toHaveClass(
-      'min-h-11',
-      'rounded-md',
-      'border-gray-300',
-    );
+    expect(screen.getByRole('button', { name: 'Filters' })).toHaveClass('min-h-11', 'rounded-md', 'border-gray-300');
     const statisticsHeading = screen.getByRole('heading', { name: 'Last 7 Days Statistics' });
     const searchButton = screen.getByRole('button', { name: 'Expand search' });
     const filtersButton = screen.getByRole('button', { name: 'Filters' });
@@ -106,13 +110,15 @@ describe('Dashboard filters and drilldowns', () => {
     );
     await user.type(screen.getByPlaceholderText('Search'), 'country:DE');
 
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: 'country:DE',
-        decision_q: 'country:DE',
-      }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'country:DE',
+          decision_q: 'country:DE',
+        }),
+        expect.any(Object),
+      ),
+    );
     expect(screen.getByPlaceholderText('Search')).toHaveValue('country:DE');
 
     const alertsCard = screen.getByText('Total Alerts').closest('a');
@@ -122,33 +128,50 @@ describe('Dashboard filters and drilldowns', () => {
   });
 
   test('applies a compatible saved query to dashboard data and drilldowns', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      if (!init?.method) return Response.json({
-        saved: [{ id: 'one', name: 'German WAF', query: 'kind=waf AND country=DE', created_at: '', updated_at: '' }],
-        recent: [],
-        shared: false,
-      });
-      return Response.json({ recent: [] });
-    }));
-    render(<MemoryRouter><Dashboard /></MemoryRouter>);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (!init?.method)
+          return Response.json({
+            saved: [
+              { id: 'one', name: 'German WAF', query: 'kind=waf AND country=DE', created_at: '', updated_at: '' },
+            ],
+            recent: [],
+            shared: false,
+          });
+        return Response.json({ recent: [] });
+      }),
+    );
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
     await screen.findByText('Top Countries');
     await userEvent.click(screen.getByRole('button', { name: 'Saved filters' }));
     const entry = await screen.findByText('German WAF');
-    await userEvent.click(within(entry.closest('div.rounded-md') as HTMLElement).getByRole('button', { name: 'Apply' }));
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ q: 'kind=waf AND country=DE', decision_q: 'kind=waf AND country=DE' }),
-      expect.any(Object),
-    ));
+    await userEvent.click(
+      within(entry.closest('div.rounded-md') as HTMLElement).getByRole('button', { name: 'Apply' }),
+    );
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'kind=waf AND country=DE', decision_q: 'kind=waf AND country=DE' }),
+        expect.any(Object),
+      ),
+    );
   });
 
   test('applies the kind quick filter to alert and decision dashboard data', async () => {
-    localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        kind: { included: ['waf'], excluded: [] },
-      },
-      dateRange: { start: '', end: '' },
-      simulation: 'all',
-    }));
+    localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          kind: { included: ['waf'], excluded: [] },
+        },
+        dateRange: { start: '', end: '' },
+        simulation: 'all',
+      }),
+    );
 
     render(
       <MemoryRouter>
@@ -157,13 +180,15 @@ describe('Dashboard filters and drilldowns', () => {
     );
 
     await screen.findByText('Top Countries');
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: 'kind=waf',
-        decision_q: 'kind=waf',
-      }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'kind=waf',
+          decision_q: 'kind=waf',
+        }),
+        expect.any(Object),
+      ),
+    );
   });
 
   test('preserves the query order while a dashboard search is being typed', async () => {
@@ -181,14 +206,16 @@ describe('Dashboard filters and drilldowns', () => {
 
     await user.type(input, query);
 
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dateStart: '2026-07-27T00:00',
-        q: 'target=tausend',
-        decision_q: 'target=tausend',
-      }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dateStart: '2026-07-27T00:00',
+          q: 'target=tausend',
+          decision_q: 'target=tausend',
+        }),
+        expect.any(Object),
+      ),
+    );
     expect(input).toHaveValue(query);
     expect(input).toHaveFocus();
     expect(input).toHaveProperty('selectionStart', query.length);
@@ -196,13 +223,16 @@ describe('Dashboard filters and drilldowns', () => {
 
   test('preserves a broad URL search instead of restoring its exact quick-filter form', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        target: { included: ['abc'], excluded: [] },
-      },
-      dateRange: { start: '', end: '' },
-      simulation: 'all',
-    }));
+    localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          target: { included: ['abc'], excluded: [] },
+        },
+        dateRange: { start: '', end: '' },
+        simulation: 'all',
+      }),
+    );
 
     render(
       <MemoryRouter initialEntries={['/?q=target%3Aabc']}>
@@ -215,16 +245,18 @@ describe('Dashboard filters and drilldowns', () => {
     expect(screen.getByPlaceholderText('Search')).toHaveValue('target:abc');
     expect(screen.getByRole('button', { name: /^Filters:/ })).toBeDisabled();
     expect(screen.getByText(/The `:` operator performs a broad match/)).toBeInTheDocument();
-    expect(screen.getByText(/The `:` operator performs a broad match/).closest(
-      '[data-search-controls-footer="true"]',
-    )).not.toBeNull();
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: 'target:abc',
-        decision_q: 'target:abc',
-      }),
-      expect.any(Object),
-    ));
+    expect(
+      screen.getByText(/The `:` operator performs a broad match/).closest('[data-search-controls-footer="true"]'),
+    ).not.toBeNull();
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'target:abc',
+          decision_q: 'target:abc',
+        }),
+        expect.any(Object),
+      ),
+    );
 
     const input = screen.getByPlaceholderText('Search');
     await user.clear(input);
@@ -232,13 +264,15 @@ describe('Dashboard filters and drilldowns', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Filters' })).toBeEnabled());
     expect(screen.queryByText(/The `:` operator performs a broad match/)).not.toBeInTheDocument();
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: 'target=abc',
-        decision_q: 'target=abc',
-      }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'target=abc',
+          decision_q: 'target=abc',
+        }),
+        expect.any(Object),
+      ),
+    );
   });
 
   test('shows quick-filter selections in search and opens dashboard syntax help', async () => {
@@ -260,13 +294,16 @@ describe('Dashboard filters and drilldowns', () => {
 
   test('shows page-only filters in the unavailable section and allows clearing them', async () => {
     const user = userEvent.setup();
-    localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        action: { included: ['ban'], excluded: [] },
-      },
-      dateRange: { start: '', end: '' },
-      simulation: 'all',
-    }));
+    localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          action: { included: ['ban'], excluded: [] },
+        },
+        dateRange: { start: '', end: '' },
+        simulation: 'all',
+      }),
+    );
 
     render(
       <MemoryRouter>
@@ -275,10 +312,12 @@ describe('Dashboard filters and drilldowns', () => {
     );
 
     await screen.findByText('Top Countries');
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ decision_q: 'action=ban' }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ decision_q: 'action=ban' }),
+        expect.any(Object),
+      ),
+    );
     await user.click(screen.getByRole('button', { name: 'Filters' }));
 
     expect(screen.getByRole('heading', { name: 'Unavailable' })).toBeInTheDocument();
@@ -288,20 +327,23 @@ describe('Dashboard filters and drilldowns', () => {
     expect(screen.getByRole('button', { name: 'Alert' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Clear Action' }));
-    await waitFor(() => expect(
-      JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.action,
-    ).toBeUndefined());
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.action).toBeUndefined(),
+    );
   });
 
   test('hydrates dashboard requests from shared quick-filter persistence', async () => {
-    localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        country: { included: ['DE', 'FR'], excluded: ['US'] },
-        machine: { included: ['firewall-1'], excluded: [] },
-      },
-      dateRange: { start: '2026-04-01T10:00', end: '2026-04-02T10:00' },
-      simulation: 'live',
-    }));
+    localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          country: { included: ['DE', 'FR'], excluded: ['US'] },
+          machine: { included: ['firewall-1'], excluded: [] },
+        },
+        dateRange: { start: '2026-04-01T10:00', end: '2026-04-02T10:00' },
+        simulation: 'live',
+      }),
+    );
 
     render(
       <MemoryRouter>
@@ -309,16 +351,18 @@ describe('Dashboard filters and drilldowns', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: '(country=DE OR country=FR) AND country<>US AND machine=firewall-1',
-        decision_q: '(country=DE OR country=FR) AND country<>US AND machine=firewall-1',
-        dateStart: '2026-04-01T10:00',
-        dateEnd: '2026-04-02T10:00',
-        simulation: 'live',
-      }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: '(country=DE OR country=FR) AND country<>US AND machine=firewall-1',
+          decision_q: '(country=DE OR country=FR) AND country<>US AND machine=firewall-1',
+          dateStart: '2026-04-01T10:00',
+          dateEnd: '2026-04-02T10:00',
+          simulation: 'live',
+        }),
+        expect.any(Object),
+      ),
+    );
     expect(screen.getByRole('button', { name: 'Filters' })).toHaveTextContent('7');
   });
 
@@ -332,10 +376,12 @@ describe('Dashboard filters and drilldowns', () => {
 
     await screen.findByText('Top Countries');
     await user.click(screen.getByText('Germany'));
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ country: 'DE', q: 'country=DE', decision_q: 'country=DE' }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ country: 'DE', q: 'country=DE', decision_q: 'country=DE' }),
+        expect.any(Object),
+      ),
+    );
     expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.country).toEqual({
       included: ['DE'],
       excluded: [],
@@ -345,13 +391,15 @@ describe('Dashboard filters and drilldowns', () => {
     await user.click(screen.getByRole('button', { name: 'Country' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Toggle France in Country' }));
 
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        q: 'country=DE OR country=FR',
-        decision_q: 'country=DE OR country=FR',
-      }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'country=DE OR country=FR',
+          decision_q: 'country=DE OR country=FR',
+        }),
+        expect.any(Object),
+      ),
+    );
     expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.country).toEqual({
       included: ['DE', 'FR'],
       excluded: [],
@@ -380,10 +428,12 @@ describe('Dashboard filters and drilldowns', () => {
     expect(within(ipRow as HTMLElement).getByText('Germany')).toBeInTheDocument();
 
     await user.click(screen.getByText('1.2.3.4'));
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ ip: '1.2.3.4' }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ ip: '1.2.3.4' }),
+        expect.any(Object),
+      ),
+    );
     expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.ip).toEqual({
       included: ['1.2.3.4'],
       excluded: [],
@@ -409,10 +459,12 @@ describe('Dashboard filters and drilldowns', () => {
     expect(localStorage.getItem('dashboard_top_target_mode')).toBe('machine');
 
     await user.click(screen.getByText('web-01'));
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ q: 'machine=web-01-id' }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ q: 'machine=web-01-id' }),
+        expect.any(Object),
+      ),
+    );
     expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.machine).toEqual({
       included: ['web-01-id'],
       excluded: [],
@@ -425,13 +477,16 @@ describe('Dashboard filters and drilldowns', () => {
   ])('matches and clears a stored %s on the top machines card', async (_description, storedValue) => {
     const user = userEvent.setup();
     localStorage.setItem('dashboard_top_target_mode', 'machine');
-    localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        machine: { included: [storedValue], excluded: [] },
-      },
-      dateRange: { start: '', end: '' },
-      simulation: 'all',
-    }));
+    localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          machine: { included: [storedValue], excluded: [] },
+        },
+        dateRange: { start: '', end: '' },
+        simulation: 'all',
+      }),
+    );
     render(
       <MemoryRouter>
         <Dashboard />
@@ -445,9 +500,11 @@ describe('Dashboard filters and drilldowns', () => {
     expect(row).toHaveClass('bg-primary-50');
 
     await user.click(within(machineCard).getByText('web-01'));
-    await waitFor(() => expect(
-      JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.machine?.included ?? [],
-    ).toEqual([]));
+    await waitFor(() =>
+      expect(
+        JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections.machine?.included ?? [],
+      ).toEqual([]),
+    );
   });
 
   test('keeps the activity-history range and quick-filter date range in sync', async () => {
@@ -460,24 +517,18 @@ describe('Dashboard filters and drilldowns', () => {
 
     await waitFor(() => expect(chartSpy).toHaveBeenCalled());
     const chartProps = chartSpy.mock.calls.at(-1)?.[0] as {
-      onDateRangeSelect: (
-        range: { start: string; end: string } | null,
-        isAtEnd: boolean,
-      ) => void;
+      onDateRangeSelect: (range: { start: string; end: string } | null, isAtEnd: boolean) => void;
     };
     act(() => {
-      chartProps.onDateRangeSelect(
-        { start: '2026-04-01T10:00', end: '2026-04-02T11:00' },
-        true,
-      );
+      chartProps.onDateRangeSelect({ start: '2026-04-01T10:00', end: '2026-04-02T11:00' }, true);
     });
 
-    await waitFor(() => expect(
-      JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').dateRange,
-    ).toEqual({
-      start: '2026-04-01T10:00',
-      end: '2026-04-02T11:00',
-    }));
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').dateRange).toEqual({
+        start: '2026-04-01T10:00',
+        end: '2026-04-02T11:00',
+      }),
+    );
 
     await user.click(screen.getByRole('button', { name: 'Filters' }));
     await user.click(screen.getByRole('button', { name: 'Date and time' }));
@@ -508,16 +559,10 @@ describe('Dashboard filters and drilldowns', () => {
 
     await waitFor(() => expect(chartSpy).toHaveBeenCalled());
     const chartProps = chartSpy.mock.calls.at(-1)?.[0] as {
-      onDateRangeSelect: (
-        range: { start: string; end: string } | null,
-        isAtEnd: boolean,
-      ) => void;
+      onDateRangeSelect: (range: { start: string; end: string } | null, isAtEnd: boolean) => void;
     };
     act(() => {
-      chartProps.onDateRangeSelect(
-        { start: '2026-04-01T10:00', end: '2026-04-07T10:00' },
-        true,
-      );
+      chartProps.onDateRangeSelect({ start: '2026-04-01T10:00', end: '2026-04-07T10:00' }, true);
     });
     await waitFor(() => {
       const latestChartProps = chartSpy.mock.calls.at(-1)?.[0] as { isSticky: boolean };
@@ -550,7 +595,12 @@ describe('Dashboard filters and drilldowns', () => {
     { connected: [false, false], status: 'Offline', count: '0 of 2 online' },
   ])('shows aggregate LAPI status $status in All instances scope', async ({ connected, status, count }) => {
     const syncStatus = { isSyncing: false, progress: 100, message: 'done', startedAt: null, completedAt: null };
-    const lapiStatus = (isConnected: boolean) => ({ isConnected, lastCheck: null, lastError: null, offline_since: null });
+    const lapiStatus = (isConnected: boolean) => ({
+      isConnected,
+      lastCheck: null,
+      lastError: null,
+      offline_since: null,
+    });
     fetchConfigMock.mockResolvedValue({
       lookback_period: '7d',
       lookback_hours: 168,
@@ -559,8 +609,20 @@ describe('Dashboard filters and drilldowns', () => {
       current_interval_name: '30s',
       lapi_status: lapiStatus(connected[0]),
       instances: [
-        { id: 'primary', name: 'Primary', lapi_status: lapiStatus(connected[0]), sync_status: syncStatus, prometheus: [] },
-        { id: 'secondary', name: 'Secondary', lapi_status: lapiStatus(connected[1]), sync_status: syncStatus, prometheus: [] },
+        {
+          id: 'primary',
+          name: 'Primary',
+          lapi_status: lapiStatus(connected[0]),
+          sync_status: syncStatus,
+          prometheus: [],
+        },
+        {
+          id: 'secondary',
+          name: 'Secondary',
+          lapi_status: lapiStatus(connected[1]),
+          sync_status: syncStatus,
+          prometheus: [],
+        },
       ],
       aggregate_lapi_status: connected.every(Boolean) ? 'healthy' : connected.some(Boolean) ? 'partial' : 'offline',
       sync_status: syncStatus,
@@ -583,7 +645,12 @@ describe('Dashboard filters and drilldowns', () => {
   test('shows only the selected instance LAPI status in instance scope', async () => {
     const syncStatus = { isSyncing: false, progress: 100, message: 'done', startedAt: null, completedAt: null };
     const onlineStatus = { isConnected: true, lastCheck: null, lastError: null, offline_since: null };
-    const offlineStatus = { isConnected: false, lastCheck: null, lastError: 'unavailable', offline_since: '2026-07-19T12:00:00.000Z' };
+    const offlineStatus = {
+      isConnected: false,
+      lastCheck: null,
+      lastError: 'unavailable',
+      offline_since: '2026-07-19T12:00:00.000Z',
+    };
     fetchConfigMock.mockResolvedValue({
       lookback_period: '7d',
       lookback_hours: 168,
@@ -655,7 +722,9 @@ describe('Dashboard filters and drilldowns', () => {
       data?: Array<{ simulatedCount?: number }>;
     };
     expect(mapProps.simulationsEnabled).toBe(true);
-    expect(mapProps.attackLocations).toEqual([expect.objectContaining({ latitude: 52.52, longitude: 13.405, count: 2 })]);
+    expect(mapProps.attackLocations).toEqual([
+      expect.objectContaining({ latitude: 52.52, longitude: 13.405, count: 2 }),
+    ]);
     expect(mapProps.data?.some((item) => item.simulatedCount === 1)).toBe(true);
   });
 
@@ -675,20 +744,34 @@ describe('Dashboard filters and drilldowns', () => {
 
     await openSimulationQuickFilter();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Toggle Simulation in Mode' }));
-    await waitFor(() => expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'));
-    await waitFor(() => expect(within(decisionsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'));
+    await waitFor(() =>
+      expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'),
+    );
+    await waitFor(() =>
+      expect(within(decisionsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'),
+    );
     expect(within(alertsCard as HTMLElement).queryByText('Simulation')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Toggle Simulation in Mode' }));
-    await waitFor(() => expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('2'));
+    await waitFor(() =>
+      expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('2'),
+    );
     await userEvent.click(screen.getByRole('checkbox', { name: 'Toggle Live in Mode' }));
-    await waitFor(() => expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'));
-    await waitFor(() => expect(within(decisionsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'));
+    await waitFor(() =>
+      expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'),
+    );
+    await waitFor(() =>
+      expect(within(decisionsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('1'),
+    );
     expect(within(decisionsCard as HTMLElement).queryByText('Simulation')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('checkbox', { name: 'Toggle Live in Mode' }));
-    await waitFor(() => expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('2'));
-    await waitFor(() => expect(within(decisionsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('2'));
+    await waitFor(() =>
+      expect(within(alertsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('2'),
+    );
+    await waitFor(() =>
+      expect(within(decisionsCard as HTMLElement).getByRole('heading', { level: 3 })).toHaveTextContent('2'),
+    );
     expect(within(alertsCard as HTMLElement).getByText('Simulation')).toBeInTheDocument();
   });
 
@@ -714,7 +797,9 @@ describe('Dashboard filters and drilldowns', () => {
     expect(decisionsCard).not.toBeNull();
 
     const alertsParams = new URLSearchParams((alertsCard as HTMLElement).getAttribute('href')?.split('?')[1] ?? '');
-    const decisionsParams = new URLSearchParams((decisionsCard as HTMLElement).getAttribute('href')?.split('?')[1] ?? '');
+    const decisionsParams = new URLSearchParams(
+      (decisionsCard as HTMLElement).getAttribute('href')?.split('?')[1] ?? '',
+    );
     const expectedQuery = 'scenario=crowdsecurity/ssh-bf AND country=DE AND as=Hetzner AND target=ssh AND sim=live';
 
     expect(alertsParams.get('q')).toBe(expectedQuery);
@@ -724,16 +809,19 @@ describe('Dashboard filters and drilldowns', () => {
   });
 
   test('adds dashboard date ranges to drilldown search syntax', async () => {
-    localStorage.setItem('dashboard_filters', JSON.stringify({
-      dateRange: { start: '2026-03-29T01', end: '2026-03-29T03' },
-      dateRangeSticky: true,
-      country: 'DE',
-      scenario: null,
-      as: null,
-      ip: null,
-      target: null,
-      simulation: 'all',
-    }));
+    localStorage.setItem(
+      'dashboard_filters',
+      JSON.stringify({
+        dateRange: { start: '2026-03-29T01', end: '2026-03-29T03' },
+        dateRangeSticky: true,
+        country: 'DE',
+        scenario: null,
+        as: null,
+        ip: null,
+        target: null,
+        simulation: 'all',
+      }),
+    );
 
     render(
       <MemoryRouter>
@@ -745,7 +833,9 @@ describe('Dashboard filters and drilldowns', () => {
     const alertsCard = screen.getByText('Total Alerts').closest('a');
     const decisionsCard = screen.getByText('Active Decisions').closest('a');
     const params = new URLSearchParams((alertsCard as HTMLElement).getAttribute('href')?.split('?')[1] ?? '');
-    const decisionsParams = new URLSearchParams((decisionsCard as HTMLElement).getAttribute('href')?.split('?')[1] ?? '');
+    const decisionsParams = new URLSearchParams(
+      (decisionsCard as HTMLElement).getAttribute('href')?.split('?')[1] ?? '',
+    );
     const expectedQuery = 'country=DE AND date>=2026-03-29T01 AND date<=2026-03-29T03';
 
     expect(params.get('q')).toBe(expectedQuery);
@@ -755,16 +845,19 @@ describe('Dashboard filters and drilldowns', () => {
   });
 
   test('shows restored stale scenario filter as a selected zero-count row', async () => {
-    localStorage.setItem('dashboard_filters', JSON.stringify({
-      dateRange: null,
-      dateRangeSticky: false,
-      country: null,
-      scenario: 'crowdsecurity/stale-scenario',
-      as: null,
-      ip: null,
-      target: null,
-      simulation: 'all',
-    }));
+    localStorage.setItem(
+      'dashboard_filters',
+      JSON.stringify({
+        dateRange: null,
+        dateRangeSticky: false,
+        country: null,
+        scenario: 'crowdsecurity/stale-scenario',
+        as: null,
+        ip: null,
+        target: null,
+        simulation: 'all',
+      }),
+    );
     fetchDashboardStatsMock.mockResolvedValue({
       ...buildDashboardStatsResponse(),
       filteredTotals: {
@@ -798,16 +891,19 @@ describe('Dashboard filters and drilldowns', () => {
   });
 
   test('shows restored stale country filter as a selected zero-count row and clears it on click', async () => {
-    localStorage.setItem('dashboard_filters', JSON.stringify({
-      dateRange: null,
-      dateRangeSticky: false,
-      country: 'FR',
-      scenario: null,
-      as: null,
-      ip: null,
-      target: null,
-      simulation: 'all',
-    }));
+    localStorage.setItem(
+      'dashboard_filters',
+      JSON.stringify({
+        dateRange: null,
+        dateRangeSticky: false,
+        country: 'FR',
+        scenario: null,
+        as: null,
+        ip: null,
+        target: null,
+        simulation: 'all',
+      }),
+    );
     fetchDashboardStatsMock.mockImplementation(async (filters?: Record<string, string>) => ({
       ...buildDashboardStatsResponse(filters),
       filteredTotals: {
@@ -831,10 +927,12 @@ describe('Dashboard filters and drilldowns', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ country: 'FR' }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ country: 'FR' }),
+        expect.any(Object),
+      ),
+    );
 
     const countryRow = await screen.findByText('FR');
     const countryRowContainer = countryRow.closest('.cursor-pointer');
@@ -845,10 +943,12 @@ describe('Dashboard filters and drilldowns', () => {
     fetchDashboardStatsMock.mockClear();
     await userEvent.click(countryRow);
 
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.not.objectContaining({ country: expect.any(String) }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.not.objectContaining({ country: expect.any(String) }),
+        expect.any(Object),
+      ),
+    );
   });
 
   test('scopes a stale scenario list to the selected scenario while filtered stats load', async () => {
@@ -884,10 +984,12 @@ describe('Dashboard filters and drilldowns', () => {
     expect(screen.getByText('vpatch-git-config')).toBeInTheDocument();
 
     await userEvent.click(screen.getByText('vpatch-env-access'));
-    await waitFor(() => expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ scenario: 'crowdsecurity/vpatch-env-access' }),
-      expect.any(Object),
-    ));
+    await waitFor(() =>
+      expect(fetchDashboardStatsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ scenario: 'crowdsecurity/vpatch-env-access' }),
+        expect.any(Object),
+      ),
+    );
 
     expect(screen.getByText('vpatch-env-access')).toBeInTheDocument();
     expect(screen.queryByText('vpatch-git-config')).not.toBeInTheDocument();
@@ -934,5 +1036,4 @@ describe('Dashboard filters and drilldowns', () => {
     expect(chartProps.simulationsEnabled).toBe(false);
     expect(mapProps.simulationsEnabled).toBe(false);
   });
-
 });

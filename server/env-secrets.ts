@@ -4,7 +4,10 @@ function hasEnv(env: NodeJS.ProcessEnv, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(env, name);
 }
 
-export function resolveSecretEnv(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
+export function resolveSecretEnv(
+  name: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
   const fileName = `${name}_FILE`;
   const hasDirect = hasEnv(env, name);
   const hasFile = hasEnv(env, fileName);

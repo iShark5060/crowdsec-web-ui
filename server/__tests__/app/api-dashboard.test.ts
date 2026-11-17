@@ -1,18 +1,12 @@
-import { describe, expect, test, vi } from 'vitest';
 import path from 'path';
+
+import { describe, expect, test, vi } from 'vitest';
+
 import type { AlertRecord, DashboardStatsResponse, PaginatedResponse, SlimAlert } from '../../../shared/contracts';
 import { parseDashboardBucketKey } from '../../app/dashboard-stats';
 import { CrowdsecDatabase } from '../../database';
 import { DatabaseQueryWorker, QueryWorkerTimeoutError } from '../../query-worker-client';
-import {
-  createController,
-  dashboardDateKey,
-  destroyTempDir,
-  sampleAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, dashboardDateKey, destroyTempDir, sampleAlert, seedAlert, tempDir } from './harness';
 
 describe('createApp dashboard API', () => {
   test('filters cached dashboard alerts by first-class kind', async () => {
@@ -20,28 +14,31 @@ describe('createApp dashboard API', () => {
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
     });
     seedAlert(database, sampleAlert({ id: 1, uuid: 'dashboard-kind-waf', kind: 'waf' }));
-    seedAlert(database, sampleAlert({
-      id: 2,
-      uuid: 'dashboard-kind-crowdsec',
-      kind: 'crowdsec',
-      source: { ip: '5.6.7.8', value: '5.6.7.8' },
-      decisions: (sampleAlert().decisions || []).map((decision) => ({
-        ...decision,
-        id: 20,
-        value: '5.6.7.8',
-      })),
-    }));
+    seedAlert(
+      database,
+      sampleAlert({
+        id: 2,
+        uuid: 'dashboard-kind-crowdsec',
+        kind: 'crowdsec',
+        source: { ip: '5.6.7.8', value: '5.6.7.8' },
+        decisions: (sampleAlert().decisions || []).map((decision) => ({
+          ...decision,
+          id: 20,
+          value: '5.6.7.8',
+        })),
+      }),
+    );
 
     try {
       const params = new URLSearchParams({ q: 'kind=waf', decision_q: 'kind=waf' });
-      const response = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/dashboard/stats?${params}`,
-      ));
+      const response = await controller.fetch(new Request(`http://localhost/crowdsec/api/dashboard/stats?${params}`));
       expect(response.status).toBe(200);
-      expect((await response.json() as DashboardStatsResponse).filteredTotals).toEqual(expect.objectContaining({
-        alerts: 1,
-        decisions: 1,
-      }));
+      expect(((await response.json()) as DashboardStatsResponse).filteredTotals).toEqual(
+        expect.objectContaining({
+          alerts: 1,
+          decisions: 1,
+        }),
+      );
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -53,11 +50,14 @@ describe('createApp dashboard API', () => {
     const createdAt = new Date().toISOString();
     const dateKey = dashboardDateKey(createdAt, 0);
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
-    seedAlert(database, sampleAlert({
-      id: 99,
-      uuid: 'dashboard-serialized-range-alert',
-      created_at: createdAt,
-    }));
+    seedAlert(
+      database,
+      sampleAlert({
+        id: 99,
+        uuid: 'dashboard-serialized-range-alert',
+        created_at: createdAt,
+      }),
+    );
     const queryWorker = new DatabaseQueryWorker({ dbPath: database.cachePath });
     const analyticsQueryWorker = new DatabaseQueryWorker({ dbPath: database.cachePath });
     const realAll = analyticsQueryWorker.all.bind(analyticsQueryWorker);
@@ -83,11 +83,15 @@ describe('createApp dashboard API', () => {
             await Promise.race([
               firstTotalsGate,
               new Promise<void>((_resolve, reject) => {
-                options.signal?.addEventListener('abort', () => {
-                  const error = new Error('Database query aborted');
-                  error.name = 'AbortError';
-                  reject(error);
-                }, { once: true });
+                options.signal?.addEventListener(
+                  'abort',
+                  () => {
+                    const error = new Error('Database query aborted');
+                    error.name = 'AbortError';
+                    reject(error);
+                  },
+                  { once: true },
+                );
               }),
             ]);
           }
@@ -110,14 +114,16 @@ describe('createApp dashboard API', () => {
     });
 
     try {
-      const firstRequest = controller.fetch(new Request(
-        `http://localhost/crowdsec/api/dashboard/stats?dateStart=${dateKey}&dateEnd=${dateKey}`,
-      ));
+      const firstRequest = controller.fetch(
+        new Request(`http://localhost/crowdsec/api/dashboard/stats?dateStart=${dateKey}&dateEnd=${dateKey}`),
+      );
       await firstTotalsStart;
 
-      const pendingResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/dashboard/stats?granularity=hour&dateStart=${dateKey}&dateEnd=${dateKey}`,
-      ));
+      const pendingResponse = await controller.fetch(
+        new Request(
+          `http://localhost/crowdsec/api/dashboard/stats?granularity=hour&dateStart=${dateKey}&dateEnd=${dateKey}`,
+        ),
+      );
       expect(await pendingResponse.json()).toEqual(expect.objectContaining({ pending: true }));
 
       releaseFirstTotals();
@@ -140,9 +146,11 @@ describe('createApp dashboard API', () => {
     const realAll = queryWorker.all.bind(queryWorker);
     vi.spyOn(queryWorker, 'all').mockImplementation((sql, params, options) => {
       if (sql.includes('SELECT simulated, COUNT(*) AS count')) {
-        return Promise.reject(new QueryWorkerTimeoutError(30_000, {
-          label: 'dashboard totals regression query',
-        }));
+        return Promise.reject(
+          new QueryWorkerTimeoutError(30_000, {
+            label: 'dashboard totals regression query',
+          }),
+        );
       }
       return realAll(sql, params, options);
     });
@@ -160,9 +168,10 @@ describe('createApp dashboard API', () => {
         lastUpdate: new Date().toISOString(),
       },
       attackLocationResolver: {
-        resolve: (locations) => new Promise((resolve) => {
-          setTimeout(() => resolve(locations), 25);
-        }),
+        resolve: (locations) =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(locations), 25);
+          }),
       },
     });
 
@@ -239,69 +248,99 @@ describe('createApp dashboard API', () => {
     }
     await lapiClient.login();
 
-    const countryResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats?country=DE'));
+    const countryResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/dashboard/stats?country=DE'),
+    );
     expect(countryResponse.status).toBe(200);
-    expect((await countryResponse.json()) as {
-      filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
-      topCountries: Array<{ countryCode?: string; count: number }>;
-      allCountries: Array<{ countryCode: string; liveDecisionCount?: number; activeLiveDecisionCount?: number }>;
-      attackLocations: Array<{ latitude: number; longitude: number; count: number }>;
-      series: { decisionsHistory: Array<{ count: number }>; activeDecisionsHistory: Array<{ count: number }> };
-    }).toEqual(expect.objectContaining({
-      filteredTotals: { alerts: 2, decisions: 2, simulatedAlerts: 0, simulatedDecisions: 0 },
-      topCountries: [expect.objectContaining({ countryCode: 'DE', count: 2 })],
-      allCountries: [expect.objectContaining({ countryCode: 'DE', liveDecisionCount: 3, activeLiveDecisionCount: 2 })],
-      attackLocations: [expect.objectContaining({ latitude: 52.515, longitude: 13.4075, count: 2 })],
-      series: expect.objectContaining({
-        decisionsHistory: expect.arrayContaining([expect.objectContaining({ count: 3 })]),
-        activeDecisionsHistory: expect.arrayContaining([expect.objectContaining({ count: 2 })]),
+    expect(
+      (await countryResponse.json()) as {
+        filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
+        topCountries: Array<{ countryCode?: string; count: number }>;
+        allCountries: Array<{ countryCode: string; liveDecisionCount?: number; activeLiveDecisionCount?: number }>;
+        attackLocations: Array<{ latitude: number; longitude: number; count: number }>;
+        series: { decisionsHistory: Array<{ count: number }>; activeDecisionsHistory: Array<{ count: number }> };
+      },
+    ).toEqual(
+      expect.objectContaining({
+        filteredTotals: { alerts: 2, decisions: 2, simulatedAlerts: 0, simulatedDecisions: 0 },
+        topCountries: [expect.objectContaining({ countryCode: 'DE', count: 2 })],
+        allCountries: [
+          expect.objectContaining({ countryCode: 'DE', liveDecisionCount: 3, activeLiveDecisionCount: 2 }),
+        ],
+        attackLocations: [expect.objectContaining({ latitude: 52.515, longitude: 13.4075, count: 2 })],
+        series: expect.objectContaining({
+          decisionsHistory: expect.arrayContaining([expect.objectContaining({ count: 3 })]),
+          activeDecisionsHistory: expect.arrayContaining([expect.objectContaining({ count: 2 })]),
+        }),
       }),
-    }));
+    );
 
-    const combinedResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats?country=DE&scenario=crowdsecurity/ssh-bf&target=ssh'));
-    expect((await combinedResponse.json()) as {
-      filteredTotals: { alerts: number; decisions: number };
-      topScenarios: Array<{ label: string; count: number }>;
-      topIPs: Array<{ label: string; count: number; sourceCountryCode?: string }>;
-    }).toEqual(expect.objectContaining({
-      filteredTotals: expect.objectContaining({ alerts: 1, decisions: 1 }),
-      topScenarios: [expect.objectContaining({ label: 'crowdsecurity/ssh-bf', count: 1 })],
-      topIPs: [expect.objectContaining({ label: '1.2.3.4', count: 1, sourceCountryCode: 'DE' })],
-    }));
+    const combinedResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/dashboard/stats?country=DE&scenario=crowdsecurity/ssh-bf&target=ssh'),
+    );
+    expect(
+      (await combinedResponse.json()) as {
+        filteredTotals: { alerts: number; decisions: number };
+        topScenarios: Array<{ label: string; count: number }>;
+        topIPs: Array<{ label: string; count: number; sourceCountryCode?: string }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        filteredTotals: expect.objectContaining({ alerts: 1, decisions: 1 }),
+        topScenarios: [expect.objectContaining({ label: 'crowdsecurity/ssh-bf', count: 1 })],
+        topIPs: [expect.objectContaining({ label: '1.2.3.4', count: 1, sourceCountryCode: 'DE' })],
+      }),
+    );
 
     const sharedFilterParams = new URLSearchParams({
       q: 'country:(DE OR US) AND -scenario:http-probing',
     });
-    const sharedFilterResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/dashboard/stats?${sharedFilterParams.toString()}`,
-    ));
-    expect((await sharedFilterResponse.json()) as {
-      filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
-      topScenarios: Array<{ label: string; count: number }>;
-    }).toEqual(expect.objectContaining({
-      filteredTotals: { alerts: 2, decisions: 1, simulatedAlerts: 1, simulatedDecisions: 1 },
-      topScenarios: expect.arrayContaining([
-        expect.objectContaining({ label: 'crowdsecurity/ssh-bf', count: 1 }),
-        expect.objectContaining({ label: 'crowdsecurity/nginx-bf', count: 1 }),
-      ]),
-    }));
+    const sharedFilterResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/dashboard/stats?${sharedFilterParams.toString()}`),
+    );
+    expect(
+      (await sharedFilterResponse.json()) as {
+        filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
+        topScenarios: Array<{ label: string; count: number }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        filteredTotals: { alerts: 2, decisions: 1, simulatedAlerts: 1, simulatedDecisions: 1 },
+        topScenarios: expect.arrayContaining([
+          expect.objectContaining({ label: 'crowdsecurity/ssh-bf', count: 1 }),
+          expect.objectContaining({ label: 'crowdsecurity/nginx-bf', count: 1 }),
+        ]),
+      }),
+    );
 
-    const simulatedResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats?simulation=simulated'));
-    expect((await simulatedResponse.json()) as {
-      filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
-    }).toEqual(expect.objectContaining({
-      filteredTotals: { alerts: 1, decisions: 0, simulatedAlerts: 1, simulatedDecisions: 1 },
-    }));
+    const simulatedResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/dashboard/stats?simulation=simulated'),
+    );
+    expect(
+      (await simulatedResponse.json()) as {
+        filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
+      },
+    ).toEqual(
+      expect.objectContaining({
+        filteredTotals: { alerts: 1, decisions: 0, simulatedAlerts: 1, simulatedDecisions: 1 },
+      }),
+    );
 
-    const timelineResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/dashboard/stats?tz_offset=${timezoneOffset}`,
-    ));
-    const timelinePayload = await timelineResponse.json() as DashboardStatsResponse;
-    const dateResponse = await controller.fetch(new Request(`http://localhost/crowdsec/api/dashboard/stats?dateStart=${dateKey}&dateEnd=${dateKey}&tz_offset=${timezoneOffset}`));
-    const datePayload = await dateResponse.json() as DashboardStatsResponse;
-    expect(datePayload).toEqual(expect.objectContaining({
-      filteredTotals: { alerts: 3, decisions: 2, simulatedAlerts: 1, simulatedDecisions: 1 },
-    }));
+    const timelineResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/dashboard/stats?tz_offset=${timezoneOffset}`),
+    );
+    const timelinePayload = (await timelineResponse.json()) as DashboardStatsResponse;
+    const dateResponse = await controller.fetch(
+      new Request(
+        `http://localhost/crowdsec/api/dashboard/stats?dateStart=${dateKey}&dateEnd=${dateKey}&tz_offset=${timezoneOffset}`,
+      ),
+    );
+    const datePayload = (await dateResponse.json()) as DashboardStatsResponse;
+    expect(datePayload).toEqual(
+      expect.objectContaining({
+        filteredTotals: { alerts: 3, decisions: 2, simulatedAlerts: 1, simulatedDecisions: 1 },
+      }),
+    );
     expect(datePayload.series.unfilteredAlertsHistory.map((bucket) => bucket.date)).toEqual(
       timelinePayload.series.unfilteredAlertsHistory.map((bucket) => bucket.date),
     );
@@ -315,13 +354,14 @@ describe('createApp dashboard API', () => {
   });
 
   test('ranks attacked machines by resolved name and narrows them with an exact machine filter', async () => {
-    const machineAlert = (id: number, ip: string, machine: Pick<AlertRecord, 'machine_id' | 'machine_alias'>) => sampleAlert({
-      id,
-      uuid: `dashboard-machine-${id}`,
-      ...machine,
-      source: { ip, value: ip, cn: 'DE' },
-      decisions: (sampleAlert().decisions || []).map((decision) => ({ ...decision, id: id * 10, value: ip })),
-    });
+    const machineAlert = (id: number, ip: string, machine: Pick<AlertRecord, 'machine_id' | 'machine_alias'>) =>
+      sampleAlert({
+        id,
+        uuid: `dashboard-machine-${id}`,
+        ...machine,
+        source: { ip, value: ip, cn: 'DE' },
+        decisions: (sampleAlert().decisions || []).map((decision) => ({ ...decision, id: id * 10, value: ip })),
+      });
     const { controller, database } = createController({
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
     });
@@ -332,7 +372,7 @@ describe('createApp dashboard API', () => {
 
     try {
       const response = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'));
-      const payload = await response.json() as DashboardStatsResponse;
+      const payload = (await response.json()) as DashboardStatsResponse;
       expect(payload.topMachines).toEqual([
         { label: 'web-01', value: 'web-01-id', count: 2 },
         { label: 'mail-gw', value: 'mail-gw', count: 1 },
@@ -342,19 +382,20 @@ describe('createApp dashboard API', () => {
 
       // Card rows must use the same value as the Quick Filter machine facet,
       // otherwise a stored selection and its row cannot be matched.
-      const facetResponse = await controller.fetch(new Request(
-        'http://localhost/crowdsec/api/alerts/facets?field=machine',
-      ));
-      const facetValues = (await facetResponse.json() as { values: Array<{ value: string }> }).values
-        .map((facet) => facet.value);
+      const facetResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts/facets?field=machine'),
+      );
+      const facetValues = ((await facetResponse.json()) as { values: Array<{ value: string }> }).values.map(
+        (facet) => facet.value,
+      );
       expect(facetValues).toEqual(expect.arrayContaining(payload.topMachines.map((item) => item.value)));
 
       for (const machine of ['web-01-id', 'web-01']) {
         const params = new URLSearchParams({ q: `machine=${machine}`, decision_q: `machine=${machine}` });
-        const filteredResponse = await controller.fetch(new Request(
-          `http://localhost/crowdsec/api/dashboard/stats?${params.toString()}`,
-        ));
-        const filteredPayload = await filteredResponse.json() as DashboardStatsResponse;
+        const filteredResponse = await controller.fetch(
+          new Request(`http://localhost/crowdsec/api/dashboard/stats?${params.toString()}`),
+        );
+        const filteredPayload = (await filteredResponse.json()) as DashboardStatsResponse;
         expect(filteredPayload.filteredTotals.alerts).toBe(2);
         expect(filteredPayload.topMachines).toEqual([{ label: 'web-01', value: 'web-01-id', count: 2 }]);
         expect(filteredPayload.series.alertsHistory.reduce((sum, bucket) => sum + bucket.count, 0)).toBe(2);
@@ -391,27 +432,29 @@ describe('createApp dashboard API', () => {
 
     try {
       const exactParams = new URLSearchParams({ q: 'target=tausend.me' });
-      const dashboardResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/dashboard/stats?${exactParams.toString()}`,
-      ));
-      expect((await dashboardResponse.json()) as DashboardStatsResponse).toEqual(expect.objectContaining({
-        filteredTotals: expect.objectContaining({ alerts: 1 }),
-        topTargets: [expect.objectContaining({ label: 'tausend.me', count: 1 })],
-      }));
+      const dashboardResponse = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/dashboard/stats?${exactParams.toString()}`),
+      );
+      expect((await dashboardResponse.json()) as DashboardStatsResponse).toEqual(
+        expect.objectContaining({
+          filteredTotals: expect.objectContaining({ alerts: 1 }),
+          topTargets: [expect.objectContaining({ label: 'tausend.me', count: 1 })],
+        }),
+      );
 
       exactParams.set('page', '1');
       exactParams.set('page_size', '10');
-      const exactAlertsResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/alerts?${exactParams.toString()}`,
-      ));
+      const exactAlertsResponse = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/alerts?${exactParams.toString()}`),
+      );
       const exactAlerts = (await exactAlertsResponse.json()) as PaginatedResponse<SlimAlert>;
       expect(exactAlerts.pagination.total).toBe(1);
       expect(exactAlerts.data.map((alert) => alert.target)).toEqual(['tausend.me']);
 
       const broadParams = new URLSearchParams({ q: 'target:tausend.me', page: '1', page_size: '10' });
-      const broadAlertsResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/alerts?${broadParams.toString()}`,
-      ));
+      const broadAlertsResponse = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/alerts?${broadParams.toString()}`),
+      );
       expect(((await broadAlertsResponse.json()) as PaginatedResponse<SlimAlert>).pagination.total).toBe(2);
     } finally {
       controller.stopBackgroundTasks();
@@ -431,14 +474,16 @@ describe('createApp dashboard API', () => {
       source,
       target: 'bw.tausend.me',
       events: [{ meta: [{ key: 'target_host', value: 'bw.tausend.me' }] }],
-      decisions: [{
-        id: 8010,
-        value: source.ip,
-        type: 'ban',
-        scenario: 'crowdsecurity/http-probing',
-        stop_at: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 8010,
+          value: source.ip,
+          type: 'ban',
+          scenario: 'crowdsecurity/http-probing',
+          stop_at: new Date(Date.now() + 2 * 60 * 60_000).toISOString(),
+          simulated: false,
+        },
+      ],
     });
     const globallyPreferredAlert = sampleAlert({
       id: 802,
@@ -447,14 +492,16 @@ describe('createApp dashboard API', () => {
       scenario: 'crowdsecurity/ssh-bf',
       source,
       target: 'ssh',
-      decisions: [{
-        id: 8020,
-        value: source.ip,
-        type: 'ban',
-        scenario: 'crowdsecurity/ssh-bf',
-        stop_at: new Date(Date.now() + 4 * 60 * 60_000).toISOString(),
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 8020,
+          value: source.ip,
+          type: 'ban',
+          scenario: 'crowdsecurity/ssh-bf',
+          stop_at: new Date(Date.now() + 4 * 60 * 60_000).toISOString(),
+          simulated: false,
+        },
+      ],
     });
     const { controller, database } = createController({
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
@@ -485,13 +532,11 @@ describe('createApp dashboard API', () => {
 
       expect(alerts.pagination.total).toBe(1);
       expect(decisions.pagination.total).toBe(1);
-      expect(decisions.data).toEqual([
-        expect.objectContaining({ id: 8010, is_duplicate: false }),
-      ]);
+      expect(decisions.data).toEqual([expect.objectContaining({ id: 8010, is_duplicate: false })]);
       expect(dashboard.filteredTotals.alerts).toBe(alerts.pagination.total);
-      expect(
-        dashboard.filteredTotals.decisions + dashboard.filteredTotals.simulatedDecisions,
-      ).toBe(decisions.pagination.total);
+      expect(dashboard.filteredTotals.decisions + dashboard.filteredTotals.simulatedDecisions).toBe(
+        decisions.pagination.total,
+      );
       expect(dashboard.series.activeDecisionsHistory.some((bucket) => bucket.count === 1)).toBe(true);
     } finally {
       controller.stopBackgroundTasks();
@@ -531,17 +576,18 @@ describe('createApp dashboard API', () => {
       expect((await firstResponse.json()) as { filteredTotals: { decisions: number } }).toEqual(
         expect.objectContaining({ filteredTotals: expect.objectContaining({ decisions: 1 }) }),
       );
-      const initialDecisionIndexQueries = queryAllSpy.mock.calls.filter(([sql]) => (
-        sql.includes('SELECT rowid')
-        && sql.includes('FROM decisions')
-        && sql.includes('ORDER BY rowid ASC')
-      )).length;
+      const initialDecisionIndexQueries = queryAllSpy.mock.calls.filter(
+        ([sql]) => sql.includes('SELECT rowid') && sql.includes('FROM decisions') && sql.includes('ORDER BY rowid ASC'),
+      ).length;
       expect(initialDecisionIndexQueries).toBeGreaterThan(0);
-      expect(queryAllSpy.mock.calls.some(([sql]) => (
-        sql.includes('SELECT rowid')
-        && sql.includes('FROM decisions NOT INDEXED')
-        && sql.includes('ORDER BY rowid ASC')
-      ))).toBe(true);
+      expect(
+        queryAllSpy.mock.calls.some(
+          ([sql]) =>
+            sql.includes('SELECT rowid') &&
+            sql.includes('FROM decisions NOT INDEXED') &&
+            sql.includes('ORDER BY rowid ASC'),
+        ),
+      ).toBe(true);
 
       await new Promise((resolve) => setTimeout(resolve, Math.max(0, Date.parse(stopAt) - Date.now()) + 100));
       let secondResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'));
@@ -553,20 +599,20 @@ describe('createApp dashboard API', () => {
           expect(secondDashboard.pending).not.toBe(true);
         });
       }
-      expect(secondDashboard as {
-        totals: { decisions: number };
-        filteredTotals: { decisions: number };
-      }).toEqual(
+      expect(
+        secondDashboard as {
+          totals: { decisions: number };
+          filteredTotals: { decisions: number };
+        },
+      ).toEqual(
         expect.objectContaining({
           totals: expect.objectContaining({ decisions: 0 }),
           filteredTotals: expect.objectContaining({ decisions: 0 }),
         }),
       );
-      const refreshedDecisionIndexQueries = queryAllSpy.mock.calls.filter(([sql]) => (
-        sql.includes('SELECT rowid')
-        && sql.includes('FROM decisions')
-        && sql.includes('ORDER BY rowid ASC')
-      )).length;
+      const refreshedDecisionIndexQueries = queryAllSpy.mock.calls.filter(
+        ([sql]) => sql.includes('SELECT rowid') && sql.includes('FROM decisions') && sql.includes('ORDER BY rowid ASC'),
+      ).length;
       expect(refreshedDecisionIndexQueries).toBe(initialDecisionIndexQueries);
     } finally {
       controller.stopBackgroundTasks();
@@ -584,24 +630,32 @@ describe('createApp dashboard API', () => {
       target: 'ssh',
     });
     const { controller, database, lapiClient } = createController({
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([alert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([alert]) : undefined),
     });
 
     seedAlert(database, alert);
     await lapiClient.login();
 
-    const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10'));
+    const alertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10'),
+    );
     expect(alertsResponse.status).toBe(200);
 
-    const dashboardResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=day'));
+    const dashboardResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=day'),
+    );
     expect(dashboardResponse.status).toBe(200);
-    expect((await dashboardResponse.json()) as {
-      totals: { alerts: number; decisions: number };
-      topCountries: Array<{ countryCode?: string; count: number }>;
-    }).toEqual(expect.objectContaining({
-      totals: expect.objectContaining({ alerts: 1, decisions: 1 }),
-      topCountries: [expect.objectContaining({ countryCode: 'DE', count: 1 })],
-    }));
+    expect(
+      (await dashboardResponse.json()) as {
+        totals: { alerts: number; decisions: number };
+        topCountries: Array<{ countryCode?: string; count: number }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        totals: expect.objectContaining({ alerts: 1, decisions: 1 }),
+        topCountries: [expect.objectContaining({ countryCode: 'DE', count: 1 })],
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -652,9 +706,9 @@ describe('createApp dashboard API', () => {
       controller.startBackgroundTasks();
       await vi.waitFor(() => expect(controller.getSyncStatus().isSyncing).toBe(true));
 
-      const initialDashboardResponse = await controller.fetch(new Request(
-        'http://localhost/crowdsec/api/dashboard/stats?granularity=hour',
-      ));
+      const initialDashboardResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=hour'),
+      );
       expect(initialDashboardResponse.status).toBe(200);
 
       const requestTime = Date.now();
@@ -662,24 +716,30 @@ describe('createApp dashboard API', () => {
       historyReleased = true;
       releaseHistory();
       await warmupStart;
-      expect(controller.getSyncStatus()).toEqual(expect.objectContaining({
-        isSyncing: true,
-        progress: 99,
-        message: 'Preparing dashboard data for faster loading...',
-        completedAt: null,
-      }));
+      expect(controller.getSyncStatus()).toEqual(
+        expect.objectContaining({
+          isSyncing: true,
+          progress: 99,
+          message: 'Preparing dashboard data for faster loading...',
+          completedAt: null,
+        }),
+      );
 
       releaseWarmup();
-      await vi.waitFor(() => expect(controller.getSyncStatus()).toEqual(expect.objectContaining({
-        isSyncing: false,
-        progress: 100,
-        completedAt: expect.any(String),
-      })));
+      await vi.waitFor(() =>
+        expect(controller.getSyncStatus()).toEqual(
+          expect.objectContaining({
+            isSyncing: false,
+            progress: 100,
+            completedAt: expect.any(String),
+          }),
+        ),
+      );
 
-      const readyResponse = await controller.fetch(new Request(
-        'http://localhost/crowdsec/api/dashboard/stats?granularity=hour',
-      ));
-      const readyDashboard = await readyResponse.json() as DashboardStatsResponse;
+      const readyResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=hour'),
+      );
+      const readyDashboard = (await readyResponse.json()) as DashboardStatsResponse;
       expect(readyDashboard.pending).toBeUndefined();
       expect(readyDashboard.totals.alerts).toBe(1);
     } finally {
@@ -714,25 +774,31 @@ describe('createApp dashboard API', () => {
     seedAlert(database, alert);
 
     const initialResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'));
-    expect((await initialResponse.json() as DashboardStatsResponse).totals.alerts).toBe(1);
+    expect(((await initialResponse.json()) as DashboardStatsResponse).totals.alerts).toBe(1);
     analyticsAllSpy.mockClear();
 
-    const deleteResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/302', {
-      method: 'DELETE',
-    }));
+    const deleteResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/302', {
+        method: 'DELETE',
+      }),
+    );
     expect(deleteResponse.status).toBe(200);
 
     vi.spyOn(database, 'countAlerts').mockReturnValue(100_001);
     const readyResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'));
-    const readyPayload = await readyResponse.json() as DashboardStatsResponse;
+    const readyPayload = (await readyResponse.json()) as DashboardStatsResponse;
     expect(readyPayload.pending).toBeUndefined();
-    expect(readyPayload).toEqual(expect.objectContaining({
-      totals: expect.objectContaining({ alerts: 0 }),
-    }));
+    expect(readyPayload).toEqual(
+      expect.objectContaining({
+        totals: expect.objectContaining({ alerts: 0 }),
+      }),
+    );
     expect(analyticsAllSpy.mock.calls.some(([, , options]) => options?.label === 'dashboard alert delta')).toBe(true);
-    expect(analyticsAllSpy.mock.calls.some(([, , options]) => (
-      options?.label === 'dashboard alert index' || options?.label === 'dashboard decision index'
-    ))).toBe(false);
+    expect(
+      analyticsAllSpy.mock.calls.some(
+        ([, , options]) => options?.label === 'dashboard alert index' || options?.label === 'dashboard decision index',
+      ),
+    ).toBe(false);
 
     controller.stopBackgroundTasks();
     database.close();
@@ -795,9 +861,13 @@ describe('createApp dashboard API', () => {
     }
     await lapiClient.login();
 
-    const filteredResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=day&scenario=crowdsecurity/vpatch-env-access'));
+    const filteredResponse = await controller.fetch(
+      new Request(
+        'http://localhost/crowdsec/api/dashboard/stats?granularity=day&scenario=crowdsecurity/vpatch-env-access',
+      ),
+    );
     expect(filteredResponse.status).toBe(200);
-    const filteredStats = await filteredResponse.json() as {
+    const filteredStats = (await filteredResponse.json()) as {
       filteredTotals: { alerts: number; decisions: number };
       topScenarios: Array<{ label: string; count: number }>;
     };
@@ -835,27 +905,33 @@ describe('createApp dashboard API', () => {
         TIME_FORMAT: '24h',
         DATE_FORMAT: 'dd/mm/yyyy',
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([alert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([alert]) : undefined),
     });
     seedAlert(database, alert);
     await lapiClient.login();
 
     const configResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
-    expect(await configResponse.json()).toEqual(expect.objectContaining({
-      time_zone: 'Europe/Berlin',
-      time_format: '24h',
-      date_format: 'dd/mm/yyyy',
-    }));
-
-    const hourOne = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/dashboard/stats?granularity=hour&dateStart=${berlinHour}&dateEnd=${berlinHour}&tz_offset=720&browser_tz=America%2FLos_Angeles`,
-    ));
-    expect(await hourOne.json()).toEqual(expect.objectContaining({
-      filteredTotals: expect.objectContaining({ alerts: 1 }),
-      series: expect.objectContaining({
-        alertsHistory: [expect.objectContaining({ date: berlinHour, count: 1 })],
+    expect(await configResponse.json()).toEqual(
+      expect.objectContaining({
+        time_zone: 'Europe/Berlin',
+        time_format: '24h',
+        date_format: 'dd/mm/yyyy',
       }),
-    }));
+    );
+
+    const hourOne = await controller.fetch(
+      new Request(
+        `http://localhost/crowdsec/api/dashboard/stats?granularity=hour&dateStart=${berlinHour}&dateEnd=${berlinHour}&tz_offset=720&browser_tz=America%2FLos_Angeles`,
+      ),
+    );
+    expect(await hourOne.json()).toEqual(
+      expect.objectContaining({
+        filteredTotals: expect.objectContaining({ alerts: 1 }),
+        series: expect.objectContaining({
+          alertsHistory: [expect.objectContaining({ date: berlinHour, count: 1 })],
+        }),
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -870,9 +946,8 @@ describe('createApp dashboard API', () => {
       month: '2-digit',
       day: '2-digit',
     }).formatToParts(new Date(Date.now() - 24 * 60 * 60 * 1_000));
-    const localDatePart = (type: Intl.DateTimeFormatPartTypes) => (
-      localDateParts.find((part) => part.type === type)?.value
-    );
+    const localDatePart = (type: Intl.DateTimeFormatPartTypes) =>
+      localDateParts.find((part) => part.type === type)?.value;
     const localDate = `${localDatePart('year')}-${localDatePart('month')}-${localDatePart('day')}`;
     const dayStart = parseDashboardBucketKey(localDate, 0, browserTimeZone).getTime();
     const insideDay = new Date(dayStart + 60 * 60 * 1_000).toISOString();
@@ -909,16 +984,16 @@ describe('createApp dashboard API', () => {
       browser_tz: browserTimeZone,
     });
 
-    const dashboardResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/dashboard/stats?${filters.toString()}`,
-    ));
-    const dashboard = await dashboardResponse.json() as DashboardStatsResponse;
+    const dashboardResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/dashboard/stats?${filters.toString()}`),
+    );
+    const dashboard = (await dashboardResponse.json()) as DashboardStatsResponse;
     filters.set('page', '1');
     filters.set('page_size', '10');
-    const alertsResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/alerts?${filters.toString()}`,
-    ));
-    const alertPage = await alertsResponse.json() as PaginatedResponse<SlimAlert>;
+    const alertsResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/alerts?${filters.toString()}`),
+    );
+    const alertPage = (await alertsResponse.json()) as PaginatedResponse<SlimAlert>;
 
     expect(dashboard.filteredTotals.alerts).toBe(1);
     expect(alertPage.pagination.total).toBe(dashboard.filteredTotals.alerts);
@@ -992,5 +1067,4 @@ describe('createApp dashboard API', () => {
       ]),
     );
   });
-
- });
+});

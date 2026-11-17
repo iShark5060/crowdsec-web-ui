@@ -1,11 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+
 import { describe, expect, test, vi } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { createRuntimeConfig as createRuntimeConfigImpl, getIntervalName, parseBooleanEnv, parseCsvEnv, parseLookbackToMs, parseOidcScope, parseOidcUnmatchedRole, parseOptionalBooleanEnv, parseRefreshInterval, parseTimeFormat, parseTimeZone } from '../../config';
+
+import { createRuntimeConfig as createRuntimeConfigImpl } from '../../config';
 import { CONFIG_KEY_ORDER } from '../../config-file';
-import { ConfigurationLoadError } from '../../config-error';
 import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret, tempDirs } from './harness';
 
 function documentedConfigPaths(yaml: string): Set<string> {
@@ -44,9 +45,9 @@ function documentedConfigPaths(yaml: string): Set<string> {
 }
 
 function expectedDocumentedConfigPaths(): string[] {
-  return Array.from(CONFIG_KEY_ORDER.entries()).flatMap(([parent, keys]) => (
-    keys.map((key) => `${parent}${parent ? '.' : ''}${key}`)
-  )).filter((path) => path !== 'crowdsec.alertFilters.legacy' && !path.startsWith('crowdsec.alertFilters.legacy.'));
+  return Array.from(CONFIG_KEY_ORDER.entries())
+    .flatMap(([parent, keys]) => keys.map((key) => `${parent}${parent ? '.' : ''}${key}`))
+    .filter((path) => path !== 'crowdsec.alertFilters.legacy' && !path.startsWith('crowdsec.alertFilters.legacy.'));
 }
 
 describe('configuration defaults and schema', () => {
@@ -106,12 +107,15 @@ describe('configuration defaults and schema', () => {
     const generatedConfigFile = createMissingConfigPath();
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      createRuntimeConfigImpl({
-        CONFIG_INSTANCE_LAPI_URL: 'http://100.64.0.11:8080',
-        CONFIG_INSTANCE_LAPI_AUTH_USERNAME: 'crowdsec-web-ui',
-        CONFIG_INSTANCE_LAPI_AUTH_PASSWORD: 'secret',
-        CONFIG_INSTANCE_METRICS_URL: 'http://100.64.0.11:6060/metrics',
-      }, { defaultConfigFile: generatedConfigFile });
+      createRuntimeConfigImpl(
+        {
+          CONFIG_INSTANCE_LAPI_URL: 'http://100.64.0.11:8080',
+          CONFIG_INSTANCE_LAPI_AUTH_USERNAME: 'crowdsec-web-ui',
+          CONFIG_INSTANCE_LAPI_AUTH_PASSWORD: 'secret',
+          CONFIG_INSTANCE_METRICS_URL: 'http://100.64.0.11:6060/metrics',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       const saved = readFileSync(generatedConfigFile, 'utf8');
       const document = parseYaml(saved);
       expect(document.instances[0]).toEqual({
@@ -152,14 +156,17 @@ describe('configuration defaults and schema', () => {
 
   test('rejects a configured CONFIG_FILE that does not exist', () => {
     const configFile = createMissingConfigPath();
-    expect(() => createRuntimeConfig({ CONFIG_FILE: configFile, PORT: '4100' }))
-      .toThrow(/failed to read CONFIG_FILE.*ENOENT/i);
+    expect(() => createRuntimeConfig({ CONFIG_FILE: configFile, PORT: '4100' })).toThrow(
+      /failed to read CONFIG_FILE.*ENOENT/i,
+    );
   });
 
   test('keeps the shipped example configuration executable', () => {
     const passwordSecretFile = createTempSecret('example-secret');
-    const example = readFileSync(join(process.cwd(), 'config.example.yaml'), 'utf8')
-      .replace('/run/secrets/crowdsec_password', passwordSecretFile);
+    const example = readFileSync(join(process.cwd(), 'config.example.yaml'), 'utf8').replace(
+      '/run/secrets/crowdsec_password',
+      passwordSecretFile,
+    );
     const document = parseYaml(example);
     expect(Object.keys(document)).toEqual(['instances']);
     expect(Object.keys(document.instances[0])).toEqual(['id', 'name', 'lapi']);
@@ -231,5 +238,4 @@ instances:
       log.mockRestore();
     }
   });
-
 });

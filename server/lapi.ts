@@ -1,14 +1,23 @@
 import fs from 'node:fs';
 import os from 'node:os';
+
 import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici';
-import { DEFAULT_MANUAL_DECISION_SCENARIO, MANUAL_DECISION_MESSAGE_PREFIX, type LapiStatus } from '../shared/contracts';
+
+import {
+  DEFAULT_MANUAL_DECISION_SCENARIO,
+  MANUAL_DECISION_MESSAGE_PREFIX,
+  type LapiStatus,
+} from '../shared/contracts';
 import type { CrowdsecAuthConfig } from './auth';
 
 export type LapiRequestInit = RequestInit & {
   dispatcher?: Dispatcher;
 };
 
-export type FetchLike = (input: string | URL | Request, init?: LapiRequestInit) => Promise<Response>;
+export type FetchLike = (
+  input: string | URL | Request,
+  init?: LapiRequestInit,
+) => Promise<Response>;
 
 export interface FetchLapiOptions {
   method?: string;
@@ -70,9 +79,10 @@ export interface FetchAlertsFilters {
 }
 
 function formatRelativeDuration(milliseconds: number, round: 'up' | 'down'): string {
-  const seconds = round === 'up'
-    ? Math.ceil(Math.max(0, milliseconds) / 1_000)
-    : Math.floor(Math.max(0, milliseconds) / 1_000);
+  const seconds =
+    round === 'up'
+      ? Math.ceil(Math.max(0, milliseconds) / 1_000)
+      : Math.floor(Math.max(0, milliseconds) / 1_000);
   const hours = Math.floor(seconds / 3_600);
   const minutes = Math.floor((seconds % 3_600) / 60);
   return `${hours}h${minutes}m${seconds % 60}s`;
@@ -168,24 +178,27 @@ export class LapiClient {
     this.machineInfo = options.machineInfo || detectMachineInfo();
     this.startupTimestamp = Math.floor(Date.now() / 1_000);
     this.requestTimeoutMs = options.requestTimeoutMs || 30_000;
-    this.fetchImpl = options.fetchImpl || ((input, init) =>
-      undiciFetch(
-        input as Parameters<typeof undiciFetch>[0],
-        init as Parameters<typeof undiciFetch>[1],
-      ) as unknown as Promise<Response>);
+    this.fetchImpl =
+      options.fetchImpl ||
+      ((input, init) =>
+        undiciFetch(
+          input as Parameters<typeof undiciFetch>[0],
+          init as Parameters<typeof undiciFetch>[1],
+        ) as unknown as Promise<Response>);
     const tls = options.tls;
     const certFile = tls?.certFile || (this.auth.mode === 'mtls' ? this.auth.certPath : undefined);
     const keyFile = tls?.keyFile || (this.auth.mode === 'mtls' ? this.auth.keyPath : undefined);
     const caFile = tls?.caFile || (this.auth.mode === 'mtls' ? this.auth.caCertPath : undefined);
-    this.dispatcher = certFile || keyFile || caFile
-      ? new Agent({
-          connect: {
-            ...(keyFile ? { key: fs.readFileSync(keyFile) } : {}),
-            ...(certFile ? { cert: fs.readFileSync(certFile) } : {}),
-            ...(caFile ? { ca: fs.readFileSync(caFile) } : {}),
-          },
-        })
-      : undefined;
+    this.dispatcher =
+      certFile || keyFile || caFile
+        ? new Agent({
+            connect: {
+              ...(keyFile ? { key: fs.readFileSync(keyFile) } : {}),
+              ...(certFile ? { cert: fs.readFileSync(certFile) } : {}),
+              ...(caFile ? { ca: fs.readFileSync(caFile) } : {}),
+            },
+          })
+        : undefined;
   }
 
   updateStatus(isConnected: boolean, error: { message?: string } | null = null): void {
@@ -216,7 +229,11 @@ export class LapiClient {
     this.requestToken = null;
   }
 
-  async fetchLapi<TData = unknown>(endpoint: string, options: FetchLapiOptions = {}, isRetry = false): Promise<FetchLapiResult<TData>> {
+  async fetchLapi<TData = unknown>(
+    endpoint: string,
+    options: FetchLapiOptions = {},
+    isRetry = false,
+  ): Promise<FetchLapiResult<TData>> {
     const controller = new AbortController();
     const timeout = options.timeout ?? this.requestTimeoutMs;
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -249,15 +266,17 @@ export class LapiClient {
           return this.fetchLapi<TData>(endpoint, options, true);
         }
 
-        const error = new Error('HTTP 401: Re-authentication failed') as Error & { status?: number };
+        const error = new Error('HTTP 401: Re-authentication failed') as Error & {
+          status?: number;
+        };
         error.status = 401;
         throw error;
       }
 
       const contentType = response.headers.get('content-type');
       const data = contentType?.includes('application/json')
-        ? (await response.json()) as TData
-        : (await response.text()) as TData;
+        ? ((await response.json()) as TData)
+        : ((await response.text()) as TData);
 
       if (!response.ok) {
         const error = new Error(`HTTP ${response.status}: ${response.statusText}`) as Error & {
@@ -291,7 +310,9 @@ export class LapiClient {
 
     this.loginPromise = (async () => {
       if (this.auth.mode === 'none') {
-        console.error(`Authentication failed${contextLabel}: CrowdSec LAPI authentication is not configured.`);
+        console.error(
+          `Authentication failed${contextLabel}: CrowdSec LAPI authentication is not configured.`,
+        );
         this.updateStatus(false, { message: 'Authentication not configured' });
         return false;
       }
@@ -305,10 +326,13 @@ export class LapiClient {
           body.password = this.auth.password;
         }
 
-        const response = await this.fetchLapi<{ code?: number; token?: string }>('/v1/watchers/login', {
-          method: 'POST',
-          body,
-        });
+        const response = await this.fetchLapi<{ code?: number; token?: string }>(
+          '/v1/watchers/login',
+          {
+            method: 'POST',
+            body,
+          },
+        );
 
         if (response.data?.token) {
           this.requestToken = response.data.token;
@@ -316,7 +340,9 @@ export class LapiClient {
           return true;
         }
 
-        console.error(`Authentication failed${contextLabel}: login response did not contain a token.`);
+        console.error(
+          `Authentication failed${contextLabel}: login response did not contain a token.`,
+        );
         this.updateStatus(false, { message: 'Login response invalid' });
         return false;
       } catch (error: any) {
@@ -377,10 +403,16 @@ export class LapiClient {
       const relativeNow = Date.now();
       const relativeWindow = filters.relativeWindow;
       const resolvedSince = relativeWindow
-        ? formatRelativeDuration(relativeNow - relativeWindow.startMs + relativeWindow.paddingMs, 'up')
+        ? formatRelativeDuration(
+            relativeNow - relativeWindow.startMs + relativeWindow.paddingMs,
+            'up',
+          )
         : sinceParam;
       const resolvedUntil = relativeWindow
-        ? formatRelativeDuration(relativeNow - relativeWindow.endMs - relativeWindow.paddingMs, 'down')
+        ? formatRelativeDuration(
+            relativeNow - relativeWindow.endMs - relativeWindow.paddingMs,
+            'down',
+          )
         : until;
       const params = new URLSearchParams();
       params.append('since', resolvedSince);
@@ -404,11 +436,14 @@ export class LapiClient {
     for (const scope of scopes) {
       const scopeLabel = scope || 'unscoped';
       try {
-        const response = await this.fetchLapi<unknown[]>(`/v1/alerts?${buildParams(scope).toString()}`);
+        const response = await this.fetchLapi<unknown[]>(
+          `/v1/alerts?${buildParams(scope).toString()}`,
+        );
         successfulScopes += 1;
         const resultSet = Array.isArray(response.data) ? response.data : [];
         for (const alert of resultSet) {
-          const id = typeof alert === 'object' && alert !== null && 'id' in alert ? String(alert.id) : null;
+          const id =
+            typeof alert === 'object' && alert !== null && 'id' in alert ? String(alert.id) : null;
           if (!id) continue;
           merged.set(id, alert);
         }
@@ -496,7 +531,9 @@ export class LapiClient {
   }
 
   async fetchAllowlists(): Promise<LapiAllowlist[]> {
-    const response = await this.fetchLapi<LapiAllowlist[] | null>('/v1/allowlists?with_content=true');
+    const response = await this.fetchLapi<LapiAllowlist[] | null>(
+      '/v1/allowlists?with_content=true',
+    );
     return Array.isArray(response.data) ? response.data : [];
   }
 

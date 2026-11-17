@@ -1,50 +1,55 @@
-import { toPaginatedDecisions } from './harness';
-import { describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, test, vi } from 'vitest';
+
 import * as api from '../../../lib/api';
 import { Decisions } from '../../Decisions';
+import { toPaginatedDecisions } from './harness';
 
 describe('Decisions page actions', () => {
   test('select all excludes expired decisions from bulk delete', async () => {
     vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (page, pageSize) =>
-      toPaginatedDecisions([
-        {
-          id: 10,
-          created_at: '2026-03-23T10:00:00.000Z',
-          value: '1.2.3.4',
-          expired: false,
-          is_duplicate: false,
-          simulated: false,
-          detail: {
-            origin: 'CAPI',
-            reason: 'crowdsecurity/ssh-bf',
-            country: 'DE',
-            as: 'Hetzner',
-            action: 'ban',
-            duration: '4h',
-            alert_id: 1,
+      toPaginatedDecisions(
+        [
+          {
+            id: 10,
+            created_at: '2026-03-23T10:00:00.000Z',
+            value: '1.2.3.4',
+            expired: false,
+            is_duplicate: false,
+            simulated: false,
+            detail: {
+              origin: 'CAPI',
+              reason: 'crowdsecurity/ssh-bf',
+              country: 'DE',
+              as: 'Hetzner',
+              action: 'ban',
+              duration: '4h',
+              alert_id: 1,
+            },
           },
-        },
-        {
-          id: 30,
-          created_at: '2026-03-23T12:00:00.000Z',
-          value: '9.9.9.9',
-          expired: true,
-          is_duplicate: false,
-          simulated: false,
-          detail: {
-            origin: 'CAPI',
-            reason: 'crowdsecurity/http-probing',
-            country: 'FR',
-            as: 'OVH',
-            action: 'ban',
-            duration: '-5m',
-            alert_id: 3,
+          {
+            id: 30,
+            created_at: '2026-03-23T12:00:00.000Z',
+            value: '9.9.9.9',
+            expired: true,
+            is_duplicate: false,
+            simulated: false,
+            detail: {
+              origin: 'CAPI',
+              reason: 'crowdsecurity/http-probing',
+              country: 'FR',
+              as: 'OVH',
+              action: 'ban',
+              duration: '-5m',
+              alert_id: 3,
+            },
           },
-        },
-      ], page, pageSize),
+        ],
+        page,
+        pageSize,
+      ),
     );
     const bulkDeleteDecisionsMock = vi.mocked(api.bulkDeleteDecisions).mockResolvedValue({
       requested_alerts: 0,

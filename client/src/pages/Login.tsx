@@ -1,12 +1,17 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { KeyRound, LogIn, ShieldCheck } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { apiUrl } from '../lib/basePath';
-import { claimOidcAutoLoginRetry, hasOidcAutoLoginRetried, isOidcAutoLoginSuppressed } from '../lib/oidcAutoLogin';
+
 import { AppLogo } from '../components/AppLogo';
+import { useAuth } from '../contexts/AuthContext';
 import { useBranding } from '../contexts/useBranding';
+import { apiUrl } from '../lib/basePath';
 import { useI18n } from '../lib/i18n';
+import {
+  claimOidcAutoLoginRetry,
+  hasOidcAutoLoginRetried,
+  isOidcAutoLoginSuppressed,
+} from '../lib/oidcAutoLogin';
 import {
   serializeAuthenticationCredential,
   toPublicKeyCredentialRequestOptions,
@@ -16,11 +21,22 @@ import {
 type OidcLoginError = 'expired' | 'failed' | 'denied' | 'unavailable';
 
 function readOidcLoginError(value: string | null): OidcLoginError | null {
-  return value === 'expired' || value === 'failed' || value === 'denied' || value === 'unavailable' ? value : null;
+  return value === 'expired' || value === 'failed' || value === 'denied' || value === 'unavailable'
+    ? value
+    : null;
 }
 
 export function Login() {
-  const { authEnabled, authenticated, login, oidcAutoLogin, oidcEnabled, passwordLoginDisabled, passkeysEnabled, refresh } = useAuth();
+  const {
+    authEnabled,
+    authenticated,
+    login,
+    oidcAutoLogin,
+    oidcEnabled,
+    passwordLoginDisabled,
+    passkeysEnabled,
+    refresh,
+  } = useAuth();
   const { t } = useI18n();
   const { appName } = useBranding();
   const [username, setUsername] = useState('');
@@ -32,10 +48,15 @@ export function Login() {
   // ?local=1 keeps the login page reachable, for example to sign in with a passkey. After a failed
   // SSO sign-in only an expired one starts again on its own, and only once; any other failure would
   // send the user straight back into it.
-  const [redirectingToSso, setRedirectingToSso] = useState(() => (
-    authEnabled && !authenticated && oidcAutoLogin && searchParams.get('local') !== '1' && !isOidcAutoLoginSuppressed()
-    && (!oidcError || (oidcError === 'expired' && !hasOidcAutoLoginRetried()))
-  ));
+  const [redirectingToSso, setRedirectingToSso] = useState(
+    () =>
+      authEnabled &&
+      !authenticated &&
+      oidcAutoLogin &&
+      searchParams.get('local') !== '1' &&
+      !isOidcAutoLoginSuppressed() &&
+      (!oidcError || (oidcError === 'expired' && !hasOidcAutoLoginRetried())),
+  );
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   // Kept as a reason, not text, so it follows a language preference that loads after the first render.
@@ -60,19 +81,25 @@ export function Login() {
   // The reason is shown once; a reload must not show it again.
   useEffect(() => {
     if (!oidcError || redirectingToSso) return;
-    setSearchParams((params) => {
-      const next = new URLSearchParams(params);
-      next.delete('oidcError');
-      return next;
-    }, { replace: true });
+    setSearchParams(
+      (params) => {
+        const next = new URLSearchParams(params);
+        next.delete('oidcError');
+        return next;
+      },
+      { replace: true },
+    );
   }, [oidcError, redirectingToSso, setSearchParams]);
 
   if (!authEnabled || authenticated) {
     return <Navigate to="/" replace />;
   }
 
-  const shownError = error || (oidcMessage && oidcMessage !== 'expired' ? t(`pages.login.oidcError.${oidcMessage}`) : '');
-  const shownNotice = notice || (oidcMessage === 'expired' ? t('pages.login.oidcError.expired') : '');
+  const shownError =
+    error ||
+    (oidcMessage && oidcMessage !== 'expired' ? t(`pages.login.oidcError.${oidcMessage}`) : '');
+  const shownNotice =
+    notice || (oidcMessage === 'expired' ? t('pages.login.oidcError.expired') : '');
 
   const validatePasswordLogin = () => {
     if (!requiresTotp) {
@@ -120,7 +147,11 @@ export function Login() {
     try {
       await login(username, password, requiresTotp ? totpCode : undefined);
     } catch (loginError) {
-      if (loginError instanceof Error && 'requiresTotp' in loginError && loginError.requiresTotp === true) {
+      if (
+        loginError instanceof Error &&
+        'requiresTotp' in loginError &&
+        loginError.requiresTotp === true
+      ) {
         setRequiresTotp(true);
         if (!requiresTotp) {
           setNotice(
@@ -131,7 +162,11 @@ export function Login() {
           return;
         }
       }
-      setError(loginError instanceof Error ? translateKnownLoginError(loginError.message) : t('pages.login.error.loginFailed'));
+      setError(
+        loginError instanceof Error
+          ? translateKnownLoginError(loginError.message)
+          : t('pages.login.error.loginFailed'),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -162,8 +197,12 @@ export function Login() {
         body: JSON.stringify({ username }),
       });
       if (!optionsResponse.ok) throw new Error(t('pages.login.error.failedToStartPasskeyLogin'));
-      const options = toPublicKeyCredentialRequestOptions(await optionsResponse.json() as Record<string, unknown>);
-      const credential = await navigator.credentials.get({ publicKey: options }) as PublicKeyCredential | null;
+      const options = toPublicKeyCredentialRequestOptions(
+        (await optionsResponse.json()) as Record<string, unknown>,
+      );
+      const credential = (await navigator.credentials.get({
+        publicKey: options,
+      })) as PublicKeyCredential | null;
       if (!credential) throw new Error(t('pages.login.error.noPasskeyCredential'));
 
       const verifyResponse = await fetch(apiUrl('/api/auth/webauthn/login/verify'), {
@@ -172,24 +211,34 @@ export function Login() {
         body: JSON.stringify(serializeAuthenticationCredential(credential)),
       });
       if (!verifyResponse.ok) {
-        const payload = await verifyResponse.json().catch(() => ({})) as { error?: string };
-        throw new Error(payload.error ? translateKnownLoginError(payload.error) : t('pages.login.error.passkeyAuthenticationFailed'));
+        const payload = (await verifyResponse.json().catch(() => ({}))) as { error?: string };
+        throw new Error(
+          payload.error
+            ? translateKnownLoginError(payload.error)
+            : t('pages.login.error.passkeyAuthenticationFailed'),
+        );
       }
       await refresh();
     } catch (passkeyError) {
-      setError(passkeyError instanceof Error ? passkeyError.message : t('pages.login.error.passkeyAuthenticationFailed'));
+      setError(
+        passkeyError instanceof Error
+          ? passkeyError.message
+          : t('pages.login.error.passkeyAuthenticationFailed'),
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-950 p-4 text-gray-100">
-      <div className="w-full max-w-sm rounded-xl border border-gray-800 bg-gray-900 p-8 shadow-2xl">
+    <div className="flex min-h-screen items-center justify-center p-4 text-gray-900 dark:text-gray-100">
+      <div className="acrylic w-full max-w-sm rounded-xl border p-8">
         <div className="mb-6 text-center">
           <AppLogo className="mx-auto h-14 w-14" />
           <h1 className="mt-4 text-2xl font-bold">{t('pages.login.title')}</h1>
-          <p className="mt-1 break-words text-sm text-gray-400">{t('pages.login.subtitle', { appName })}</p>
+          <p className="mt-1 text-sm break-words text-gray-400">
+            {t('pages.login.subtitle', { appName })}
+          </p>
         </div>
 
         {shownError && (
@@ -211,11 +260,18 @@ export function Login() {
         )}
 
         {!passwordLoginDisabled && (
-          <form onSubmit={(event) => void handlePasswordLogin(event)} className="space-y-4" noValidate>
+          <form
+            onSubmit={(event) => void handlePasswordLogin(event)}
+            className="space-y-4"
+            noValidate
+          >
             {!requiresTotp ? (
               <>
                 <div className="space-y-1.5">
-                  <label htmlFor="login-username" className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <label
+                    htmlFor="login-username"
+                    className="block text-xs font-semibold tracking-wide text-gray-400 uppercase"
+                  >
                     {t('pages.login.username')}
                   </label>
                   <input
@@ -223,12 +279,15 @@ export function Login() {
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
                     autoComplete="username"
-                    className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/40"
+                    className="focus:border-primary-500 focus:ring-primary-500/40 w-full rounded-lg border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 dark:border-white/15 dark:bg-black/25 dark:text-gray-100"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <label
+                    htmlFor="login-password"
+                    className="block text-xs font-semibold tracking-wide text-gray-400 uppercase"
+                  >
                     {t('pages.login.password')}
                   </label>
                   <input
@@ -237,27 +296,34 @@ export function Login() {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
-                    className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/40"
+                    className="focus:border-primary-500 focus:ring-primary-500/40 w-full rounded-lg border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 dark:border-white/15 dark:bg-black/25 dark:text-gray-100"
                   />
                 </div>
               </>
             ) : (
               <div className="space-y-1.5">
-                <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-950 px-3 py-2">
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-gray-300 bg-white/70 px-3 py-2 dark:border-white/15 dark:bg-black/25">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t('pages.login.signingInAs')}</p>
-                    <p className="truncate text-sm font-medium text-gray-100">{username}</p>
+                    <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                      {t('pages.login.signingInAs')}
+                    </p>
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {username}
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={resetTotpPrompt}
                     disabled={isLoading}
-                    className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary-300 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="text-primary-700 dark:text-primary-300 shrink-0 rounded-md px-2 py-1 text-xs font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/10"
                   >
                     {t('pages.login.change')}
                   </button>
                 </div>
-                <label htmlFor="login-totp" className="block text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <label
+                  htmlFor="login-totp"
+                  className="block text-xs font-semibold tracking-wide text-gray-400 uppercase"
+                >
                   {t('pages.login.authenticatorCode')}
                 </label>
                 <input
@@ -267,7 +333,7 @@ export function Login() {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   autoFocus
-                  className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-white outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/40"
+                  className="focus:border-primary-500 focus:ring-primary-500/40 w-full rounded-lg border border-gray-300 bg-white/70 px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 dark:border-white/15 dark:bg-black/25 dark:text-gray-100"
                 />
               </div>
             )}
@@ -275,7 +341,7 @@ export function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-primary-600 hover:bg-primary-700 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               <LogIn className="h-4 w-4" />
               {t('pages.login.signIn')}
@@ -290,7 +356,7 @@ export function Login() {
                 type="button"
                 onClick={() => void handlePasskeyLogin()}
                 disabled={isLoading}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-700 px-4 text-sm font-semibold text-gray-100 hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 text-sm font-semibold text-gray-800 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/15 dark:text-gray-100 dark:hover:bg-white/10"
               >
                 <KeyRound className="h-4 w-4" />
                 {t('pages.login.signInWithPasskey')}
@@ -299,7 +365,7 @@ export function Login() {
             {oidcEnabled && (
               <a
                 href={apiUrl('/api/auth/oidc/login')}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-700 px-4 text-sm font-semibold text-gray-100 hover:bg-gray-800"
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 text-sm font-semibold text-gray-800 hover:bg-black/5 dark:border-white/15 dark:text-gray-100 dark:hover:bg-white/10"
               >
                 <ShieldCheck className="h-4 w-4" />
                 {t('pages.login.continueWithSso')}

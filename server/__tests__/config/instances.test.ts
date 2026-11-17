@@ -1,11 +1,6 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { parse as parseYaml } from 'yaml';
-import { createRuntimeConfig as createRuntimeConfigImpl, getIntervalName, parseBooleanEnv, parseCsvEnv, parseLookbackToMs, parseOidcScope, parseOidcUnmatchedRole, parseOptionalBooleanEnv, parseRefreshInterval, parseTimeFormat, parseTimeZone } from '../../config';
-import { ConfigurationLoadError } from '../../config-error';
-import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret, tempDirs } from './harness';
+
+import { createRuntimeConfig, createTempConfig, createTempSecret } from './harness';
 
 describe('instance configuration', () => {
   test('createRuntimeConfig loads named LAPI and metrics endpoints from YAML', () => {
@@ -74,7 +69,9 @@ instances:
       tls: { caFile },
     });
     expect(config.instances[0].prometheus[1].auth).toEqual({
-      type: 'basic', username: 'metrics', password: 'basic-metrics-secret',
+      type: 'basic',
+      username: 'metrics',
+      password: 'basic-metrics-secret',
     });
   });
 
@@ -90,10 +87,12 @@ instances:
         username: watcher
         passwordEnv: FIRST_PASSWORD
 `);
-    expect(() => createRuntimeConfig({
-      CROWDSEC_INSTANCES_CONFIG_FILE: configFile,
-      FIRST_PASSWORD: 'secret',
-    })).toThrow(/unknown.*passwordEnv/i);
+    expect(() =>
+      createRuntimeConfig({
+        CROWDSEC_INSTANCES_CONFIG_FILE: configFile,
+        FIRST_PASSWORD: 'secret',
+      }),
+    ).toThrow(/unknown.*passwordEnv/i);
   });
 
   test('multi-instance YAML rejects the former prometheus key', () => {
@@ -111,10 +110,12 @@ instances:
     prometheus: []
 `);
 
-    expect(() => createRuntimeConfig({
-      CROWDSEC_INSTANCES_CONFIG_FILE: configFile,
-      FIRST_PASSWORD: 'secret',
-    })).toThrow(/prometheus has been renamed to instances\[0\]\.metrics/i);
+    expect(() =>
+      createRuntimeConfig({
+        CROWDSEC_INSTANCES_CONFIG_FILE: configFile,
+        FIRST_PASSWORD: 'secret',
+      }),
+    ).toThrow(/prometheus has been renamed to instances\[0\]\.metrics/i);
   });
 
   test('multi-instance YAML accepts direct secrets and rejects duplicate names and legacy connection variables', () => {
@@ -127,7 +128,9 @@ instances:
       auth: { type: password, username: watcher, password: plaintext }
 `);
     expect(createRuntimeConfig({ CROWDSEC_INSTANCES_CONFIG_FILE: directSecretFile }).instances[0].lapiAuth).toEqual({
-      mode: 'password', user: 'watcher', password: 'plaintext',
+      mode: 'password',
+      user: 'watcher',
+      password: 'plaintext',
     });
 
     const passwordSecretFile = createTempSecret('secret');
@@ -144,11 +147,15 @@ instances:
       url: https://second.example:8080
       auth: { type: password, username: watcher, password: { file: ${passwordSecretFile} } }
 `);
-    expect(() => createRuntimeConfig({ CROWDSEC_INSTANCES_CONFIG_FILE: duplicateFile })).toThrow(/duplicate instance name/i);
-    expect(() => createRuntimeConfig({
-      CROWDSEC_INSTANCES_CONFIG_FILE: duplicateFile,
-      CROWDSEC_URL: 'http://legacy:8080',
-    })).toThrow(/cannot be combined with legacy connection variables/i);
+    expect(() => createRuntimeConfig({ CROWDSEC_INSTANCES_CONFIG_FILE: duplicateFile })).toThrow(
+      /duplicate instance name/i,
+    );
+    expect(() =>
+      createRuntimeConfig({
+        CROWDSEC_INSTANCES_CONFIG_FILE: duplicateFile,
+        CROWDSEC_URL: 'http://legacy:8080',
+      }),
+    ).toThrow(/cannot be combined with legacy connection variables/i);
   });
 
   test('multi-instance YAML rejects icons that contain control characters or are too long', () => {
@@ -162,7 +169,9 @@ instances:
       url: https://first.example:8080
       auth: { type: password, username: watcher, password: { file: ${passwordSecretFile} } }
 `);
-    expect(() => createRuntimeConfig({ CROWDSEC_INSTANCES_CONFIG_FILE: configFile })).toThrow(/short text or emoji icon/i);
+    expect(() => createRuntimeConfig({ CROWDSEC_INSTANCES_CONFIG_FILE: configFile })).toThrow(
+      /short text or emoji icon/i,
+    );
 
     const metricsConfigFile = createTempConfig(`
 instances:
@@ -176,7 +185,9 @@ instances:
         icon: this-icon-is-too-long
         url: https://first.example:6060/metrics
 `);
-    expect(() => createRuntimeConfig({ CROWDSEC_INSTANCES_CONFIG_FILE: metricsConfigFile })).toThrow(/metrics\[0\]\.icon.*short text or emoji/i);
+    expect(() => createRuntimeConfig({ CROWDSEC_INSTANCES_CONFIG_FILE: metricsConfigFile })).toThrow(
+      /metrics\[0\]\.icon.*short text or emoji/i,
+    );
   });
 
   test('createRuntimeConfig translates deprecated alert origin settings', () => {

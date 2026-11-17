@@ -10,15 +10,15 @@
 export const BRANDING_THEME_STYLE_ID = 'branding-theme';
 
 export const THEME_SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const;
-export type ThemeShade = typeof THEME_SHADES[number];
+export type ThemeShade = (typeof THEME_SHADES)[number];
 export type ThemeScale = Record<ThemeShade, string>;
 
 export const NEUTRAL_TONES = ['gray', 'slate', 'zinc', 'neutral', 'stone'] as const;
-export type NeutralTone = typeof NEUTRAL_TONES[number];
+export type NeutralTone = (typeof NEUTRAL_TONES)[number];
 export const DEFAULT_NEUTRAL_TONE: NeutralTone = 'gray';
 
 export const THEME_MODES = ['light', 'dark'] as const;
-export type ThemeModeName = typeof THEME_MODES[number];
+export type ThemeModeName = (typeof THEME_MODES)[number];
 
 export interface ThemeModeColors {
   /** Accent color as `#rrggbb`, or null for the default (or, in dark mode, the light mode setting). */
@@ -39,17 +39,17 @@ export const DEFAULT_BRANDING_THEME: BrandingTheme = {
 
 /** The built-in accent palette; keep in sync with `@theme` in client/src/index.css. */
 export const DEFAULT_ACCENT_SCALE: ThemeScale = {
-  50: '#f0f9ff',
-  100: '#e0f2fe',
-  200: '#bae6fd',
-  300: '#7dd3fc',
-  400: '#38bdf8',
-  500: '#0ea5e9',
-  600: '#0284c7',
-  700: '#0369a1',
-  800: '#075985',
-  900: '#0c4a6e',
-  950: '#082f49',
+  50: '#f6f6ff',
+  100: '#ededff',
+  200: '#dbdaff',
+  300: '#c1bfff',
+  400: '#a69fff',
+  500: '#9385ff',
+  600: '#765cf0',
+  700: '#5f4ac3',
+  800: '#4f40a0',
+  900: '#423783',
+  950: '#2a2355',
 };
 
 /** Accent shade 600 of the built-in palette; used as the color picker's starting value. */
@@ -62,15 +62,77 @@ export class BrandingThemeValidationError extends Error {}
 
 // Tailwind's neutral palettes, in OKLCH [lightness, chroma, hue].
 const NEUTRAL_PALETTES: Record<NeutralTone, Array<[number, number, number]>> = {
-  gray: [[0.985, 0.002, 247.839], [0.967, 0.003, 264.542], [0.928, 0.006, 264.531], [0.872, 0.01, 258.338], [0.707, 0.022, 261.325], [0.551, 0.027, 264.364], [0.446, 0.03, 256.802], [0.373, 0.034, 259.733], [0.278, 0.033, 256.848], [0.21, 0.034, 264.665], [0.13, 0.028, 261.692]],
-  slate: [[0.984, 0.003, 247.858], [0.968, 0.007, 247.896], [0.929, 0.013, 255.508], [0.869, 0.022, 252.894], [0.704, 0.04, 256.788], [0.554, 0.046, 257.417], [0.446, 0.043, 257.281], [0.372, 0.044, 257.287], [0.279, 0.041, 260.031], [0.208, 0.042, 265.755], [0.129, 0.042, 264.695]],
-  zinc: [[0.985, 0, 0], [0.967, 0.001, 286.375], [0.92, 0.004, 286.32], [0.871, 0.006, 286.286], [0.705, 0.015, 286.067], [0.552, 0.016, 285.938], [0.442, 0.017, 285.786], [0.37, 0.013, 285.805], [0.274, 0.006, 286.033], [0.21, 0.006, 285.885], [0.141, 0.005, 285.823]],
-  neutral: [[0.985, 0, 0], [0.97, 0, 0], [0.922, 0, 0], [0.87, 0, 0], [0.708, 0, 0], [0.556, 0, 0], [0.439, 0, 0], [0.371, 0, 0], [0.269, 0, 0], [0.205, 0, 0], [0.145, 0, 0]],
-  stone: [[0.985, 0.001, 106.423], [0.97, 0.001, 106.424], [0.923, 0.003, 48.717], [0.869, 0.005, 56.366], [0.709, 0.01, 56.259], [0.553, 0.013, 58.071], [0.444, 0.011, 73.639], [0.374, 0.01, 67.558], [0.268, 0.007, 34.298], [0.216, 0.006, 56.043], [0.147, 0.004, 49.25]],
+  gray: [
+    [0.985, 0.002, 247.839],
+    [0.967, 0.003, 264.542],
+    [0.928, 0.006, 264.531],
+    [0.872, 0.01, 258.338],
+    [0.707, 0.022, 261.325],
+    [0.551, 0.027, 264.364],
+    [0.446, 0.03, 256.802],
+    [0.373, 0.034, 259.733],
+    [0.278, 0.033, 256.848],
+    [0.21, 0.034, 264.665],
+    [0.13, 0.028, 261.692],
+  ],
+  slate: [
+    [0.984, 0.003, 247.858],
+    [0.968, 0.007, 247.896],
+    [0.929, 0.013, 255.508],
+    [0.869, 0.022, 252.894],
+    [0.704, 0.04, 256.788],
+    [0.554, 0.046, 257.417],
+    [0.446, 0.043, 257.281],
+    [0.372, 0.044, 257.287],
+    [0.279, 0.041, 260.031],
+    [0.208, 0.042, 265.755],
+    [0.129, 0.042, 264.695],
+  ],
+  zinc: [
+    [0.985, 0, 0],
+    [0.967, 0.001, 286.375],
+    [0.92, 0.004, 286.32],
+    [0.871, 0.006, 286.286],
+    [0.705, 0.015, 286.067],
+    [0.552, 0.016, 285.938],
+    [0.442, 0.017, 285.786],
+    [0.37, 0.013, 285.805],
+    [0.274, 0.006, 286.033],
+    [0.21, 0.006, 285.885],
+    [0.141, 0.005, 285.823],
+  ],
+  neutral: [
+    [0.985, 0, 0],
+    [0.97, 0, 0],
+    [0.922, 0, 0],
+    [0.87, 0, 0],
+    [0.708, 0, 0],
+    [0.556, 0, 0],
+    [0.439, 0, 0],
+    [0.371, 0, 0],
+    [0.269, 0, 0],
+    [0.205, 0, 0],
+    [0.145, 0, 0],
+  ],
+  stone: [
+    [0.985, 0.001, 106.423],
+    [0.97, 0.001, 106.424],
+    [0.923, 0.003, 48.717],
+    [0.869, 0.005, 56.366],
+    [0.709, 0.01, 56.259],
+    [0.553, 0.013, 58.071],
+    [0.444, 0.011, 73.639],
+    [0.374, 0.01, 67.558],
+    [0.268, 0.007, 34.298],
+    [0.216, 0.006, 56.043],
+    [0.147, 0.004, 49.25],
+  ],
 };
 
 // Lightness and relative chroma of each generated accent shade, modelled on Tailwind's palettes.
-const ACCENT_LIGHTNESS = [0.977, 0.951, 0.901, 0.828, 0.746, 0.685, 0.588, 0.5, 0.443, 0.391, 0.293];
+const ACCENT_LIGHTNESS = [
+  0.977, 0.951, 0.901, 0.828, 0.746, 0.685, 0.588, 0.5, 0.443, 0.391, 0.293,
+];
 const ACCENT_CHROMA_PROFILE = [0.08, 0.15, 0.34, 0.65, 0.94, 1, 0.94, 0.8, 0.66, 0.55, 0.39];
 const MAX_ACCENT_CHROMA = 0.37;
 
@@ -91,9 +153,13 @@ function isNeutralTone(value: unknown): value is NeutralTone {
 
 /** Lenient normalization for stored or received themes: invalid values fall back to the default. */
 export function normalizeBrandingTheme(value: unknown): BrandingTheme {
-  const candidate = value && typeof value === 'object' ? value as Partial<Record<ThemeModeName, unknown>> : {};
+  const candidate =
+    value && typeof value === 'object' ? (value as Partial<Record<ThemeModeName, unknown>>) : {};
   const normalizeMode = (mode: unknown): ThemeModeColors => {
-    const colors = mode && typeof mode === 'object' ? mode as Partial<Record<keyof ThemeModeColors, unknown>> : {};
+    const colors =
+      mode && typeof mode === 'object'
+        ? (mode as Partial<Record<keyof ThemeModeColors, unknown>>)
+        : {};
     return {
       accent: normalizeHexColor(colors.accent),
       neutral: isNeutralTone(colors.neutral) ? colors.neutral : null,
@@ -114,12 +180,17 @@ export function parseBrandingThemeInput(value: unknown): BrandingTheme {
       throw new BrandingThemeValidationError(`Theme ${modeName} colors must be an object`);
     }
     const { accent, neutral } = mode as Partial<Record<keyof ThemeModeColors, unknown>>;
-    const normalizedAccent = accent === null || accent === undefined || accent === '' ? null : normalizeHexColor(accent);
+    const normalizedAccent =
+      accent === null || accent === undefined || accent === '' ? null : normalizeHexColor(accent);
     if (normalizedAccent === null && accent !== null && accent !== undefined && accent !== '') {
-      throw new BrandingThemeValidationError(`Theme ${modeName} accent must be a hex color such as #0284c7`);
+      throw new BrandingThemeValidationError(
+        `Theme ${modeName} accent must be a hex color such as #765cf0`,
+      );
     }
     if (neutral !== null && neutral !== undefined && neutral !== '' && !isNeutralTone(neutral)) {
-      throw new BrandingThemeValidationError(`Theme ${modeName} neutral tone must be one of: ${NEUTRAL_TONES.join(', ')}`);
+      throw new BrandingThemeValidationError(
+        `Theme ${modeName} neutral tone must be one of: ${NEUTRAL_TONES.join(', ')}`,
+      );
     }
     return { accent: normalizedAccent, neutral: isNeutralTone(neutral) ? neutral : null };
   };
@@ -131,7 +202,10 @@ export function isDefaultBrandingTheme(theme: BrandingTheme): boolean {
 }
 
 /** Resolves a mode's effective colors: dark mode falls back to light mode, which falls back to the defaults. */
-export function resolveThemeMode(theme: BrandingTheme, mode: ThemeModeName): { accent: string | null; neutral: NeutralTone } {
+export function resolveThemeMode(
+  theme: BrandingTheme,
+  mode: ThemeModeName,
+): { accent: string | null; neutral: NeutralTone } {
   const fallback = mode === 'dark' ? theme.light : DEFAULT_BRANDING_THEME.light;
   return {
     accent: theme[mode].accent ?? fallback.accent,
@@ -157,7 +231,13 @@ function hexToRgb(hex: string): Rgb {
 }
 
 function rgbToHex(rgb: Rgb): string {
-  return `#${rgb.map((channel) => Math.round(Math.min(1, Math.max(0, channel)) * 255).toString(16).padStart(2, '0')).join('')}`;
+  return `#${rgb
+    .map((channel) =>
+      Math.round(Math.min(1, Math.max(0, channel)) * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 }
 
 function rgbToOklch([r, g, b]: Rgb): [number, number, number] {
@@ -214,7 +294,9 @@ function relativeLuminance(hex: string): number {
 
 /** WCAG contrast ratio between two hex colors (1 to 21). */
 export function getContrastRatio(first: string, second: string): number {
-  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)].sort((a, b) => b - a);
+  const [lighter, darker] = [relativeLuminance(first), relativeLuminance(second)].sort(
+    (a, b) => b - a,
+  );
   return (lighter + 0.05) / (darker + 0.05);
 }
 
@@ -228,14 +310,19 @@ export function generateAccentScale(color: string): ThemeScale {
   const [lightness, chroma, hue] = rgbToOklch(hexToRgb(hex));
   let anchor = 0;
   ACCENT_LIGHTNESS.forEach((target, index) => {
-    if (Math.abs(target - lightness) < Math.abs(ACCENT_LIGHTNESS[anchor] - lightness)) anchor = index;
+    if (Math.abs(target - lightness) < Math.abs(ACCENT_LIGHTNESS[anchor] - lightness))
+      anchor = index;
   });
   const peakChroma = Math.min(MAX_ACCENT_CHROMA, chroma / ACCENT_CHROMA_PROFILE[anchor]);
 
-  const scale = Object.fromEntries(THEME_SHADES.map((shade, index) => [
-    shade,
-    index === anchor ? hex : oklchToHex(ACCENT_LIGHTNESS[index], peakChroma * ACCENT_CHROMA_PROFILE[index], hue),
-  ])) as ThemeScale;
+  const scale = Object.fromEntries(
+    THEME_SHADES.map((shade, index) => [
+      shade,
+      index === anchor
+        ? hex
+        : oklchToHex(ACCENT_LIGHTNESS[index], peakChroma * ACCENT_CHROMA_PROFILE[index], hue),
+    ]),
+  ) as ThemeScale;
 
   // Shade 600 carries white button text and light mode links: darken a generated
   // one until it meets WCAG AA, staying lighter than shade 700.
@@ -243,19 +330,28 @@ export function generateAccentScale(color: string): ThemeScale {
   if (buttonIndex !== anchor) {
     let buttonLightness = ACCENT_LIGHTNESS[buttonIndex];
     const minLightness = ACCENT_LIGHTNESS[buttonIndex + 1] + 0.01;
-    while (getContrastRatio('#ffffff', scale[600]) < MIN_ACCENT_CONTRAST && buttonLightness > minLightness) {
+    while (
+      getContrastRatio('#ffffff', scale[600]) < MIN_ACCENT_CONTRAST &&
+      buttonLightness > minLightness
+    ) {
       buttonLightness = Math.max(minLightness, buttonLightness - 0.005);
-      scale[600] = oklchToHex(buttonLightness, peakChroma * ACCENT_CHROMA_PROFILE[buttonIndex], hue);
+      scale[600] = oklchToHex(
+        buttonLightness,
+        peakChroma * ACCENT_CHROMA_PROFILE[buttonIndex],
+        hue,
+      );
     }
   }
   return scale;
 }
 
 export function getNeutralScale(tone: NeutralTone): ThemeScale {
-  return Object.fromEntries(THEME_SHADES.map((shade, index) => {
-    const [lightness, chroma, hue] = NEUTRAL_PALETTES[tone][index];
-    return [shade, oklchToHex(lightness, chroma, hue)];
-  })) as ThemeScale;
+  return Object.fromEntries(
+    THEME_SHADES.map((shade, index) => {
+      const [lightness, chroma, hue] = NEUTRAL_PALETTES[tone][index];
+      return [shade, oklchToHex(lightness, chroma, hue)];
+    }),
+  ) as ThemeScale;
 }
 
 function formatNeutral(tone: NeutralTone, index: number): string {
@@ -267,7 +363,10 @@ function getAccentScale(accent: string | null): ThemeScale {
   return accent ? generateAccentScale(accent) : DEFAULT_ACCENT_SCALE;
 }
 
-function getThemeVariables(accentScale: ThemeScale | null, neutral: NeutralTone | null): Record<string, string> {
+function getThemeVariables(
+  accentScale: ThemeScale | null,
+  neutral: NeutralTone | null,
+): Record<string, string> {
   const variables: Record<string, string> = {};
   if (accentScale) {
     for (const shade of THEME_SHADES) variables[`--color-primary-${shade}`] = accentScale[shade];
@@ -282,11 +381,17 @@ function getThemeVariables(accentScale: ThemeScale | null, neutral: NeutralTone 
 
 /** CSS custom properties overriding the Tailwind colors for one mode's explicit settings. */
 export function getThemeModeVariables(colors: ThemeModeColors): Record<string, string> {
-  return getThemeVariables(colors.accent ? generateAccentScale(colors.accent) : null, colors.neutral);
+  return getThemeVariables(
+    colors.accent ? generateAccentScale(colors.accent) : null,
+    colors.neutral,
+  );
 }
 
 /** Variables for every color of a mode's effective palette, including defaults; used to render previews. */
-export function getResolvedThemeModeVariables(theme: BrandingTheme, mode: ThemeModeName): Record<string, string> {
+export function getResolvedThemeModeVariables(
+  theme: BrandingTheme,
+  mode: ThemeModeName,
+): Record<string, string> {
   const resolved = resolveThemeMode(theme, mode);
   return getThemeVariables(getAccentScale(resolved.accent), resolved.neutral);
 }
@@ -297,10 +402,15 @@ export function getResolvedThemeModeVariables(theme: BrandingTheme, mode: ThemeM
  */
 export function buildBrandingThemeCss(theme: BrandingTheme): string {
   const block = (selector: string, variables: Record<string, string>) => {
-    const declarations = Object.entries(variables).map(([name, value]) => `${name}:${value};`).join('');
+    const declarations = Object.entries(variables)
+      .map(([name, value]) => `${name}:${value};`)
+      .join('');
     return declarations ? `${selector}{${declarations}}` : '';
   };
-  return block(':root', getThemeModeVariables(theme.light)) + block(':root.dark', getThemeModeVariables(theme.dark));
+  return (
+    block(':root', getThemeModeVariables(theme.light)) +
+    block(':root.dark', getThemeModeVariables(theme.dark))
+  );
 }
 
 export interface AccentContrast {
@@ -311,13 +421,19 @@ export interface AccentContrast {
 }
 
 /** Contrast of a mode's custom accent, or null when the built-in palette is used. */
-export function getAccentContrast(theme: BrandingTheme, mode: ThemeModeName): AccentContrast | null {
+export function getAccentContrast(
+  theme: BrandingTheme,
+  mode: ThemeModeName,
+): AccentContrast | null {
   const resolved = resolveThemeMode(theme, mode);
   if (!resolved.accent) return null;
   const accent = generateAccentScale(resolved.accent);
   const neutral = getNeutralScale(resolved.neutral);
   return {
     buttonText: getContrastRatio('#ffffff', accent[600]),
-    accentText: mode === 'light' ? getContrastRatio(accent[600], '#ffffff') : getContrastRatio(accent[400], neutral[900]),
+    accentText:
+      mode === 'light'
+        ? getContrastRatio(accent[600], '#ffffff')
+        : getContrastRatio(accent[400], neutral[900]),
   };
 }

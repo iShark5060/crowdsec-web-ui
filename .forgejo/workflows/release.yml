@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+env:
+  CI: true
+  npm_config_store_dir: /pnpm-store
+  npm_config_cache: /npm-cache
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: build-node26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Python
+        run: apt-get update && apt-get install -y python3
+
+      - name: Enable pnpm
+        run: npm install -g pnpm@$(node -p 'require("./package.json").packageManager.replace(/^pnpm@/, "")')
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate
+        run: pnpm run validate
+
+      - name: Build
+        run: pnpm run build
+
+  publish:
+    needs: verify
+    runs-on: build-docker
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: version
+        run: |
+          set -eu
+          year=$(date -u +%Y)
+          month=$(date -u +%-m)
+          prefix="${year}.${month}."
+          git fetch --tags
+          previous=$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          latest=$(git tag -l "${prefix}*" --sort=-v:refname | head -1)
+          if [ -z "$latest" ]; then
+            next=1
+          else
+            next=$((${latest#"$prefix"} + 1))
+          fi
+          version="${prefix}${next}"
+          host="${GITHUB_SERVER_URL#https://}"
+          host="${host#http://}"
+          image="$(printf '%s/%s' "$host" "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          {
+            echo "version=${version}"
+            echo "previous=${previous}"
+            echo "image=${image}"
+            echo "sha8=$(printf '%s' "$GITHUB_SHA" | cut -c1-8)"
+            echo "date=$(date -u +%Y-%m-%d)"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Changes"
+            echo
+            if [ -n "$previous" ]; then
+              git log --reverse --format='- %s (%h)' "${previous}..HEAD"
+              echo
+              echo "[Full changelog](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${previous}...${version})"
+            else
+              git log --reverse --format='- %s (%h)'
+            fi
+            echo
+            echo "## Container"
+            echo
+            echo '```bash'
+            echo "docker pull ${image}:${version}"
+            echo '```'
+          } > release-notes.md
+
+      - name: Log in to Forgejo
+        env:
+          TOKEN: ${{ secrets.CI_PAT }}
+        run: |
+          host="${GITHUB_SERVER_URL#https://}"
+          host="${host#http://}"
+          owner="${GITHUB_REPOSITORY%%/*}"
+          printf '%s' "$TOKEN" | docker login "$host" -u "$owner" --password-stdin
+
+      - name: Build and push
+        env:
+          IMAGE: ${{ steps.version.outputs.image }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA8: ${{ steps.version.outputs.sha8 }}
+          DATE: ${{ steps.version.outputs.date }}
+        run: |
+          set -eu
+          # ponytail: amd64 only. This runner has no qemu, so arm64 is not built. Add a second platform when the runner can emulate it.
+          docker build \
+            --build-arg "VITE_COMMIT_HASH=${SHA8}" \
+            --build-arg "VITE_BUILD_DATE=${DATE}" \
+            --build-arg "VITE_REPO_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --build-arg VITE_BRANCH=main \
+            --build-arg "VITE_VERSION=${VERSION}" \
+            --build-arg "DOCKER_IMAGE_REF=${IMAGE}" \
+            -t "${IMAGE}:${VERSION}" \
+            -t "${IMAGE}:latest" \
+            .
+          docker push "${IMAGE}:${VERSION}"
+          docker push "${IMAGE}:latest"
+
+      - name: Create Forgejo release
+        env:
+          TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.version }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          body=$(jq -Rs . < release-notes.md)
+          payload=$(printf '{"tag_name":"%s","target_commitish":"%s","name":"%s","body":%s}' "$TAG" "$SHA" "$TAG" "$body")
+          curl --fail-with-body -sS \
+            -X POST \
+            -H "Authorization: token ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases"

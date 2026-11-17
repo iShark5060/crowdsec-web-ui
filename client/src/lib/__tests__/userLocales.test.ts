@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import ar from '../../locales/ar.json';
 import de from '../../locales/de.json';
 import en from '../../locales/en.json';
@@ -13,7 +14,8 @@ import zh from '../../locales/zh.json';
 
 const locales = { ar, de, es, fr, hi, ja, ko, pt, ru, zh };
 
-const USER_KEY_PATTERN = /^(pages\.passwordChange\.|pages\.settings\.(\w*User\w*|users?\w*|initialPassword|passwordRequirements|requirePasswordChange)$)/;
+const USER_KEY_PATTERN =
+  /^(pages\.passwordChange\.|pages\.settings\.(\w*User\w*|users?\w*|initialPassword|passwordRequirements|requirePasswordChange)$)/;
 
 function userKeys(locale: Record<string, string>): string[] {
   return Object.keys(locale)

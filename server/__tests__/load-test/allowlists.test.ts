@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import {
   buildLoadTestAllowlists,
   createLoadTestAllowlistMatcher,
@@ -16,11 +17,13 @@ describe('load-test allowlists', () => {
     const allowlists = buildLoadTestAllowlists(options);
     expect(buildLoadTestAllowlists(options)).toEqual(allowlists);
 
-    expect(allowlists.map((allowlist) => [allowlist.name, allowlist.items?.length, allowlist.console_managed])).toEqual([
-      ['partner-networks', 5_000, false],
-      ['corporate-egress', 2_000, false],
-      ['customer-vpn', 300, true],
-    ]);
+    expect(allowlists.map((allowlist) => [allowlist.name, allowlist.items?.length, allowlist.console_managed])).toEqual(
+      [
+        ['partner-networks', 5_000, false],
+        ['corporate-egress', 2_000, false],
+        ['customer-vpn', 300, true],
+      ],
+    );
     for (const allowlist of allowlists) {
       const values = allowlist.items!.map((item) => item.value!);
       expect(new Set(values).size).toBe(values.length);
@@ -28,7 +31,8 @@ describe('load-test allowlists', () => {
     }
 
     const items = allowlists.flatMap((allowlist) => allowlist.items!);
-    const share = (predicate: (item: typeof items[number]) => boolean) => items.filter(predicate).length / items.length;
+    const share = (predicate: (item: (typeof items)[number]) => boolean) =>
+      items.filter(predicate).length / items.length;
     expect(share((item) => item.value!.includes(':'))).toBeGreaterThan(0.1);
     expect(share((item) => item.value!.endsWith('/28'))).toBeGreaterThan(0.1);
     expect(share((item) => item.expiration === LOAD_TEST_ALLOWLIST_ZERO_TIME)).toBeGreaterThan(0.7);
@@ -69,9 +73,15 @@ describe('load-test allowlists', () => {
     let now = NOW;
     const check = createLoadTestAllowlistMatcher(allowlists, () => now);
 
-    expect(check('10.1.2.3')).toEqual({ allowlisted: true, reason: '10.1.2.3 from alpha, 10.0.0.0/8 from zeta (Office)' });
+    expect(check('10.1.2.3')).toEqual({
+      allowlisted: true,
+      reason: '10.1.2.3 from alpha, 10.0.0.0/8 from zeta (Office)',
+    });
     expect(check('10.200.0.0/16')).toEqual({ allowlisted: true, reason: '10.0.0.0/8 from zeta (Office)' });
-    expect(check('10.1.2.0/24')).toEqual({ allowlisted: true, reason: '10.1.2.3 from alpha, 10.0.0.0/8 from zeta (Office)' });
+    expect(check('10.1.2.0/24')).toEqual({
+      allowlisted: true,
+      reason: '10.1.2.3 from alpha, 10.0.0.0/8 from zeta (Office)',
+    });
     expect(check('2001:db8:1:ffff::1')).toEqual({ allowlisted: true, reason: '2001:db8:1::/48 from alpha (IPv6)' });
     expect(check('11.0.0.1')).toEqual({ allowlisted: false });
     expect(check('192.0.2.1')).toEqual({ allowlisted: false });
@@ -89,7 +99,15 @@ describe('load-test allowlists', () => {
     expect(parseLoadTestAddressRange('192.0.2.17/28')).toEqual({ family: 4, start: 0xc0000210n, end: 0xc000021fn });
     expect(parseLoadTestAddressRange('::1')).toEqual({ family: 6, start: 1n, end: 1n });
     expect(parseLoadTestAddressRange('2001:db8::/32')?.end).toBe((0x20010db8n << 96n) | ((1n << 96n) - 1n));
-    for (const invalid of ['256.0.0.1', '1.2.3', '1.2.3.4/33', '1.2.3.4/', '1::2::3', '1:2:3:4:5:6:7:8:9', '10.0.0.0/8/1']) {
+    for (const invalid of [
+      '256.0.0.1',
+      '1.2.3',
+      '1.2.3.4/33',
+      '1.2.3.4/',
+      '1::2::3',
+      '1:2:3:4:5:6:7:8:9',
+      '10.0.0.0/8/1',
+    ]) {
       expect(parseLoadTestAddressRange(invalid)).toBeNull();
     }
   });

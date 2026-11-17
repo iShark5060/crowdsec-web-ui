@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+
 import type { SupportedLanguage } from './i18n';
 
 export const FONT_SETTING_KEY = 'font';
@@ -6,63 +7,69 @@ export const SYSTEM_FONT_SETTING = 'system';
 export const AUTO_FONT_SETTING = 'auto';
 
 // Tailwind's default sans stack. It stays behind the selected font so missing glyphs still render.
-const SYSTEM_FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'";
+const SYSTEM_FONT_STACK =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'";
 
 export const FONT_PRESETS = [
   {
     id: 'ibm-plex-sans',
     label: 'IBM Plex Sans',
     family: 'IBM Plex Sans',
-    load: () => Promise.all([
-      import('@fontsource/ibm-plex-sans/400.css'),
-      import('@fontsource/ibm-plex-sans/500.css'),
-      import('@fontsource/ibm-plex-sans/600.css'),
-      import('@fontsource/ibm-plex-sans/700.css'),
-    ]),
+    load: () =>
+      Promise.all([
+        import('@fontsource/ibm-plex-sans/400.css'),
+        import('@fontsource/ibm-plex-sans/500.css'),
+        import('@fontsource/ibm-plex-sans/600.css'),
+        import('@fontsource/ibm-plex-sans/700.css'),
+      ]),
   },
   {
     id: 'ibm-plex-sans-kr',
     label: 'IBM Plex Sans KR',
     family: 'IBM Plex Sans KR',
-    load: () => Promise.all([
-      import('@fontsource/ibm-plex-sans-kr/400.css'),
-      import('@fontsource/ibm-plex-sans-kr/500.css'),
-      import('@fontsource/ibm-plex-sans-kr/600.css'),
-      import('@fontsource/ibm-plex-sans-kr/700.css'),
-    ]),
+    load: () =>
+      Promise.all([
+        import('@fontsource/ibm-plex-sans-kr/400.css'),
+        import('@fontsource/ibm-plex-sans-kr/500.css'),
+        import('@fontsource/ibm-plex-sans-kr/600.css'),
+        import('@fontsource/ibm-plex-sans-kr/700.css'),
+      ]),
   },
   {
     id: 'ibm-plex-sans-jp',
     label: 'IBM Plex Sans JP',
     family: 'IBM Plex Sans JP',
-    load: () => Promise.all([
-      import('@fontsource/ibm-plex-sans-jp/400.css'),
-      import('@fontsource/ibm-plex-sans-jp/500.css'),
-      import('@fontsource/ibm-plex-sans-jp/600.css'),
-      import('@fontsource/ibm-plex-sans-jp/700.css'),
-    ]),
+    load: () =>
+      Promise.all([
+        import('@fontsource/ibm-plex-sans-jp/400.css'),
+        import('@fontsource/ibm-plex-sans-jp/500.css'),
+        import('@fontsource/ibm-plex-sans-jp/600.css'),
+        import('@fontsource/ibm-plex-sans-jp/700.css'),
+      ]),
   },
   {
     id: 'ibm-plex-sans-arabic',
     label: 'IBM Plex Sans Arabic',
     family: 'IBM Plex Sans Arabic',
-    load: () => Promise.all([
-      import('@fontsource/ibm-plex-sans-arabic/400.css'),
-      import('@fontsource/ibm-plex-sans-arabic/500.css'),
-      import('@fontsource/ibm-plex-sans-arabic/600.css'),
-      import('@fontsource/ibm-plex-sans-arabic/700.css'),
-    ]),
+    load: () =>
+      Promise.all([
+        import('@fontsource/ibm-plex-sans-arabic/400.css'),
+        import('@fontsource/ibm-plex-sans-arabic/500.css'),
+        import('@fontsource/ibm-plex-sans-arabic/600.css'),
+        import('@fontsource/ibm-plex-sans-arabic/700.css'),
+      ]),
   },
   {
     id: 'ibm-plex-sans-devanagari',
     label: 'IBM Plex Sans Devanagari',
     family: 'IBM Plex Sans Devanagari',
-    load: () => Promise.all([
-      import('@fontsource/ibm-plex-sans-devanagari/400.css'),
-      import('@fontsource/ibm-plex-sans-devanagari/500.css'),
-      import('@fontsource/ibm-plex-sans-devanagari/600.css'),
-      import('@fontsource/ibm-plex-sans-devanagari/700.css'),
-    ]),
+    load: () =>
+      Promise.all([
+        import('@fontsource/ibm-plex-sans-devanagari/400.css'),
+        import('@fontsource/ibm-plex-sans-devanagari/500.css'),
+        import('@fontsource/ibm-plex-sans-devanagari/600.css'),
+        import('@fontsource/ibm-plex-sans-devanagari/700.css'),
+      ]),
   },
   {
     id: 'noto-sans-sc',
@@ -95,7 +102,7 @@ const loadPromises = new Map<FontPresetId, Promise<void>>();
 
 export function normalizeFontPreference(value: string | null | undefined): FontPreference {
   if (value === AUTO_FONT_SETTING) return AUTO_FONT_SETTING;
-  return value && presetsById.has(value) ? value as FontPresetId : SYSTEM_FONT_SETTING;
+  return value && presetsById.has(value) ? (value as FontPresetId) : SYSTEM_FONT_SETTING;
 }
 
 export function resolveFontPreset(

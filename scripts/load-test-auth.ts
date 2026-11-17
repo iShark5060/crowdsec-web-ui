@@ -3,7 +3,9 @@ import type { CrowdsecDatabase } from '../server/database';
 
 export const LOAD_TEST_USERNAME = 'load';
 export const LOAD_TEST_PASSWORD = 'test';
-export const LOAD_TEST_PASSKEY_CREDENTIAL_ID = Buffer.from('crowdsec-web-ui-load-test-passkey').toString('base64url');
+export const LOAD_TEST_PASSKEY_CREDENTIAL_ID = Buffer.from(
+  'crowdsec-web-ui-load-test-passkey',
+).toString('base64url');
 export const LOAD_TEST_PASSKEY_NAME = 'Load-test dummy passkey';
 
 export function createLoadTestRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -13,7 +15,10 @@ export function createLoadTestRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.Process
   };
 }
 
-export async function ensureLoadTestUser(database: CrowdsecDatabase, authEnabled: boolean): Promise<boolean> {
+export async function ensureLoadTestUser(
+  database: CrowdsecDatabase,
+  authEnabled: boolean,
+): Promise<boolean> {
   if (!authEnabled) return false;
 
   let user = database.getAuthUserByUsername(LOAD_TEST_USERNAME);

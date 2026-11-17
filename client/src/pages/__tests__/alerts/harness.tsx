@@ -1,10 +1,11 @@
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
-import type { ConfigResponse, DecisionListItem, PaginatedResponse, SlimAlert } from '../../../types';
-import * as api from '../../../lib/api';
+
 import { compileAlertSearch } from '../../../../../shared/search';
-import { I18nContext, type I18nContextValue, type TranslationValues } from '../../../lib/i18n';
+import * as api from '../../../lib/api';
+import { type I18nContextValue, type TranslationValues } from '../../../lib/i18n';
 import en from '../../../locales/en.json';
+import type { ConfigResponse, DecisionListItem, PaginatedResponse, SlimAlert } from '../../../types';
 
 const largeDecisionList = Array.from({ length: 75 }, (_, index) => ({
   id: 1000 + index,
@@ -88,9 +89,7 @@ function toPaginatedDecisions(
       total_pages: Math.ceil(decisions.length / pageSize),
       unfiltered_total: decisions.length,
     },
-    selectable_ids: decisions
-      .filter((decision) => !decision.expired)
-      .map((decision) => decision.id),
+    selectable_ids: decisions.filter((decision) => !decision.expired).map((decision) => decision.id),
   };
 }
 
@@ -109,7 +108,14 @@ vi.mock('../../../lib/api', () => {
       scenario: 'crowdsecurity/ssh-bf',
       machine_id: 'machine-1',
       machine_alias: 'host-a',
-      source: { ip: '1.2.3.4', value: '1.2.3.4', cn: 'DE', city: 'Berlin', region: 'State of Berlin', as_name: 'Hetzner' },
+      source: {
+        ip: '1.2.3.4',
+        value: '1.2.3.4',
+        cn: 'DE',
+        city: 'Berlin',
+        region: 'State of Berlin',
+        as_name: 'Hetzner',
+      },
       target: 'ssh',
       meta_search: 'ssh',
       decisions: [{ id: 10, value: '1.2.3.4', type: 'ban', origin: 'manual', simulated: false, expired: false }],
@@ -132,16 +138,13 @@ vi.mock('../../../lib/api', () => {
       source: { range: '192.168.5.0/24', cn: 'Unknown', as_name: 'Local Network' },
       target: 'manual',
       meta_search: '192.168.5.0/24 localhost',
-      decisions: [{ id: 14302, value: '192.168.5.0/24', type: 'ban', origin: 'cscli', simulated: false, expired: false }],
+      decisions: [
+        { id: 14302, value: '192.168.5.0/24', type: 'ban', origin: 'cscli', simulated: false, expired: false },
+      ],
     },
   ];
 
-  const paginateAlerts = (
-    alerts: typeof defaultAlerts,
-    page = 1,
-    pageSize = 50,
-    unfilteredTotal = alerts.length,
-  ) => ({
+  const paginateAlerts = (alerts: typeof defaultAlerts, page = 1, pageSize = 50, unfilteredTotal = alerts.length) => ({
     data: alerts.slice((page - 1) * pageSize, page * pageSize),
     pagination: {
       page,
@@ -156,9 +159,13 @@ vi.mock('../../../lib/api', () => {
   return {
     fetchFacet: vi.fn(async (_page: string, field: string) => ({
       field,
-      values: field === 'country'
-        ? [{ value: 'DE', count: 2 }, { value: 'US', count: 1 }]
-        : [],
+      values:
+        field === 'country'
+          ? [
+              { value: 'DE', count: 2 },
+              { value: 'US', count: 1 },
+            ]
+          : [],
       offset: 0,
       has_more: false,
     })),
@@ -255,20 +262,23 @@ afterEach(() => {
 function installControlledIntersectionObserver() {
   const callbacks: Array<() => void> = [];
 
-  vi.stubGlobal('IntersectionObserver', class {
-    constructor(callback: IntersectionObserverCallback) {
-      callbacks.push(() => {
-        callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
-      });
-    }
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(() => {
+          callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+        });
+      }
 
-    observe(): void {}
-    disconnect(): void {}
-    unobserve(): void {}
-    takeRecords(): IntersectionObserverEntry[] {
-      return [];
-    }
-  });
+      observe(): void {}
+      disconnect(): void {}
+      unobserve(): void {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    },
+  );
 
   return () => callbacks.forEach((callback) => callback());
 }
@@ -292,14 +302,28 @@ async function flushAlertSearchDebounce(): Promise<void> {
 }
 
 function getVisibleColumnHeaderNames(): string[] {
-  return screen.getAllByRole('columnheader')
+  return screen
+    .getAllByRole('columnheader')
     .map((header) => header.textContent?.trim() || '')
     .filter(Boolean);
 }
-
 
 function setRefreshSignalMock(value: number): void {
   refreshSignalMock = value;
 }
 
-export { largeDecisionList, setLastUpdatedMock, refreshSignalMock, createDefaultConfigResponse, translateEnglish, chineseI18nValue, toPaginatedAlerts, toPaginatedDecisions, installControlledIntersectionObserver, createDeferred, flushAlertSearchDebounce, getVisibleColumnHeaderNames, setRefreshSignalMock };
+export {
+  largeDecisionList,
+  setLastUpdatedMock,
+  refreshSignalMock,
+  createDefaultConfigResponse,
+  translateEnglish,
+  chineseI18nValue,
+  toPaginatedAlerts,
+  toPaginatedDecisions,
+  installControlledIntersectionObserver,
+  createDeferred,
+  flushAlertSearchDebounce,
+  getVisibleColumnHeaderNames,
+  setRefreshSignalMock,
+};

@@ -41,7 +41,7 @@ function parsePattern(pattern: string): PatternPart[] | null {
       parts.push({ token });
       index = TOKEN_PATTERN.lastIndex;
     } else {
-      if (/[\r\n\u0000-\u001f]/.test(char)) return null;
+      if (char.charCodeAt(0) <= 0x1f) return null;
       parts.push({ literal: char });
       index++;
     }
@@ -58,23 +58,37 @@ export function formatCustomDate(date: Date, pattern: string, timeZone: string |
   if (!parts) throw new Error(`Invalid date format pattern: ${pattern}`);
   const options = timeZone ? { timeZone } : {};
   const dateParts = new Intl.DateTimeFormat('en-US-u-ca-gregory-nu-latn', {
-    ...options, year: 'numeric', month: 'numeric', day: 'numeric',
+    ...options,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
   }).formatToParts(date);
-  const value = (type: 'day' | 'month' | 'year') => dateParts.find((part) => part.type === type)?.value ?? '';
+  const value = (type: 'day' | 'month' | 'year') =>
+    dateParts.find((part) => part.type === type)?.value ?? '';
   const day = value('day');
   const month = value('month');
   const year = value('year');
-  return parts.map((part) => {
-    if ('literal' in part) return part.literal;
-    switch (part.token) {
-      case 'd': return day;
-      case 'dd': return day.padStart(2, '0');
-      case 'm': return month;
-      case 'mm': return month.padStart(2, '0');
-      case 'mmm': return new Intl.DateTimeFormat(undefined, { ...options, month: 'short' }).format(date);
-      case 'mmmm': return new Intl.DateTimeFormat(undefined, { ...options, month: 'long' }).format(date);
-      case 'yy': return year.slice(-2).padStart(2, '0');
-      case 'yyyy': return year.padStart(4, '0');
-    }
-  }).join('');
+  return parts
+    .map((part) => {
+      if ('literal' in part) return part.literal;
+      switch (part.token) {
+        case 'd':
+          return day;
+        case 'dd':
+          return day.padStart(2, '0');
+        case 'm':
+          return month;
+        case 'mm':
+          return month.padStart(2, '0');
+        case 'mmm':
+          return new Intl.DateTimeFormat(undefined, { ...options, month: 'short' }).format(date);
+        case 'mmmm':
+          return new Intl.DateTimeFormat(undefined, { ...options, month: 'long' }).format(date);
+        case 'yy':
+          return year.slice(-2).padStart(2, '0');
+        case 'yyyy':
+          return year.padStart(4, '0');
+      }
+    })
+    .join('');
 }

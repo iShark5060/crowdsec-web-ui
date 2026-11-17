@@ -33,11 +33,7 @@ const packages: PackageRule[] = [
     name: 'server',
     reportPath: 'coverage/server/lcov.info',
     minimums: { lines: 90, functions: 90, branches: 80 },
-    exactFiles: [
-      'server/config.ts',
-      'server/utils/duration.ts',
-      'server/utils/alerts.ts',
-    ],
+    exactFiles: ['server/config.ts', 'server/utils/duration.ts', 'server/utils/alerts.ts'],
   },
   {
     name: 'client',
@@ -159,7 +155,10 @@ function assertMinimums(name: string, totals: CoverageTotals, thresholds: Thresh
   return failures;
 }
 
-function findCoverageForPath(files: Map<string, FileCoverage>, filePath: string): FileCoverage | null {
+function findCoverageForPath(
+  files: Map<string, FileCoverage>,
+  filePath: string,
+): FileCoverage | null {
   for (const [key, coverage] of files.entries()) {
     if (key.endsWith(filePath)) {
       return coverage;
@@ -182,7 +181,7 @@ async function main(): Promise<void> {
         continue;
       }
 
-        failures.push(
+      failures.push(
         ...assertMinimums(`${pkg.name}:${exactFile}`, coverage, {
           lines: pkg.name === 'server' ? 97 : 100,
           functions: 100,
@@ -204,5 +203,3 @@ async function main(): Promise<void> {
 }
 
 await main();
-
-export {};

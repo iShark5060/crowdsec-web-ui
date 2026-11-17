@@ -1,69 +1,82 @@
-import { buildNotificationPage, buildSettings, renderWithChineseLocale } from './harness';
-import { describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Notifications } from '../../Notifications';
-import { fetchNotificationSettings, fetchNotificationsPaginated, testNotificationChannel, testNotificationRule } from '../../../lib/api';
+import { describe, expect, test, vi } from 'vitest';
+
 import { BrandingContext } from '../../../contexts/branding-context';
+import {
+  fetchNotificationSettings,
+  fetchNotificationsPaginated,
+  testNotificationChannel,
+  testNotificationRule,
+} from '../../../lib/api';
 import { DEFAULT_BRANDING } from '../../../lib/branding';
+import { Provide } from '../../../test/Provide';
+import { Notifications } from '../../Notifications';
+import { buildNotificationPage, buildSettings, renderWithChineseLocale } from './harness';
 
 describe('Notifications page localization and delivery', () => {
   test('localizes notification badges, rule types, delivery statuses, and stored server messages', async () => {
-    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(buildSettings({
-      rules: [
-        {
-          id: 'rule-1',
-          name: 'IP Ban',
-          type: 'ip-ban',
-          enabled: true,
-          severity: 'warning',
-          channel_ids: ['channel-1'],
-          config: {
-            window_minutes: 60,
-            filters: {},
-          },
-          created_at: '2026-06-08T01:49:55.034Z',
-          updated_at: '2026-06-08T01:49:55.034Z',
-        },
-      ],
-    }));
-    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(buildNotificationPage({
-      data: [
-        {
-          id: 'notif-1',
-          rule_id: 'rule-1',
-          rule_name: 'IP Ban',
-          rule_type: 'ip-ban',
-          severity: 'warning',
-          title: 'IP Ban: IP banned',
-          message: '1.2.3.4 was banned by manual/web-ui until 2026-06-08T01:49:55.034Z.',
-          created_at: '2026-06-08T01:49:55.034Z',
-          read_at: null,
-          metadata: {
-            value: '1.2.3.4',
-            scenario: 'manual/web-ui',
-            stop_at: '2026-06-08T01:49:55.034Z',
-          },
-          deliveries: [
-            {
-              channel_id: 'channel-1',
-              channel_name: 'bbb',
-              channel_type: 'mqtt',
-              status: 'failed',
-              attempted_at: '2026-06-08T01:49:56.034Z',
+    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(
+      buildSettings({
+        rules: [
+          {
+            id: 'rule-1',
+            name: 'IP Ban',
+            type: 'ip-ban',
+            enabled: true,
+            severity: 'warning',
+            channel_ids: ['channel-1'],
+            config: {
+              window_minutes: 60,
+              filters: {},
             },
-          ],
-        },
-      ],
-      selectable_ids: ['notif-1'],
-      unread_count: 1,
-      total: 1,
-    }));
+            created_at: '2026-06-08T01:49:55.034Z',
+            updated_at: '2026-06-08T01:49:55.034Z',
+          },
+        ],
+      }),
+    );
+    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(
+      buildNotificationPage({
+        data: [
+          {
+            id: 'notif-1',
+            rule_id: 'rule-1',
+            rule_name: 'IP Ban',
+            rule_type: 'ip-ban',
+            severity: 'warning',
+            title: 'IP Ban: IP banned',
+            message: '1.2.3.4 was banned by manual/web-ui until 2026-06-08T01:49:55.034Z.',
+            created_at: '2026-06-08T01:49:55.034Z',
+            read_at: null,
+            metadata: {
+              value: '1.2.3.4',
+              scenario: 'manual/web-ui',
+              stop_at: '2026-06-08T01:49:55.034Z',
+            },
+            deliveries: [
+              {
+                channel_id: 'channel-1',
+                channel_name: 'bbb',
+                channel_type: 'mqtt',
+                status: 'failed',
+                attempted_at: '2026-06-08T01:49:56.034Z',
+              },
+            ],
+          },
+        ],
+        selectable_ids: ['notif-1'],
+        unread_count: 1,
+        total: 1,
+      }),
+    );
 
     renderWithChineseLocale(<Notifications />);
 
     expect(await screen.findByText('IP Ban：IP 已封禁')).toBeInTheDocument();
-    expect(screen.getByText('1.2.3.4 已被封禁，由 manual/web-ui 触发，直到 2026-06-08T01:49:55.034Z。')).toBeInTheDocument();
+    expect(
+      screen.getByText('1.2.3.4 已被封禁，由 manual/web-ui 触发，直到 2026-06-08T01:49:55.034Z。'),
+    ).toBeInTheDocument();
     expect(screen.getAllByText('警告')).toHaveLength(2);
     expect(screen.getByText('IP 封禁')).toBeInTheDocument();
     expect(screen.getByText('bbb: 失败')).toBeInTheDocument();
@@ -73,43 +86,51 @@ describe('Notifications page localization and delivery', () => {
   });
 
   test('localizes CrowdSec update notices and links to the release', async () => {
-    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(buildSettings({
-      rules: [{
-        id: 'rule-update',
-        name: 'Updates',
-        type: 'crowdsec-update',
-        enabled: true,
-        severity: 'info',
-        channel_ids: [],
-        config: {},
-        created_at: '2026-09-24T10:00:00.000Z',
-        updated_at: '2026-09-24T10:00:00.000Z',
-      }],
-    }));
-    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(buildNotificationPage({
-      data: [{
-        id: 'notif-update',
-        rule_id: 'rule-update',
-        rule_name: 'Updates',
-        rule_type: 'crowdsec-update',
-        severity: 'info',
-        title: 'CrowdSec update available',
-        message: 'An update is available',
-        created_at: '2026-09-24T10:00:00.000Z',
-        read_at: null,
-        metadata: {
-          instance_name: 'Edge',
-          endpoint_name: 'Node A',
-          local_version: 'v1.7.8',
-          remote_version: 'v1.8.0',
-          release_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.0',
-        },
-        deliveries: [],
-      }],
-      selectable_ids: ['notif-update'],
-      unread_count: 1,
-      total: 1,
-    }));
+    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(
+      buildSettings({
+        rules: [
+          {
+            id: 'rule-update',
+            name: 'Updates',
+            type: 'crowdsec-update',
+            enabled: true,
+            severity: 'info',
+            channel_ids: [],
+            config: {},
+            created_at: '2026-09-24T10:00:00.000Z',
+            updated_at: '2026-09-24T10:00:00.000Z',
+          },
+        ],
+      }),
+    );
+    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(
+      buildNotificationPage({
+        data: [
+          {
+            id: 'notif-update',
+            rule_id: 'rule-update',
+            rule_name: 'Updates',
+            rule_type: 'crowdsec-update',
+            severity: 'info',
+            title: 'CrowdSec update available',
+            message: 'An update is available',
+            created_at: '2026-09-24T10:00:00.000Z',
+            read_at: null,
+            metadata: {
+              instance_name: 'Edge',
+              endpoint_name: 'Node A',
+              local_version: 'v1.7.8',
+              remote_version: 'v1.8.0',
+              release_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.0',
+            },
+            deliveries: [],
+          },
+        ],
+        selectable_ids: ['notif-update'],
+        unread_count: 1,
+        total: 1,
+      }),
+    );
 
     renderWithChineseLocale(<Notifications />);
 
@@ -125,39 +146,52 @@ describe('Notifications page localization and delivery', () => {
   test('names the branded application in application update notices and rule help', async () => {
     const user = userEvent.setup();
     vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(buildSettings());
-    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(buildNotificationPage({
-      data: [{
-        id: 'notif-update',
-        rule_id: 'rule-update',
-        rule_name: 'Updates',
-        rule_type: 'application-update',
-        severity: 'info',
-        title: 'Updates: application update available',
-        message: 'An update is available',
-        created_at: '2026-09-24T10:00:00.000Z',
-        read_at: null,
-        metadata: {
-          local_version: '2026.06.05',
-          remote_version: '2026.06.06',
-        },
-        deliveries: [],
-      }],
-      selectable_ids: ['notif-update'],
-      unread_count: 1,
-      total: 1,
-    }));
-
-    render(
-      <BrandingContext.Provider value={{ ...DEFAULT_BRANDING, appName: 'Acme SOC', setBranding: vi.fn(), refreshBranding: vi.fn() }}>
-        <Notifications />
-      </BrandingContext.Provider>,
+    vi.mocked(fetchNotificationsPaginated).mockResolvedValueOnce(
+      buildNotificationPage({
+        data: [
+          {
+            id: 'notif-update',
+            rule_id: 'rule-update',
+            rule_name: 'Updates',
+            rule_type: 'application-update',
+            severity: 'info',
+            title: 'Updates: application update available',
+            message: 'An update is available',
+            created_at: '2026-09-24T10:00:00.000Z',
+            read_at: null,
+            metadata: {
+              local_version: '2026.06.05',
+              remote_version: '2026.06.06',
+            },
+            deliveries: [],
+          },
+        ],
+        selectable_ids: ['notif-update'],
+        unread_count: 1,
+        total: 1,
+      }),
     );
 
-    expect(await screen.findByText('A newer Acme SOC version is available: 2026.06.05 -> 2026.06.06.')).toBeInTheDocument();
+    render(
+      <Provide
+        context={BrandingContext}
+        value={{ ...DEFAULT_BRANDING, appName: 'Acme SOC', setBranding: vi.fn(), refreshBranding: vi.fn() }}
+      >
+        <Notifications />
+      </Provide>,
+    );
+
+    expect(
+      await screen.findByText('A newer Acme SOC version is available: 2026.06.05 -> 2026.06.06.'),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add Rule' }));
     await user.selectOptions(screen.getByLabelText('Rule Type'), 'application-update');
-    expect(screen.getByText('This rule uses the built-in update check and fires when a newer Acme SOC version is available.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This rule uses the built-in update check and fires when a newer Acme SOC version is available.',
+      ),
+    ).toBeInTheDocument();
   });
 
   test('shows destination test content and delivery in the shared result modal', async () => {
@@ -167,8 +201,11 @@ describe('Notifications page localization and delivery', () => {
       title: 'CrowdSec notification test',
       message: 'Test sent at 2026-09-24 12:00.',
       delivery: {
-        channel_id: 'channel-1', channel_name: 'Ops MQTT', channel_type: 'mqtt',
-        status: 'delivered', attempted_at: '2026-09-24T12:00:00.000Z',
+        channel_id: 'channel-1',
+        channel_name: 'Ops MQTT',
+        channel_type: 'mqtt',
+        status: 'delivered',
+        attempted_at: '2026-09-24T12:00:00.000Z',
       },
     });
     render(<Notifications />);
@@ -195,16 +232,36 @@ describe('Notifications page localization and delivery', () => {
 
   test('guides rule names and shows whether a rule test used a sample', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(buildSettings({
-      rules: [{
-        id: 'rule-1', name: 'EU probes', type: 'ip-ban', enabled: false, severity: 'warning',
-        channel_ids: ['channel-1'], config: { window_minutes: 60, filters: {} },
-        created_at: '2026-03-28T12:00:00.000Z', updated_at: '2026-03-28T12:00:00.000Z',
-      }],
-    }));
+    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(
+      buildSettings({
+        rules: [
+          {
+            id: 'rule-1',
+            name: 'EU probes',
+            type: 'ip-ban',
+            enabled: false,
+            severity: 'warning',
+            channel_ids: ['channel-1'],
+            config: { window_minutes: 60, filters: {} },
+            created_at: '2026-03-28T12:00:00.000Z',
+            updated_at: '2026-03-28T12:00:00.000Z',
+          },
+        ],
+      }),
+    );
     vi.mocked(testNotificationRule).mockResolvedValueOnce({
-      source: 'sample', title: '[TEST] EU probes: IP banned', message: '192.0.2.1 was banned.',
-      deliveries: [{ channel_id: 'channel-1', channel_name: 'Ops MQTT', channel_type: 'mqtt', status: 'delivered', attempted_at: '2026-03-28T12:00:00.000Z' }],
+      source: 'sample',
+      title: '[TEST] EU probes: IP banned',
+      message: '192.0.2.1 was banned.',
+      deliveries: [
+        {
+          channel_id: 'channel-1',
+          channel_name: 'Ops MQTT',
+          channel_type: 'mqtt',
+          status: 'delivered',
+          attempted_at: '2026-03-28T12:00:00.000Z',
+        },
+      ],
     });
     render(<Notifications />);
 
@@ -222,25 +279,27 @@ describe('Notifications page localization and delivery', () => {
 
   test('does not render cooldown fields or text for rules', async () => {
     const user = userEvent.setup();
-    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(buildSettings({
-      rules: [
-        {
-          id: 'rule-1',
-          name: 'Threshold Rule',
-          type: 'alert-threshold',
-          enabled: true,
-          severity: 'warning',
-          channel_ids: ['channel-1'],
-          config: {
-            window_minutes: 60,
-            alert_threshold: 10,
-            filters: {},
+    vi.mocked(fetchNotificationSettings).mockResolvedValueOnce(
+      buildSettings({
+        rules: [
+          {
+            id: 'rule-1',
+            name: 'Threshold Rule',
+            type: 'alert-threshold',
+            enabled: true,
+            severity: 'warning',
+            channel_ids: ['channel-1'],
+            config: {
+              window_minutes: 60,
+              alert_threshold: 10,
+              filters: {},
+            },
+            created_at: '2026-03-28T12:00:00.000Z',
+            updated_at: '2026-03-28T12:00:00.000Z',
           },
-          created_at: '2026-03-28T12:00:00.000Z',
-          updated_at: '2026-03-28T12:00:00.000Z',
-        },
-      ],
-    }));
+        ],
+      }),
+    );
     render(<Notifications />);
 
     await waitFor(() => expect(screen.getByText('Threshold Rule')).toBeInTheDocument());
@@ -249,5 +308,4 @@ describe('Notifications page localization and delivery', () => {
     await user.click(screen.getByRole('button', { name: /edit rule/i }));
     expect(screen.queryByLabelText(/cooldown/i)).not.toBeInTheDocument();
   });
-
 });

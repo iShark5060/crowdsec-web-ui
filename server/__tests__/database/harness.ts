@@ -1,8 +1,10 @@
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
+
 import Database from 'better-sqlite3';
 import { afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'fs';
-import path from 'path';
-import { tmpdir } from 'os';
+
 import { CrowdsecDatabase } from '../../database';
 
 export const tempDirs: string[] = [];
@@ -26,7 +28,12 @@ export function createTestDatabasePath(): string {
   return path.join(dir, 'test.db');
 }
 
-export function createLegacyDatabase(dbPath: string): { exec: (sql: string) => unknown; close: () => void; query: (sql: string) => { run: (...params: any[]) => unknown }; prepare: (sql: string) => { run: (...params: any[]) => unknown } } {
+export function createLegacyDatabase(dbPath: string): {
+  exec: (sql: string) => unknown;
+  close: () => void;
+  query: (sql: string) => { run: (...params: any[]) => unknown };
+  prepare: (sql: string) => { run: (...params: any[]) => unknown };
+} {
   const database = new Database(dbPath) as {
     exec: (sql: string) => unknown;
     close: () => void;
@@ -36,10 +43,13 @@ export function createLegacyDatabase(dbPath: string): { exec: (sql: string) => u
   database.query = (sql: string) => {
     const statement = database.prepare(sql);
     return {
-      run: (...params: any[]) => statement.run(...params.map((value) => {
-        if (!value || Array.isArray(value) || typeof value !== 'object') return value;
-        return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key.replace(/^[$:@]/, ''), entry]));
-      })),
+      run: (...params: any[]) =>
+        statement.run(
+          ...params.map((value) => {
+            if (!value || Array.isArray(value) || typeof value !== 'object') return value;
+            return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key.replace(/^[$:@]/, ''), entry]));
+          }),
+        ),
     };
   };
   return database;

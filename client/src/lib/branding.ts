@@ -39,15 +39,22 @@ export const DEFAULT_BRANDING: PublicBranding = {
 };
 
 export function normalizeBranding(value: unknown): PublicBranding {
-  const candidate = value && typeof value === 'object' ? value as Partial<PublicBranding> : {};
-  const defaultAppName = typeof candidate.defaultAppName === 'string' && candidate.defaultAppName
-    ? candidate.defaultAppName
-    : DEFAULT_APP_NAME;
+  const candidate = value && typeof value === 'object' ? (value as Partial<PublicBranding>) : {};
+  const defaultAppName =
+    typeof candidate.defaultAppName === 'string' && candidate.defaultAppName
+      ? candidate.defaultAppName
+      : DEFAULT_APP_NAME;
   return {
-    appName: typeof candidate.appName === 'string' && candidate.appName.trim() ? candidate.appName : defaultAppName,
+    appName:
+      typeof candidate.appName === 'string' && candidate.appName.trim()
+        ? candidate.appName
+        : defaultAppName,
     defaultAppName,
     logoUrl: typeof candidate.logoUrl === 'string' && candidate.logoUrl ? candidate.logoUrl : null,
-    logoDarkUrl: typeof candidate.logoDarkUrl === 'string' && candidate.logoDarkUrl ? candidate.logoDarkUrl : null,
+    logoDarkUrl:
+      typeof candidate.logoDarkUrl === 'string' && candidate.logoDarkUrl
+        ? candidate.logoDarkUrl
+        : null,
     theme: normalizeBrandingTheme(candidate.theme),
   };
 }
@@ -102,8 +109,13 @@ export function applyThemeBranding(theme: BrandingTheme): void {
   if (style.textContent !== css) style.textContent = css;
 }
 
-async function readBrandingResponse(response: Response, fallbackMessage: string): Promise<PublicBranding> {
-  const payload = await response.json().catch(() => null) as (PublicBranding & { error?: string }) | null;
+async function readBrandingResponse(
+  response: Response,
+  fallbackMessage: string,
+): Promise<PublicBranding> {
+  const payload = (await response.json().catch(() => null)) as
+    | (PublicBranding & { error?: string })
+    | null;
   if (!response.ok) {
     throw new Error(payload?.error || fallbackMessage);
   }
@@ -137,7 +149,10 @@ function logoApiPath(variant: AppLogoVariant): string {
   return variant === 'dark' ? '/api/branding/logo/dark' : '/api/branding/logo';
 }
 
-export async function uploadAppLogo(file: File, variant: AppLogoVariant = 'default'): Promise<PublicBranding> {
+export async function uploadAppLogo(
+  file: File,
+  variant: AppLogoVariant = 'default',
+): Promise<PublicBranding> {
   const dataUrl = await readFileAsDataUrl(file);
   const response = await sessionFetch(apiUrl(logoApiPath(variant)), {
     method: 'PUT',

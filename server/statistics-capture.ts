@@ -17,10 +17,12 @@ export function initStatisticsCaptureSchema(db: any): void {
   ); CREATE INDEX IF NOT EXISTS idx_statistics_outbox_day ON statistics_outbox(day)`);
 }
 
-const alertIdentity = (row: string) => `json_array('alert', ${row}.instance_id, CASE WHEN ${row}.uuid IS NOT NULL AND ${row}.uuid != ${row}.upstream_id THEN json_array('uuid', ${row}.uuid) ELSE json_array('id', ${row}.upstream_id, ${row}.created_at) END)`;
+const alertIdentity = (row: string) =>
+  `json_array('alert', ${row}.instance_id, CASE WHEN ${row}.uuid IS NOT NULL AND ${row}.uuid != ${row}.upstream_id THEN json_array('uuid', ${row}.uuid) ELSE json_array('id', ${row}.upstream_id, ${row}.created_at) END)`;
 // Decisions only use columns of their own row so the identity does not depend on
 // whether the parent alert is cached when the decision is captured.
-const decisionIdentity = (row: string) => `json_array('decision', ${row}.instance_id, ${row}.upstream_id, ${row}.alert_upstream_id, ${row}.created_at)`;
+const decisionIdentity = (row: string) =>
+  `json_array('decision', ${row}.instance_id, ${row}.upstream_id, ${row}.alert_upstream_id, ${row}.created_at)`;
 
 // Versioned tuples avoid repeating field names in the transient journal. Fields
 // are only appended, so tuples already in the journal stay readable.
@@ -40,11 +42,16 @@ const decisionPayload = (row: string) => `json_array(1, 'd',
 
 export function configureStatisticsCapture(db: any, enabled: boolean): void {
   db.transaction(() => {
-    const wasEnabled = db.prepare("SELECT value FROM meta WHERE key = 'statistics_capture_enabled'").get()?.value === 'true';
+    const wasEnabled =
+      db.prepare("SELECT value FROM meta WHERE key = 'statistics_capture_enabled'").get()?.value ===
+      'true';
     for (const table of ['alerts', 'decisions']) {
-      for (const event of ['insert', 'update', 'delete']) db.exec(`DROP TRIGGER IF EXISTS statistics_${table}_${event}`);
+      for (const event of ['insert', 'update', 'delete'])
+        db.exec(`DROP TRIGGER IF EXISTS statistics_${table}_${event}`);
     }
-    db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES ('statistics_capture_enabled', ?)").run(String(enabled));
+    db.prepare(
+      "INSERT OR REPLACE INTO meta(key, value) VALUES ('statistics_capture_enabled', ?)",
+    ).run(String(enabled));
     db.exec('DROP TRIGGER IF EXISTS statistics_alerts_children_delete');
     if (!enabled) return;
     db.exec(`CREATE TRIGGER statistics_alerts_children_delete BEFORE DELETE ON alerts BEGIN
@@ -53,7 +60,11 @@ export function configureStatisticsCapture(db: any, enabled: boolean): void {
     for (const table of ['alerts', 'decisions']) {
       // Rows written while capture was off are unflagged and need a rescan.
       // Restarting with capture already on must resume the existing cursor.
-      if (!wasEnabled) db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run(`statistics_backfill_${table}`, '0');
+      if (!wasEnabled)
+        db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run(
+          `statistics_backfill_${table}`,
+          '0',
+        );
       const alert = table === 'alerts';
       // Emission happens exactly once per row: the first change of an
       // uncaptured row (insert, sync update, backfill touch or parent delete)
@@ -94,15 +105,30 @@ export function resetStatisticsCapture(db: any): void {
     for (const table of ['alerts', 'decisions']) {
       // The update triggers only fire for uncaptured rows, so this emits nothing.
       db.exec(`UPDATE ${table} SET statistics_captured = 0 WHERE statistics_captured != 0`);
-      db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run(`statistics_backfill_${table}`, '0');
+      db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run(
+        `statistics_backfill_${table}`,
+        '0',
+      );
     }
   })();
 }
 
-export interface StatisticsOutboxRow { seq: number; identity: string; day: string; payload: string }
+export interface StatisticsOutboxRow {
+  seq: number;
+  identity: string;
+  day: string;
+  payload: string;
+}
 
-export function readStatisticsBatch(db: any, backfill: boolean, limit = 500): {
-  rows: StatisticsOutboxRow[]; backlog: number; backfillPending: boolean; coverageFrom: Record<string, string>;
+export function readStatisticsBatch(
+  db: any,
+  backfill: boolean,
+  limit = 500,
+): {
+  rows: StatisticsOutboxRow[];
+  backlog: number;
+  backfillPending: boolean;
+  coverageFrom: Record<string, string>;
 } {
   let backfillPending = false;
   const coverageFrom: Record<string, string> = {};
@@ -116,24 +142,45 @@ export function readStatisticsBatch(db: any, backfill: boolean, limit = 500): {
         if (stored === BACKFILL_DONE) continue;
         const cursor = Number(stored || 0);
         // Decisions are captured first while their owning alerts still exist.
-        const rows = db.prepare(`SELECT rowid AS rid, instance_id, created_at, statistics_captured FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ?`).all(cursor, Math.floor(limit / 2)) as Array<{ rid: number; instance_id: string; created_at: string; statistics_captured: number }>;
-        const touch = db.prepare(`UPDATE ${table} SET statistics_captured = 1 WHERE rowid = ? AND statistics_captured = 0`);
+        const rows = db
+          .prepare(
+            `SELECT rowid AS rid, instance_id, created_at, statistics_captured FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ?`,
+          )
+          .all(cursor, Math.floor(limit / 2)) as Array<{
+          rid: number;
+          instance_id: string;
+          created_at: string;
+          statistics_captured: number;
+        }>;
+        const touch = db.prepare(
+          `UPDATE ${table} SET statistics_captured = 1 WHERE rowid = ? AND statistics_captured = 0`,
+        );
         for (const row of rows) {
           if (!row.statistics_captured) touch.run(row.rid);
           const previous = coverageFrom[row.instance_id];
-          if (!previous || row.created_at < previous) coverageFrom[row.instance_id] = row.created_at;
+          if (!previous || row.created_at < previous)
+            coverageFrom[row.instance_id] = row.created_at;
         }
         const last = rows.at(-1)?.rid ?? cursor;
-        const more = Boolean(db.prepare(`SELECT 1 FROM ${table} WHERE rowid > ? LIMIT 1`).get(last));
-        if (rows.length || !more) db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run(key, more ? String(last) : BACKFILL_DONE);
+        const more = Boolean(
+          db.prepare(`SELECT 1 FROM ${table} WHERE rowid > ? LIMIT 1`).get(last),
+        );
+        if (rows.length || !more)
+          db.prepare('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)').run(
+            key,
+            more ? String(last) : BACKFILL_DONE,
+          );
         backfillPending ||= more;
       }
     })();
   }
   return {
-    rows: db.prepare('SELECT seq, identity, day, payload FROM statistics_outbox ORDER BY seq LIMIT ?').all(limit),
+    rows: db
+      .prepare('SELECT seq, identity, day, payload FROM statistics_outbox ORDER BY seq LIMIT ?')
+      .all(limit),
     backlog: Number(db.prepare('SELECT COUNT(*) AS n FROM statistics_outbox').get().n),
-    backfillPending, coverageFrom,
+    backfillPending,
+    coverageFrom,
   };
 }
 
@@ -152,11 +199,13 @@ export interface StatisticsPendingBound {
  */
 export function statisticsPendingFrom(db: any, afterSeq = 0): StatisticsPendingBound {
   // One statement reads both from the same snapshot.
-  const row = db.prepare(`SELECT
+  const row = db
+    .prepare(`SELECT
       (SELECT MIN(min(day, substr(json_extract(payload, '$[2]'), 1, 10),
         CASE WHEN json_extract(payload, '$[1]') = 'd' THEN COALESCE(substr(json_extract(payload, '$[12]'), 1, 10), day) ELSE day END))
         FROM statistics_outbox WHERE seq > ?) AS day,
-      (SELECT seq FROM sqlite_sequence WHERE name = 'statistics_outbox') AS seq`).get(afterSeq) as { day: string | null; seq: number | null };
+      (SELECT seq FROM sqlite_sequence WHERE name = 'statistics_outbox') AS seq`)
+    .get(afterSeq) as { day: string | null; seq: number | null };
   return { day: row.day, seq: Math.max(afterSeq, Number(row.seq) || 0) };
 }
 
@@ -165,7 +214,9 @@ export function acknowledgeStatisticsBatch(db: any, ids: number[], cutoff: strin
     const remove = db.prepare('DELETE FROM statistics_outbox WHERE seq = ?');
     for (const id of ids) remove.run(id);
     // Bound maintenance work just like capture and acknowledgement.
-    db.prepare('DELETE FROM statistics_outbox WHERE seq IN (SELECT seq FROM statistics_outbox WHERE day < ? LIMIT 500)').run(cutoff);
+    db.prepare(
+      'DELETE FROM statistics_outbox WHERE seq IN (SELECT seq FROM statistics_outbox WHERE day < ? LIMIT 500)',
+    ).run(cutoff);
     return Boolean(db.prepare('SELECT 1 FROM statistics_outbox WHERE day < ? LIMIT 1').get(cutoff));
   })();
 }

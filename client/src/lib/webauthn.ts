@@ -14,18 +14,26 @@ export function bufferToBase64url(buffer: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function toPublicKeyCredentialRequestOptions(options: Record<string, unknown>): PublicKeyCredentialRequestOptions {
+export function toPublicKeyCredentialRequestOptions(
+  options: Record<string, unknown>,
+): PublicKeyCredentialRequestOptions {
   return {
     ...options,
     challenge: base64urlToBuffer(options.challenge as string),
-    allowCredentials: (options.allowCredentials as Array<{ id: string; type: string; transports?: AuthenticatorTransport[] }> | undefined)?.map((credential) => ({
+    allowCredentials: (
+      options.allowCredentials as
+        | Array<{ id: string; type: string; transports?: AuthenticatorTransport[] }>
+        | undefined
+    )?.map((credential) => ({
       ...credential,
       id: base64urlToBuffer(credential.id),
     })),
   } as PublicKeyCredentialRequestOptions;
 }
 
-export function toPublicKeyCredentialCreationOptions(options: Record<string, unknown>): PublicKeyCredentialCreationOptions {
+export function toPublicKeyCredentialCreationOptions(
+  options: Record<string, unknown>,
+): PublicKeyCredentialCreationOptions {
   return {
     ...options,
     challenge: base64urlToBuffer(options.challenge as string),
@@ -33,14 +41,21 @@ export function toPublicKeyCredentialCreationOptions(options: Record<string, unk
       ...(options.user as PublicKeyCredentialUserEntity),
       id: base64urlToBuffer((options.user as { id: string }).id),
     },
-    excludeCredentials: (options.excludeCredentials as Array<{ id: string; type: string; transports?: AuthenticatorTransport[] }> | undefined)?.map((credential) => ({
+    excludeCredentials: (
+      options.excludeCredentials as
+        | Array<{ id: string; type: string; transports?: AuthenticatorTransport[] }>
+        | undefined
+    )?.map((credential) => ({
       ...credential,
       id: base64urlToBuffer(credential.id),
     })),
   } as PublicKeyCredentialCreationOptions;
 }
 
-export function serializeRegistrationCredential(credential: PublicKeyCredential, name?: string | null): Record<string, unknown> {
+export function serializeRegistrationCredential(
+  credential: PublicKeyCredential,
+  name?: string | null,
+): Record<string, unknown> {
   const response = credential.response as AuthenticatorAttestationResponse;
   return {
     id: credential.id,
@@ -55,7 +70,9 @@ export function serializeRegistrationCredential(credential: PublicKeyCredential,
   };
 }
 
-export function serializeAuthenticationCredential(credential: PublicKeyCredential): Record<string, unknown> {
+export function serializeAuthenticationCredential(
+  credential: PublicKeyCredential,
+): Record<string, unknown> {
   const response = credential.response as AuthenticatorAssertionResponse;
   return {
     id: credential.id,

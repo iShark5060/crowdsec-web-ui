@@ -1,10 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { isMap, isSeq, parse as parseYaml, parseDocument as parseYamlDocument, stringify as stringifyYaml } from 'yaml';
-import type { RuntimeConfig } from './config';
+
+import {
+  isMap,
+  isSeq,
+  parse as parseYaml,
+  parseDocument as parseYamlDocument,
+  stringify as stringifyYaml,
+} from 'yaml';
+
 import { validateStatisticsSettings, type StatisticsSettings } from '../shared/statistics';
+import type { RuntimeConfig } from './config';
 import { ConfigurationEnvironmentError } from './config-error';
-import { parseInstancesConfig, parseManualDecisionScenarios, type CrowdsecInstanceConfig } from './instances-config';
+import {
+  parseInstancesConfig,
+  parseManualDecisionScenarios,
+  type CrowdsecInstanceConfig,
+} from './instances-config';
 
 type UnknownRecord = Record<string, unknown>;
 type ConfigPath = readonly (string | number)[];
@@ -35,32 +47,84 @@ const RETAINED_METADATA_ENV = [
 ] as const;
 
 export const DEPRECATED_CONFIG_ENV = [
-  'PORT', 'BASE_PATH', 'DB_DIR', 'GEONAMES_DUMP_DIR', 'TZ', 'TIME_FORMAT', 'CROWDSEC_TIME_FORMAT', 'DATE_FORMAT',
+  'PORT',
+  'BASE_PATH',
+  'DB_DIR',
+  'GEONAMES_DUMP_DIR',
+  'TZ',
+  'TIME_FORMAT',
+  'CROWDSEC_TIME_FORMAT',
+  'DATE_FORMAT',
   'PERMISSION_READ_ONLY',
-  'AUTH_ENABLED', 'CROWDSEC_AUTH_ENABLED',
-  'AUTH_SECRET_FILE', 'AUTH_TOTP_SECRET_FILE', 'AUTH_TOTP_SEED_FILE',
-  'AUTH_OIDC_ISSUER_URL', 'AUTH_OIDC_CLIENT_ID', 'AUTH_OIDC_CLIENT_SECRET_FILE', 'AUTH_OIDC_SCOPE',
-  'AUTH_OIDC_GROUPS_CLAIM', 'AUTH_OIDC_ADMIN_GROUPS', 'AUTH_OIDC_READ_ONLY_GROUPS', 'AUTH_OIDC_UNMATCHED_ROLE',
-  'CROWDSEC_AUTH_SECRET', 'CROWDSEC_AUTH_SECRET_FILE', 'CROWDSEC_AUTH_TOTP_SECRET', 'CROWDSEC_AUTH_TOTP_SECRET_FILE',
-  'CROWDSEC_AUTH_TOTP_SEED', 'CROWDSEC_AUTH_TOTP_SEED_FILE', 'CROWDSEC_AUTH_OIDC_ISSUER_URL',
-  'CROWDSEC_AUTH_OIDC_CLIENT_ID', 'CROWDSEC_AUTH_OIDC_CLIENT_SECRET', 'CROWDSEC_AUTH_OIDC_CLIENT_SECRET_FILE',
-  'CROWDSEC_AUTH_OIDC_SCOPE', 'CROWDSEC_AUTH_OIDC_GROUPS_CLAIM', 'CROWDSEC_AUTH_OIDC_ADMIN_GROUPS',
-  'CROWDSEC_AUTH_OIDC_READ_ONLY_GROUPS', 'CROWDSEC_AUTH_OIDC_UNMATCHED_ROLE',
-  'CROWDSEC_INSTANCES_CONFIG_FILE', 'CROWDSEC_URL', 'CROWDSEC_USER', 'CROWDSEC_PASSWORD_FILE',
-  'CROWDSEC_TLS_CERT_PATH', 'CROWDSEC_TLS_KEY_PATH', 'CROWDSEC_TLS_CA_CERT_PATH',
-  'CROWDSEC_INSTANCE_NAME', 'CROWDSEC_INSTANCE_ICON', 'CROWDSEC_PROMETHEUS_URL',
-  'CROWDSEC_PROMETHEUS_REQUEST_TIMEOUT', 'CROWDSEC_SIMULATIONS_ENABLED', 'CROWDSEC_LOOKBACK_PERIOD',
-  'CROWDSEC_REFRESH_INTERVAL', 'CROWDSEC_MANUAL_REFRESH_ENABLED', 'CROWDSEC_IDLE_REFRESH_INTERVAL',
-  'CROWDSEC_IDLE_THRESHOLD', 'CROWDSEC_LAPI_REQUEST_TIMEOUT', 'CROWDSEC_BOUNCER_PROPAGATION_DELAY',
+  'AUTH_ENABLED',
+  'CROWDSEC_AUTH_ENABLED',
+  'AUTH_SECRET_FILE',
+  'AUTH_TOTP_SECRET_FILE',
+  'AUTH_TOTP_SEED_FILE',
+  'AUTH_OIDC_ISSUER_URL',
+  'AUTH_OIDC_CLIENT_ID',
+  'AUTH_OIDC_CLIENT_SECRET_FILE',
+  'AUTH_OIDC_SCOPE',
+  'AUTH_OIDC_GROUPS_CLAIM',
+  'AUTH_OIDC_ADMIN_GROUPS',
+  'AUTH_OIDC_READ_ONLY_GROUPS',
+  'AUTH_OIDC_UNMATCHED_ROLE',
+  'CROWDSEC_AUTH_SECRET',
+  'CROWDSEC_AUTH_SECRET_FILE',
+  'CROWDSEC_AUTH_TOTP_SECRET',
+  'CROWDSEC_AUTH_TOTP_SECRET_FILE',
+  'CROWDSEC_AUTH_TOTP_SEED',
+  'CROWDSEC_AUTH_TOTP_SEED_FILE',
+  'CROWDSEC_AUTH_OIDC_ISSUER_URL',
+  'CROWDSEC_AUTH_OIDC_CLIENT_ID',
+  'CROWDSEC_AUTH_OIDC_CLIENT_SECRET',
+  'CROWDSEC_AUTH_OIDC_CLIENT_SECRET_FILE',
+  'CROWDSEC_AUTH_OIDC_SCOPE',
+  'CROWDSEC_AUTH_OIDC_GROUPS_CLAIM',
+  'CROWDSEC_AUTH_OIDC_ADMIN_GROUPS',
+  'CROWDSEC_AUTH_OIDC_READ_ONLY_GROUPS',
+  'CROWDSEC_AUTH_OIDC_UNMATCHED_ROLE',
+  'CROWDSEC_INSTANCES_CONFIG_FILE',
+  'CROWDSEC_URL',
+  'CROWDSEC_USER',
+  'CROWDSEC_PASSWORD_FILE',
+  'CROWDSEC_TLS_CERT_PATH',
+  'CROWDSEC_TLS_KEY_PATH',
+  'CROWDSEC_TLS_CA_CERT_PATH',
+  'CROWDSEC_INSTANCE_NAME',
+  'CROWDSEC_INSTANCE_ICON',
+  'CROWDSEC_PROMETHEUS_URL',
+  'CROWDSEC_PROMETHEUS_REQUEST_TIMEOUT',
+  'CROWDSEC_SIMULATIONS_ENABLED',
+  'CROWDSEC_LOOKBACK_PERIOD',
+  'CROWDSEC_REFRESH_INTERVAL',
+  'CROWDSEC_MANUAL_REFRESH_ENABLED',
+  'CROWDSEC_IDLE_REFRESH_INTERVAL',
+  'CROWDSEC_IDLE_THRESHOLD',
+  'CROWDSEC_LAPI_REQUEST_TIMEOUT',
+  'CROWDSEC_BOUNCER_PROPAGATION_DELAY',
   'CROWDSEC_DELETION_QUEUE_MAX_AGE',
-  'CROWDSEC_HEARTBEAT_INTERVAL', 'CROWDSEC_ALERT_SYNC_CHUNK', 'CROWDSEC_ALERT_SYNC_MIN_CHUNK',
-  'CROWDSEC_RECONCILE_WINDOW', 'CROWDSEC_RECONCILE_RECENT_AGE', 'CROWDSEC_RECONCILE_RECENT_INTERVAL',
-  'CROWDSEC_RECONCILE_ACTIVE_INTERVAL', 'CROWDSEC_RECONCILE_OLD_INTERVAL',
-  'CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH', 'CROWDSEC_BOOTSTRAP_RETRY_DELAY',
-  'CROWDSEC_BOOTSTRAP_RETRY_ENABLED', 'CROWDSEC_ALERT_INCLUDE_ORIGINS', 'CROWDSEC_ALERT_EXCLUDE_ORIGINS',
-  'CROWDSEC_ALERT_INCLUDE_CAPI', 'CROWDSEC_ALERT_INCLUDE_ORIGIN_EMPTY', 'CROWDSEC_ALERT_EXCLUDE_ORIGIN_EMPTY',
-  'CROWDSEC_ALERT_ORIGINS', 'CROWDSEC_ALERT_EXTRA_SCENARIOS',
-  'NOTIFICATION_SECRET_KEY_FILE', 'NOTIFICATION_ALLOW_PRIVATE_ADDRESSES', 'NOTIFICATION_DEBUG_PAYLOADS',
+  'CROWDSEC_HEARTBEAT_INTERVAL',
+  'CROWDSEC_ALERT_SYNC_CHUNK',
+  'CROWDSEC_ALERT_SYNC_MIN_CHUNK',
+  'CROWDSEC_RECONCILE_WINDOW',
+  'CROWDSEC_RECONCILE_RECENT_AGE',
+  'CROWDSEC_RECONCILE_RECENT_INTERVAL',
+  'CROWDSEC_RECONCILE_ACTIVE_INTERVAL',
+  'CROWDSEC_RECONCILE_OLD_INTERVAL',
+  'CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH',
+  'CROWDSEC_BOOTSTRAP_RETRY_DELAY',
+  'CROWDSEC_BOOTSTRAP_RETRY_ENABLED',
+  'CROWDSEC_ALERT_INCLUDE_ORIGINS',
+  'CROWDSEC_ALERT_EXCLUDE_ORIGINS',
+  'CROWDSEC_ALERT_INCLUDE_CAPI',
+  'CROWDSEC_ALERT_INCLUDE_ORIGIN_EMPTY',
+  'CROWDSEC_ALERT_EXCLUDE_ORIGIN_EMPTY',
+  'CROWDSEC_ALERT_ORIGINS',
+  'CROWDSEC_ALERT_EXTRA_SCENARIOS',
+  'NOTIFICATION_SECRET_KEY_FILE',
+  'NOTIFICATION_ALLOW_PRIVATE_ADDRESSES',
+  'NOTIFICATION_DEBUG_PAYLOADS',
 ] as const;
 
 function record(value: unknown, label: string): UnknownRecord {
@@ -76,18 +140,22 @@ function section(root: UnknownRecord, key: string): UnknownRecord {
 
 function knownKeys(input: UnknownRecord, allowed: readonly string[], label: string): void {
   const unknown = Object.keys(input).filter((key) => !allowed.includes(key));
-  if (unknown.length > 0) throw new Error(`Configuration error: unknown ${label} setting(s): ${unknown.join(', ')}.`);
+  if (unknown.length > 0)
+    throw new Error(`Configuration error: unknown ${label} setting(s): ${unknown.join(', ')}.`);
 }
 
 function string(value: unknown, label: string, allowEmpty = false): string {
   if (typeof value !== 'string' || (!allowEmpty && !value.trim())) {
-    throw new Error(`Configuration error: ${label} must be ${allowEmpty ? 'a string' : 'a non-empty string'}.`);
+    throw new Error(
+      `Configuration error: ${label} must be ${allowEmpty ? 'a string' : 'a non-empty string'}.`,
+    );
   }
   return value.trim();
 }
 
 function boolean(value: unknown, label: string): boolean {
-  if (typeof value !== 'boolean') throw new Error(`Configuration error: ${label} must be a boolean.`);
+  if (typeof value !== 'boolean')
+    throw new Error(`Configuration error: ${label} must be a boolean.`);
   return value;
 }
 
@@ -104,20 +172,30 @@ export function parseByteSize(value: unknown, label: string): number {
   if (typeof value === 'string') {
     const match = value.trim().match(/^(\d+)\s*(b|kib|mib|gib)$/i);
     if (match) {
-      const multiplier = match[2].toLowerCase() === 'gib' ? 1024 ** 3
-        : match[2].toLowerCase() === 'mib' ? 1024 ** 2
-          : match[2].toLowerCase() === 'kib' ? 1024
-            : 1;
+      const multiplier =
+        match[2].toLowerCase() === 'gib'
+          ? 1024 ** 3
+          : match[2].toLowerCase() === 'mib'
+            ? 1024 ** 2
+            : match[2].toLowerCase() === 'kib'
+              ? 1024
+              : 1;
       const bytes = Number(match[1]) * multiplier;
       if (Number.isSafeInteger(bytes)) return bytes;
     }
   }
-  throw new Error(`Configuration error: ${label} must be a byte size (for example 128MiB) or unlimited.`);
+  throw new Error(
+    `Configuration error: ${label} must be a byte size (for example 128MiB) or unlimited.`,
+  );
 }
 
 function formatByteSize(bytes: number): string {
   if (bytes < 0) return 'unlimited';
-  for (const [suffix, divisor] of [['GiB', 1024 ** 3], ['MiB', 1024 ** 2], ['KiB', 1024]] as const) {
+  for (const [suffix, divisor] of [
+    ['GiB', 1024 ** 3],
+    ['MiB', 1024 ** 2],
+    ['KiB', 1024],
+  ] as const) {
     if (bytes > 0 && bytes % divisor === 0) return `${bytes / divisor}${suffix}`;
   }
   return `${bytes}B`;
@@ -131,11 +209,25 @@ function stringArray(value: unknown, label: string): string[] {
   return [...new Set(entries.map((entry) => String(entry).trim()))];
 }
 
-function setString(env: NodeJS.ProcessEnv, input: UnknownRecord, key: string, envName: string, label: string, allowEmpty = false): void {
+function setString(
+  env: NodeJS.ProcessEnv,
+  input: UnknownRecord,
+  key: string,
+  envName: string,
+  label: string,
+  allowEmpty = false,
+): void {
   if (input[key] !== undefined) env[envName] = string(input[key], `${label}.${key}`, allowEmpty);
 }
 
-function setDuration(env: NodeJS.ProcessEnv, input: UnknownRecord, key: string, envName: string, label: string, allowZero: boolean): void {
+function setDuration(
+  env: NodeJS.ProcessEnv,
+  input: UnknownRecord,
+  key: string,
+  envName: string,
+  label: string,
+  allowZero: boolean,
+): void {
   if (input[key] === undefined) return;
   if (allowZero && input[key] === 0) {
     env[envName] = '0';
@@ -144,15 +236,34 @@ function setDuration(env: NodeJS.ProcessEnv, input: UnknownRecord, key: string, 
   setString(env, input, key, envName, label);
 }
 
-function setBoolean(env: NodeJS.ProcessEnv, input: UnknownRecord, key: string, envName: string, label: string): void {
+function setBoolean(
+  env: NodeJS.ProcessEnv,
+  input: UnknownRecord,
+  key: string,
+  envName: string,
+  label: string,
+): void {
   if (input[key] !== undefined) env[envName] = String(boolean(input[key], `${label}.${key}`));
 }
 
-function setInteger(env: NodeJS.ProcessEnv, input: UnknownRecord, key: string, envName: string, label: string): void {
-  if (input[key] !== undefined) env[envName] = String(positiveInteger(input[key], `${label}.${key}`));
+function setInteger(
+  env: NodeJS.ProcessEnv,
+  input: UnknownRecord,
+  key: string,
+  envName: string,
+  label: string,
+): void {
+  if (input[key] !== undefined)
+    env[envName] = String(positiveInteger(input[key], `${label}.${key}`));
 }
 
-function setArray(env: NodeJS.ProcessEnv, input: UnknownRecord, key: string, envName: string, label: string): void {
+function setArray(
+  env: NodeJS.ProcessEnv,
+  input: UnknownRecord,
+  key: string,
+  envName: string,
+  label: string,
+): void {
   if (input[key] !== undefined) env[envName] = stringArray(input[key], `${label}.${key}`).join(',');
 }
 
@@ -165,7 +276,8 @@ function applySecretReference(
 ): void {
   if (value === undefined) return;
   if (typeof value === 'string') {
-    if (value.length === 0) throw new Error(`Configuration error: ${label} must be a non-empty string.`);
+    if (value.length === 0)
+      throw new Error(`Configuration error: ${label} must be a non-empty string.`);
     env[targetName] = value;
     return;
   }
@@ -178,16 +290,35 @@ function applySecretReference(
   }
   if (envName) {
     const secret = sourceEnv[envName];
-    if (!secret) throw new Error(`Configuration error: ${label}.env references missing or empty ${envName}.`);
+    if (!secret)
+      throw new Error(`Configuration error: ${label}.env references missing or empty ${envName}.`);
     env[targetName] = secret;
     return;
   }
   env[`${targetName}_FILE`] = file;
 }
 
-export function parseApplicationConfig(parsed: unknown, sourceEnv: NodeJS.ProcessEnv): ParsedConfigFile {
+export function parseApplicationConfig(
+  parsed: unknown,
+  sourceEnv: NodeJS.ProcessEnv,
+): ParsedConfigFile {
   const root = record(parsed, 'config');
-  knownKeys(root, ['server', 'storage', 'ui', 'auth', 'notifications', 'audit', 'updates', 'crowdsec', 'instances', 'statistics'], 'root');
+  knownKeys(
+    root,
+    [
+      'server',
+      'storage',
+      'ui',
+      'auth',
+      'notifications',
+      'audit',
+      'updates',
+      'crowdsec',
+      'instances',
+      'statistics',
+    ],
+    'root',
+  );
 
   const env: NodeJS.ProcessEnv = {};
   for (const name of RETAINED_METADATA_ENV) {
@@ -201,51 +332,112 @@ export function parseApplicationConfig(parsed: unknown, sourceEnv: NodeJS.Proces
   setString(env, server, 'hostname', 'SERVER_HOSTNAME', 'server', true);
 
   const storage = section(root, 'storage');
-  knownKeys(storage, [
-    'dataDir', 'cacheDir', 'geonamesDir', 'walEnabled', 'incrementalVacuumEnabled', 'journalSizeLimit',
-    'queryTimeout', 'analyticsQueryTimeout',
-  ], 'storage');
+  knownKeys(
+    storage,
+    [
+      'dataDir',
+      'cacheDir',
+      'geonamesDir',
+      'walEnabled',
+      'incrementalVacuumEnabled',
+      'journalSizeLimit',
+      'queryTimeout',
+      'analyticsQueryTimeout',
+    ],
+    'storage',
+  );
   setString(env, storage, 'dataDir', 'DB_DIR', 'storage');
   setString(env, storage, 'cacheDir', 'DB_CACHE_DIR', 'storage');
   setString(env, storage, 'geonamesDir', 'GEONAMES_DUMP_DIR', 'storage');
   setDuration(env, storage, 'queryTimeout', 'DB_QUERY_TIMEOUT', 'storage', false);
-  setDuration(env, storage, 'analyticsQueryTimeout', 'DB_ANALYTICS_QUERY_TIMEOUT', 'storage', false);
-  const sqliteWalEnabled = storage.walEnabled === undefined
-    ? true
-    : boolean(storage.walEnabled, 'storage.walEnabled');
-  const sqliteIncrementalVacuumEnabled = storage.incrementalVacuumEnabled === undefined
-    ? true
-    : boolean(storage.incrementalVacuumEnabled, 'storage.incrementalVacuumEnabled');
-  const sqliteJournalSizeLimitBytes = storage.journalSizeLimit === undefined
-    ? DEFAULT_SQLITE_JOURNAL_SIZE_LIMIT_BYTES
-    : parseByteSize(storage.journalSizeLimit, 'storage.journalSizeLimit');
+  setDuration(
+    env,
+    storage,
+    'analyticsQueryTimeout',
+    'DB_ANALYTICS_QUERY_TIMEOUT',
+    'storage',
+    false,
+  );
+  const sqliteWalEnabled =
+    storage.walEnabled === undefined ? true : boolean(storage.walEnabled, 'storage.walEnabled');
+  const sqliteIncrementalVacuumEnabled =
+    storage.incrementalVacuumEnabled === undefined
+      ? true
+      : boolean(storage.incrementalVacuumEnabled, 'storage.incrementalVacuumEnabled');
+  const sqliteJournalSizeLimitBytes =
+    storage.journalSizeLimit === undefined
+      ? DEFAULT_SQLITE_JOURNAL_SIZE_LIMIT_BYTES
+      : parseByteSize(storage.journalSizeLimit, 'storage.journalSizeLimit');
 
   const ui = section(root, 'ui');
-  knownKeys(ui, ['timeZone', 'timeFormat', 'dateFormat', 'readOnly', 'allowlistsSidebarVisible', 'metricsSidebarVisible', 'statisticsSidebarVisible'], 'ui');
+  knownKeys(
+    ui,
+    [
+      'timeZone',
+      'timeFormat',
+      'dateFormat',
+      'readOnly',
+      'allowlistsSidebarVisible',
+      'metricsSidebarVisible',
+      'statisticsSidebarVisible',
+    ],
+    'ui',
+  );
   if (ui.timeZone !== undefined && ui.timeZone !== null && ui.timeZone !== 'browser') {
     env.TZ = string(ui.timeZone, 'ui.timeZone');
   }
-  if (ui.timeFormat !== undefined && ui.timeFormat !== 'browser') setString(env, ui, 'timeFormat', 'TIME_FORMAT', 'ui');
-  if (ui.dateFormat !== undefined && ui.dateFormat !== 'browser') setString(env, ui, 'dateFormat', 'DATE_FORMAT', 'ui');
+  if (ui.timeFormat !== undefined && ui.timeFormat !== 'browser')
+    setString(env, ui, 'timeFormat', 'TIME_FORMAT', 'ui');
+  if (ui.dateFormat !== undefined && ui.dateFormat !== 'browser')
+    setString(env, ui, 'dateFormat', 'DATE_FORMAT', 'ui');
   setBoolean(env, ui, 'readOnly', 'PERMISSION_READ_ONLY', 'ui');
   setBoolean(env, ui, 'allowlistsSidebarVisible', 'UI_ALLOWLISTS_SIDEBAR_VISIBLE', 'ui');
   setBoolean(env, ui, 'metricsSidebarVisible', 'UI_METRICS_SIDEBAR_VISIBLE', 'ui');
   setBoolean(env, ui, 'statisticsSidebarVisible', 'UI_STATISTICS_SIDEBAR_VISIBLE', 'ui');
 
   const auth = section(root, 'auth');
-  knownKeys(auth, ['enabled', 'sessionSecret', 'totpSecret', 'totpSeed', 'passwordLogin', 'oidc'], 'auth');
-  if (auth.enabled !== undefined && auth.enabled !== 'auto') setBoolean(env, auth, 'enabled', 'AUTH_ENABLED', 'auth');
+  knownKeys(
+    auth,
+    ['enabled', 'sessionSecret', 'totpSecret', 'totpSeed', 'passwordLogin', 'oidc'],
+    'auth',
+  );
+  if (auth.enabled !== undefined && auth.enabled !== 'auto')
+    setBoolean(env, auth, 'enabled', 'AUTH_ENABLED', 'auth');
   applySecretReference(auth.sessionSecret, 'auth.sessionSecret', env, sourceEnv, 'AUTH_SECRET');
   applySecretReference(auth.totpSecret, 'auth.totpSecret', env, sourceEnv, 'AUTH_TOTP_SECRET');
   applySecretReference(auth.totpSeed, 'auth.totpSeed', env, sourceEnv, 'AUTH_TOTP_SEED');
-  const passwordLogin = auth.passwordLogin === undefined ? {} : record(auth.passwordLogin, 'auth.passwordLogin');
+  const passwordLogin =
+    auth.passwordLogin === undefined ? {} : record(auth.passwordLogin, 'auth.passwordLogin');
   knownKeys(passwordLogin, ['enabled'], 'auth.passwordLogin');
   setBoolean(env, passwordLogin, 'enabled', 'AUTH_PASSWORD_LOGIN_ENABLED', 'auth.passwordLogin');
   const oidc = auth.oidc === undefined ? {} : record(auth.oidc, 'auth.oidc');
-  knownKeys(oidc, ['issuerUrl', 'clientId', 'clientSecret', 'scope', 'groupsClaim', 'adminGroups', 'readOnlyGroups', 'unmatchedRole', 'endSession', 'autoLogin', 'backchannelLogout', 'autoLinkUsername'], 'auth.oidc');
+  knownKeys(
+    oidc,
+    [
+      'issuerUrl',
+      'clientId',
+      'clientSecret',
+      'scope',
+      'groupsClaim',
+      'adminGroups',
+      'readOnlyGroups',
+      'unmatchedRole',
+      'endSession',
+      'autoLogin',
+      'backchannelLogout',
+      'autoLinkUsername',
+    ],
+    'auth.oidc',
+  );
   setString(env, oidc, 'issuerUrl', 'AUTH_OIDC_ISSUER_URL', 'auth.oidc');
   setString(env, oidc, 'clientId', 'AUTH_OIDC_CLIENT_ID', 'auth.oidc');
-  applySecretReference(oidc.clientSecret, 'auth.oidc.clientSecret', env, sourceEnv, 'AUTH_OIDC_CLIENT_SECRET');
+  applySecretReference(
+    oidc.clientSecret,
+    'auth.oidc.clientSecret',
+    env,
+    sourceEnv,
+    'AUTH_OIDC_CLIENT_SECRET',
+  );
   setString(env, oidc, 'scope', 'AUTH_OIDC_SCOPE', 'auth.oidc');
   setString(env, oidc, 'groupsClaim', 'AUTH_OIDC_GROUPS_CLAIM', 'auth.oidc');
   setArray(env, oidc, 'adminGroups', 'AUTH_OIDC_ADMIN_GROUPS', 'auth.oidc');
@@ -257,9 +449,25 @@ export function parseApplicationConfig(parsed: unknown, sourceEnv: NodeJS.Proces
   setBoolean(env, oidc, 'autoLinkUsername', 'AUTH_OIDC_AUTO_LINK_USERNAME', 'auth.oidc');
 
   const notifications = section(root, 'notifications');
-  knownKeys(notifications, ['secretKey', 'allowPrivateAddresses', 'debugPayloads'], 'notifications');
-  applySecretReference(notifications.secretKey, 'notifications.secretKey', env, sourceEnv, 'NOTIFICATION_SECRET_KEY');
-  setBoolean(env, notifications, 'allowPrivateAddresses', 'NOTIFICATION_ALLOW_PRIVATE_ADDRESSES', 'notifications');
+  knownKeys(
+    notifications,
+    ['secretKey', 'allowPrivateAddresses', 'debugPayloads'],
+    'notifications',
+  );
+  applySecretReference(
+    notifications.secretKey,
+    'notifications.secretKey',
+    env,
+    sourceEnv,
+    'NOTIFICATION_SECRET_KEY',
+  );
+  setBoolean(
+    env,
+    notifications,
+    'allowPrivateAddresses',
+    'NOTIFICATION_ALLOW_PRIVATE_ADDRESSES',
+    'notifications',
+  );
   setBoolean(env, notifications, 'debugPayloads', 'NOTIFICATION_DEBUG_PAYLOADS', 'notifications');
 
   const audit = section(root, 'audit');
@@ -269,53 +477,151 @@ export function parseApplicationConfig(parsed: unknown, sourceEnv: NodeJS.Proces
 
   const updates = section(root, 'updates');
   knownKeys(updates, ['enabled'], 'updates');
-  const updateCheckEnabled = updates.enabled === undefined ? undefined : boolean(updates.enabled, 'updates.enabled');
+  const updateCheckEnabled =
+    updates.enabled === undefined ? undefined : boolean(updates.enabled, 'updates.enabled');
 
   const crowdsec = section(root, 'crowdsec');
-  knownKeys(crowdsec, ['simulationsEnabled', 'alertFilters', 'manualDecisions', 'sync'], 'crowdsec');
+  knownKeys(
+    crowdsec,
+    ['simulationsEnabled', 'alertFilters', 'manualDecisions', 'sync'],
+    'crowdsec',
+  );
   setBoolean(env, crowdsec, 'simulationsEnabled', 'CROWDSEC_SIMULATIONS_ENABLED', 'crowdsec');
-  const filters = crowdsec.alertFilters === undefined ? {} : record(crowdsec.alertFilters, 'crowdsec.alertFilters');
-  knownKeys(filters, ['includeOrigins', 'excludeOrigins', 'includeCapi', 'includeOriginEmpty', 'excludeOriginEmpty', 'legacy'], 'crowdsec.alertFilters');
-  setArray(env, filters, 'includeOrigins', 'CROWDSEC_ALERT_INCLUDE_ORIGINS', 'crowdsec.alertFilters');
-  setArray(env, filters, 'excludeOrigins', 'CROWDSEC_ALERT_EXCLUDE_ORIGINS', 'crowdsec.alertFilters');
+  const filters =
+    crowdsec.alertFilters === undefined
+      ? {}
+      : record(crowdsec.alertFilters, 'crowdsec.alertFilters');
+  knownKeys(
+    filters,
+    [
+      'includeOrigins',
+      'excludeOrigins',
+      'includeCapi',
+      'includeOriginEmpty',
+      'excludeOriginEmpty',
+      'legacy',
+    ],
+    'crowdsec.alertFilters',
+  );
+  setArray(
+    env,
+    filters,
+    'includeOrigins',
+    'CROWDSEC_ALERT_INCLUDE_ORIGINS',
+    'crowdsec.alertFilters',
+  );
+  setArray(
+    env,
+    filters,
+    'excludeOrigins',
+    'CROWDSEC_ALERT_EXCLUDE_ORIGINS',
+    'crowdsec.alertFilters',
+  );
   setBoolean(env, filters, 'includeCapi', 'CROWDSEC_ALERT_INCLUDE_CAPI', 'crowdsec.alertFilters');
-  setBoolean(env, filters, 'includeOriginEmpty', 'CROWDSEC_ALERT_INCLUDE_ORIGIN_EMPTY', 'crowdsec.alertFilters');
-  setBoolean(env, filters, 'excludeOriginEmpty', 'CROWDSEC_ALERT_EXCLUDE_ORIGIN_EMPTY', 'crowdsec.alertFilters');
-  const legacyFilters = filters.legacy === undefined ? undefined : record(filters.legacy, 'crowdsec.alertFilters.legacy');
+  setBoolean(
+    env,
+    filters,
+    'includeOriginEmpty',
+    'CROWDSEC_ALERT_INCLUDE_ORIGIN_EMPTY',
+    'crowdsec.alertFilters',
+  );
+  setBoolean(
+    env,
+    filters,
+    'excludeOriginEmpty',
+    'CROWDSEC_ALERT_EXCLUDE_ORIGIN_EMPTY',
+    'crowdsec.alertFilters',
+  );
+  const legacyFilters =
+    filters.legacy === undefined
+      ? undefined
+      : record(filters.legacy, 'crowdsec.alertFilters.legacy');
   if (legacyFilters) {
     knownKeys(legacyFilters, ['origins', 'extraScenarios'], 'crowdsec.alertFilters.legacy');
-    setArray(env, legacyFilters, 'origins', 'CROWDSEC_ALERT_ORIGINS', 'crowdsec.alertFilters.legacy');
-    setArray(env, legacyFilters, 'extraScenarios', 'CROWDSEC_ALERT_EXTRA_SCENARIOS', 'crowdsec.alertFilters.legacy');
+    setArray(
+      env,
+      legacyFilters,
+      'origins',
+      'CROWDSEC_ALERT_ORIGINS',
+      'crowdsec.alertFilters.legacy',
+    );
+    setArray(
+      env,
+      legacyFilters,
+      'extraScenarios',
+      'CROWDSEC_ALERT_EXTRA_SCENARIOS',
+      'crowdsec.alertFilters.legacy',
+    );
   }
-  const manualDecisionScenarios = parseManualDecisionScenarios(crowdsec.manualDecisions, 'crowdsec.manualDecisions') ?? [];
+  const manualDecisionScenarios =
+    parseManualDecisionScenarios(crowdsec.manualDecisions, 'crowdsec.manualDecisions') ?? [];
 
   const sync = crowdsec.sync === undefined ? {} : record(crowdsec.sync, 'crowdsec.sync');
   const syncKeys = {
-    lookback: 'CROWDSEC_LOOKBACK_PERIOD', refreshInterval: 'CROWDSEC_REFRESH_INTERVAL',
-    idleRefreshInterval: 'CROWDSEC_IDLE_REFRESH_INTERVAL', idleThreshold: 'CROWDSEC_IDLE_THRESHOLD',
-    requestTimeout: 'CROWDSEC_LAPI_REQUEST_TIMEOUT', bouncerPropagationDelay: 'CROWDSEC_BOUNCER_PROPAGATION_DELAY',
+    lookback: 'CROWDSEC_LOOKBACK_PERIOD',
+    refreshInterval: 'CROWDSEC_REFRESH_INTERVAL',
+    idleRefreshInterval: 'CROWDSEC_IDLE_REFRESH_INTERVAL',
+    idleThreshold: 'CROWDSEC_IDLE_THRESHOLD',
+    requestTimeout: 'CROWDSEC_LAPI_REQUEST_TIMEOUT',
+    bouncerPropagationDelay: 'CROWDSEC_BOUNCER_PROPAGATION_DELAY',
     deletionQueueMaxAge: 'CROWDSEC_DELETION_QUEUE_MAX_AGE',
-    metricsRequestTimeout: 'CROWDSEC_PROMETHEUS_REQUEST_TIMEOUT', heartbeatInterval: 'CROWDSEC_HEARTBEAT_INTERVAL',
-    alertSyncChunk: 'CROWDSEC_ALERT_SYNC_CHUNK', alertSyncMinChunk: 'CROWDSEC_ALERT_SYNC_MIN_CHUNK',
-    reconcileWindow: 'CROWDSEC_RECONCILE_WINDOW', reconcileRecentAge: 'CROWDSEC_RECONCILE_RECENT_AGE',
-    reconcileRecentInterval: 'CROWDSEC_RECONCILE_RECENT_INTERVAL', reconcileActiveInterval: 'CROWDSEC_RECONCILE_ACTIVE_INTERVAL',
-    reconcileOldInterval: 'CROWDSEC_RECONCILE_OLD_INTERVAL', bootstrapRetryDelay: 'CROWDSEC_BOOTSTRAP_RETRY_DELAY',
+    metricsRequestTimeout: 'CROWDSEC_PROMETHEUS_REQUEST_TIMEOUT',
+    heartbeatInterval: 'CROWDSEC_HEARTBEAT_INTERVAL',
+    alertSyncChunk: 'CROWDSEC_ALERT_SYNC_CHUNK',
+    alertSyncMinChunk: 'CROWDSEC_ALERT_SYNC_MIN_CHUNK',
+    reconcileWindow: 'CROWDSEC_RECONCILE_WINDOW',
+    reconcileRecentAge: 'CROWDSEC_RECONCILE_RECENT_AGE',
+    reconcileRecentInterval: 'CROWDSEC_RECONCILE_RECENT_INTERVAL',
+    reconcileActiveInterval: 'CROWDSEC_RECONCILE_ACTIVE_INTERVAL',
+    reconcileOldInterval: 'CROWDSEC_RECONCILE_OLD_INTERVAL',
+    bootstrapRetryDelay: 'CROWDSEC_BOOTSTRAP_RETRY_DELAY',
   } as const;
-  knownKeys(sync, [...Object.keys(syncKeys), 'manualRefreshEnabled', 'reconcileWindowsPerRefresh', 'bootstrapRetryEnabled'], 'crowdsec.sync');
+  knownKeys(
+    sync,
+    [
+      ...Object.keys(syncKeys),
+      'manualRefreshEnabled',
+      'reconcileWindowsPerRefresh',
+      'bootstrapRetryEnabled',
+    ],
+    'crowdsec.sync',
+  );
   const zeroDurationKeys = new Set([
-    'refreshInterval', 'idleRefreshInterval', 'idleThreshold', 'bouncerPropagationDelay', 'deletionQueueMaxAge',
-    'heartbeatInterval', 'bootstrapRetryDelay',
+    'refreshInterval',
+    'idleRefreshInterval',
+    'idleThreshold',
+    'bouncerPropagationDelay',
+    'deletionQueueMaxAge',
+    'heartbeatInterval',
+    'bootstrapRetryDelay',
   ]);
   for (const [key, envName] of Object.entries(syncKeys)) {
     setDuration(env, sync, key, envName, 'crowdsec.sync', zeroDurationKeys.has(key));
   }
   setBoolean(env, sync, 'manualRefreshEnabled', 'CROWDSEC_MANUAL_REFRESH_ENABLED', 'crowdsec.sync');
-  setInteger(env, sync, 'reconcileWindowsPerRefresh', 'CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH', 'crowdsec.sync');
-  setBoolean(env, sync, 'bootstrapRetryEnabled', 'CROWDSEC_BOOTSTRAP_RETRY_ENABLED', 'crowdsec.sync');
+  setInteger(
+    env,
+    sync,
+    'reconcileWindowsPerRefresh',
+    'CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH',
+    'crowdsec.sync',
+  );
+  setBoolean(
+    env,
+    sync,
+    'bootstrapRetryEnabled',
+    'CROWDSEC_BOOTSTRAP_RETRY_ENABLED',
+    'crowdsec.sync',
+  );
 
   let statistics: StatisticsSettings;
-  try { statistics = validateStatisticsSettings(section(root, 'statistics')); }
-  catch (error) { throw new Error(`Configuration error: ${error instanceof Error ? error.message : String(error)}`); }
+  try {
+    statistics = validateStatisticsSettings(section(root, 'statistics'));
+  } catch (error) {
+    throw new Error(
+      `Configuration error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   return {
     statistics,
     statisticsManaged: Object.keys(section(root, 'statistics')) as Array<keyof StatisticsSettings>,
@@ -338,7 +644,10 @@ export function readApplicationConfig(file: string): unknown {
   }
 }
 
-export function loadApplicationConfig(file: string, sourceEnv: NodeJS.ProcessEnv): ParsedConfigFile {
+export function loadApplicationConfig(
+  file: string,
+  sourceEnv: NodeJS.ProcessEnv,
+): ParsedConfigFile {
   return parseApplicationConfig(readApplicationConfig(file), sourceEnv);
 }
 
@@ -360,36 +669,114 @@ const INITIAL_CONFIG_HEADER = [
   'Commented settings show current defaults and examples for optional fields.',
   'While a setting remains commented out, the application uses its current default,',
   'so defaults may change when the application is updated. Uncomment a setting to',
-  'manage and pin its value. After creation, this file is the user\'s responsibility;',
+  "manage and pin its value. After creation, this file is the user's responsibility;",
   'the application does not update these comments or defaults automatically.',
 ] as const;
 
 export const CONFIG_KEY_ORDER = new Map<string, readonly string[]>([
-  ['', ['server', 'storage', 'ui', 'updates', 'auth', 'notifications', 'audit', 'statistics', 'crowdsec', 'instances']],
+  [
+    '',
+    [
+      'server',
+      'storage',
+      'ui',
+      'updates',
+      'auth',
+      'notifications',
+      'audit',
+      'statistics',
+      'crowdsec',
+      'instances',
+    ],
+  ],
   ['statistics', ['enabled', 'retentionDays', 'jobInterval', 'jobTimeBudget']],
   ['server', ['port', 'basePath', 'hostname']],
-  ['storage', [
-    'dataDir', 'cacheDir', 'geonamesDir', 'walEnabled', 'incrementalVacuumEnabled', 'journalSizeLimit',
-    'queryTimeout', 'analyticsQueryTimeout',
-  ]],
-  ['ui', ['timeZone', 'timeFormat', 'dateFormat', 'readOnly', 'allowlistsSidebarVisible', 'metricsSidebarVisible', 'statisticsSidebarVisible']],
+  [
+    'storage',
+    [
+      'dataDir',
+      'cacheDir',
+      'geonamesDir',
+      'walEnabled',
+      'incrementalVacuumEnabled',
+      'journalSizeLimit',
+      'queryTimeout',
+      'analyticsQueryTimeout',
+    ],
+  ],
+  [
+    'ui',
+    [
+      'timeZone',
+      'timeFormat',
+      'dateFormat',
+      'readOnly',
+      'allowlistsSidebarVisible',
+      'metricsSidebarVisible',
+      'statisticsSidebarVisible',
+    ],
+  ],
   ['updates', ['enabled']],
   ['auth', ['enabled', 'sessionSecret', 'totpSecret', 'totpSeed', 'passwordLogin', 'oidc']],
   ['auth.passwordLogin', ['enabled']],
-  ['auth.oidc', ['issuerUrl', 'clientId', 'clientSecret', 'scope', 'groupsClaim', 'adminGroups', 'readOnlyGroups', 'unmatchedRole', 'endSession', 'autoLogin', 'backchannelLogout', 'autoLinkUsername']],
+  [
+    'auth.oidc',
+    [
+      'issuerUrl',
+      'clientId',
+      'clientSecret',
+      'scope',
+      'groupsClaim',
+      'adminGroups',
+      'readOnlyGroups',
+      'unmatchedRole',
+      'endSession',
+      'autoLogin',
+      'backchannelLogout',
+      'autoLinkUsername',
+    ],
+  ],
   ['notifications', ['secretKey', 'allowPrivateAddresses', 'debugPayloads']],
   ['audit', ['enabled', 'logFile']],
   ['crowdsec', ['simulationsEnabled', 'alertFilters', 'manualDecisions', 'sync']],
-  ['crowdsec.alertFilters', ['includeOrigins', 'excludeOrigins', 'includeCapi', 'includeOriginEmpty', 'excludeOriginEmpty', 'legacy']],
+  [
+    'crowdsec.alertFilters',
+    [
+      'includeOrigins',
+      'excludeOrigins',
+      'includeCapi',
+      'includeOriginEmpty',
+      'excludeOriginEmpty',
+      'legacy',
+    ],
+  ],
   ['crowdsec.alertFilters.legacy', ['origins', 'extraScenarios']],
   ['crowdsec.manualDecisions', ['scenarios']],
-  ['crowdsec.sync', [
-    'lookback', 'refreshInterval', 'manualRefreshEnabled', 'idleRefreshInterval', 'idleThreshold',
-    'requestTimeout', 'bouncerPropagationDelay', 'deletionQueueMaxAge', 'metricsRequestTimeout', 'heartbeatInterval',
-    'alertSyncChunk', 'alertSyncMinChunk', 'reconcileWindow', 'reconcileRecentAge',
-    'reconcileRecentInterval', 'reconcileActiveInterval', 'reconcileOldInterval',
-    'reconcileWindowsPerRefresh', 'bootstrapRetryDelay', 'bootstrapRetryEnabled',
-  ]],
+  [
+    'crowdsec.sync',
+    [
+      'lookback',
+      'refreshInterval',
+      'manualRefreshEnabled',
+      'idleRefreshInterval',
+      'idleThreshold',
+      'requestTimeout',
+      'bouncerPropagationDelay',
+      'deletionQueueMaxAge',
+      'metricsRequestTimeout',
+      'heartbeatInterval',
+      'alertSyncChunk',
+      'alertSyncMinChunk',
+      'reconcileWindow',
+      'reconcileRecentAge',
+      'reconcileRecentInterval',
+      'reconcileActiveInterval',
+      'reconcileOldInterval',
+      'reconcileWindowsPerRefresh',
+      'bootstrapRetryDelay',
+      'bootstrapRetryEnabled',
+    ],
+  ],
   ['instances[]', ['id', 'name', 'icon', 'lapi', 'metrics', 'manualDecisions', 'sync']],
   ['instances[].lapi', ['url', 'auth', 'tls']],
   ['instances[].lapi.auth', ['type', 'username', 'password', 'certFile', 'keyFile']],
@@ -398,19 +785,36 @@ export const CONFIG_KEY_ORDER = new Map<string, readonly string[]>([
   ['instances[].metrics[].auth', ['type', 'username', 'password', 'token']],
   ['instances[].metrics[].tls', ['caFile', 'certFile', 'keyFile']],
   ['instances[].manualDecisions', ['scenarios']],
-  ['instances[].sync', [
-    'lookback', 'refreshInterval', 'idleRefreshInterval', 'idleThreshold', 'requestTimeout',
-    'heartbeatInterval', 'alertSyncChunk', 'alertSyncMinChunk', 'reconcileWindow',
-    'reconcileRecentAge', 'reconcileRecentInterval', 'reconcileActiveInterval',
-    'reconcileOldInterval', 'reconcileWindowsPerRefresh', 'bootstrapRetryDelay',
-    'bootstrapRetryEnabled', 'bouncerPropagationDelay',
-  ]],
+  [
+    'instances[].sync',
+    [
+      'lookback',
+      'refreshInterval',
+      'idleRefreshInterval',
+      'idleThreshold',
+      'requestTimeout',
+      'heartbeatInterval',
+      'alertSyncChunk',
+      'alertSyncMinChunk',
+      'reconcileWindow',
+      'reconcileRecentAge',
+      'reconcileRecentInterval',
+      'reconcileActiveInterval',
+      'reconcileOldInterval',
+      'reconcileWindowsPerRefresh',
+      'bootstrapRetryDelay',
+      'bootstrapRetryEnabled',
+      'bouncerPropagationDelay',
+    ],
+  ],
 ]);
 
 function configOrderPath(path: ConfigPath): string {
-  return path.reduce<string>((result, part) => (
-    typeof part === 'number' ? `${result}[]` : `${result}${result ? '.' : ''}${part}`
-  ), '');
+  return path.reduce<string>(
+    (result, part) =>
+      typeof part === 'number' ? `${result}[]` : `${result}${result ? '.' : ''}${part}`,
+    '',
+  );
 }
 
 function canonicalizeConfig(value: unknown, path: ConfigPath = []): unknown {
@@ -430,7 +834,13 @@ function canonicalizeConfig(value: unknown, path: ConfigPath = []): unknown {
   const result: UnknownRecord = {};
   for (const key of keys) {
     const child = canonicalizeConfig(source[key], [...path, key]);
-    if (child && typeof child === 'object' && !Array.isArray(child) && Object.keys(child).length === 0) continue;
+    if (
+      child &&
+      typeof child === 'object' &&
+      !Array.isArray(child) &&
+      Object.keys(child).length === 0
+    )
+      continue;
     result[key] = child;
   }
   return result;
@@ -512,7 +922,11 @@ const LEGACY_GENERATED_CONFIG_PATHS = [
   ['CROWDSEC_BOOTSTRAP_RETRY_ENABLED', ['crowdsec', 'sync', 'bootstrapRetryEnabled']],
 ] as const satisfies readonly (readonly [string, ConfigPath])[];
 
-function secretReference(env: NodeJS.ProcessEnv, canonical: string, legacy?: string): UnknownRecord | undefined {
+function secretReference(
+  env: NodeJS.ProcessEnv,
+  canonical: string,
+  legacy?: string,
+): UnknownRecord | undefined {
   for (const name of [canonical, legacy].filter((value): value is string => Boolean(value))) {
     if (has(env, name)) return { env: name };
     if (has(env, `${name}_FILE`)) return { file: env[`${name}_FILE`] };
@@ -531,7 +945,11 @@ function legacySingleInstance(env: NodeJS.ProcessEnv, config: RuntimeConfig): Un
         : { password: { env: 'CROWDSEC_PASSWORD' } }),
     };
   } else if (config.crowdsecAuth.mode === 'mtls') {
-    auth = { type: 'mtls', certFile: config.crowdsecAuth.certPath, keyFile: config.crowdsecAuth.keyPath };
+    auth = {
+      type: 'mtls',
+      certFile: config.crowdsecAuth.certPath,
+      keyFile: config.crowdsecAuth.keyPath,
+    };
   }
   return {
     id: 'default',
@@ -542,10 +960,17 @@ function legacySingleInstance(env: NodeJS.ProcessEnv, config: RuntimeConfig): Un
       auth,
       ...(config.crowdsecTlsCaCertPath ? { tls: { caFile: config.crowdsecTlsCaCertPath } } : {}),
     },
-    metrics: config.prometheusUrl ? [{
-      id: 'default', name: 'CrowdSec', url: config.prometheusUrl, auth: { type: 'none' },
-      requestTimeout: duration(config.prometheusRequestTimeoutMs),
-    }] : [],
+    metrics: config.prometheusUrl
+      ? [
+          {
+            id: 'default',
+            name: 'CrowdSec',
+            url: config.prometheusUrl,
+            auth: { type: 'none' },
+            requestTimeout: duration(config.prometheusRequestTimeoutMs),
+          },
+        ]
+      : [],
   };
 }
 
@@ -558,14 +983,23 @@ function generatedInstances(env: NodeJS.ProcessEnv, config: RuntimeConfig): unkn
     return oldRoot.instances;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Configuration error: cannot migrate CROWDSEC_INSTANCES_CONFIG_FILE at "${oldFile}": ${message}`);
+    throw new Error(
+      `Configuration error: cannot migrate CROWDSEC_INSTANCES_CONFIG_FILE at "${oldFile}": ${message}`,
+    );
   }
 }
 
-export function generateApplicationConfig(env: NodeJS.ProcessEnv, config: RuntimeConfig): UnknownRecord {
+export function generateApplicationConfig(
+  env: NodeJS.ProcessEnv,
+  config: RuntimeConfig,
+): UnknownRecord {
   const document: UnknownRecord = {
     statistics: { ...config.statistics },
-    server: { port: config.port, basePath: config.basePath, ...(config.hostname ? { hostname: config.hostname } : {}) },
+    server: {
+      port: config.port,
+      basePath: config.basePath,
+      ...(config.hostname ? { hostname: config.hostname } : {}),
+    },
     storage: {
       dataDir: config.dbDir,
       cacheDir: config.dbCacheDir ?? config.dbDir,
@@ -577,35 +1011,61 @@ export function generateApplicationConfig(env: NodeJS.ProcessEnv, config: Runtim
       analyticsQueryTimeout: duration(config.dbAnalyticsQueryTimeoutMs),
     },
     ui: {
-      timeZone: config.timeZone || 'browser', timeFormat: config.timeFormat, dateFormat: config.dateFormat,
-      readOnly: config.readOnly, allowlistsSidebarVisible: config.allowlistsSidebarVisible,
-      metricsSidebarVisible: config.metricsSidebarVisible, statisticsSidebarVisible: config.statisticsSidebarVisible,
+      timeZone: config.timeZone || 'browser',
+      timeFormat: config.timeFormat,
+      dateFormat: config.dateFormat,
+      readOnly: config.readOnly,
+      allowlistsSidebarVisible: config.allowlistsSidebarVisible,
+      metricsSidebarVisible: config.metricsSidebarVisible,
+      statisticsSidebarVisible: config.statisticsSidebarVisible,
     },
     auth: {
       enabled: config.dashboardAuth.enabled === null ? 'auto' : config.dashboardAuth.enabled,
-      ...(secretReference(env, 'AUTH_SECRET', 'CROWDSEC_AUTH_SECRET') ? { sessionSecret: secretReference(env, 'AUTH_SECRET', 'CROWDSEC_AUTH_SECRET') } : {}),
-      ...(secretReference(env, 'AUTH_TOTP_SECRET', 'CROWDSEC_AUTH_TOTP_SECRET') ? { totpSecret: secretReference(env, 'AUTH_TOTP_SECRET', 'CROWDSEC_AUTH_TOTP_SECRET') } : {}),
-      ...(secretReference(env, 'AUTH_TOTP_SEED', 'CROWDSEC_AUTH_TOTP_SEED') ? { totpSeed: secretReference(env, 'AUTH_TOTP_SEED', 'CROWDSEC_AUTH_TOTP_SEED') } : {}),
+      ...(secretReference(env, 'AUTH_SECRET', 'CROWDSEC_AUTH_SECRET')
+        ? { sessionSecret: secretReference(env, 'AUTH_SECRET', 'CROWDSEC_AUTH_SECRET') }
+        : {}),
+      ...(secretReference(env, 'AUTH_TOTP_SECRET', 'CROWDSEC_AUTH_TOTP_SECRET')
+        ? { totpSecret: secretReference(env, 'AUTH_TOTP_SECRET', 'CROWDSEC_AUTH_TOTP_SECRET') }
+        : {}),
+      ...(secretReference(env, 'AUTH_TOTP_SEED', 'CROWDSEC_AUTH_TOTP_SEED')
+        ? { totpSeed: secretReference(env, 'AUTH_TOTP_SEED', 'CROWDSEC_AUTH_TOTP_SEED') }
+        : {}),
       ...(config.dashboardAuth.passwordLoginEnabled !== null
         ? { passwordLogin: { enabled: config.dashboardAuth.passwordLoginEnabled } }
         : {}),
       oidc: {
-        ...(config.dashboardAuth.oidcIssuerUrl ? { issuerUrl: config.dashboardAuth.oidcIssuerUrl } : {}),
-        ...(config.dashboardAuth.oidcClientId ? { clientId: config.dashboardAuth.oidcClientId } : {}),
-        ...(secretReference(env, 'AUTH_OIDC_CLIENT_SECRET', 'CROWDSEC_AUTH_OIDC_CLIENT_SECRET') ? { clientSecret: secretReference(env, 'AUTH_OIDC_CLIENT_SECRET', 'CROWDSEC_AUTH_OIDC_CLIENT_SECRET') } : {}),
+        ...(config.dashboardAuth.oidcIssuerUrl
+          ? { issuerUrl: config.dashboardAuth.oidcIssuerUrl }
+          : {}),
+        ...(config.dashboardAuth.oidcClientId
+          ? { clientId: config.dashboardAuth.oidcClientId }
+          : {}),
+        ...(secretReference(env, 'AUTH_OIDC_CLIENT_SECRET', 'CROWDSEC_AUTH_OIDC_CLIENT_SECRET')
+          ? {
+              clientSecret: secretReference(
+                env,
+                'AUTH_OIDC_CLIENT_SECRET',
+                'CROWDSEC_AUTH_OIDC_CLIENT_SECRET',
+              ),
+            }
+          : {}),
         scope: config.dashboardAuth.oidcScope,
         groupsClaim: config.dashboardAuth.oidcGroupsClaim,
         adminGroups: config.dashboardAuth.oidcAdminGroups,
         readOnlyGroups: config.dashboardAuth.oidcReadOnlyGroups,
         unmatchedRole: config.dashboardAuth.oidcUnmatchedRole,
-        ...(config.dashboardAuth.oidcEndSession !== null ? { endSession: config.dashboardAuth.oidcEndSession } : {}),
+        ...(config.dashboardAuth.oidcEndSession !== null
+          ? { endSession: config.dashboardAuth.oidcEndSession }
+          : {}),
         autoLogin: config.dashboardAuth.oidcAutoLogin,
         backchannelLogout: config.dashboardAuth.oidcBackchannelLogout,
         autoLinkUsername: config.dashboardAuth.oidcAutoLinkUsername,
       },
     },
     notifications: {
-      ...(secretReference(env, 'NOTIFICATION_SECRET_KEY') ? { secretKey: secretReference(env, 'NOTIFICATION_SECRET_KEY') } : {}),
+      ...(secretReference(env, 'NOTIFICATION_SECRET_KEY')
+        ? { secretKey: secretReference(env, 'NOTIFICATION_SECRET_KEY') }
+        : {}),
       allowPrivateAddresses: config.notificationAllowPrivateAddresses,
       debugPayloads: config.notificationDebugPayloads,
     },
@@ -617,17 +1077,24 @@ export function generateApplicationConfig(env: NodeJS.ProcessEnv, config: Runtim
     crowdsec: {
       simulationsEnabled: config.simulationsEnabled,
       alertFilters: {
-        ...(config.alertFilterMode === 'new' ? {
-          includeOrigins: config.alertIncludeOrigins,
-          excludeOrigins: config.alertExcludeOrigins,
-          includeCapi: config.alertIncludeCapi,
-          includeOriginEmpty: config.alertIncludeOriginEmpty,
-          excludeOriginEmpty: config.alertExcludeOriginEmpty,
-        } : {}),
-        ...(config.alertFilterMode === 'legacy'
-          || has(env, 'CROWDSEC_ALERT_ORIGINS')
-          || has(env, 'CROWDSEC_ALERT_EXTRA_SCENARIOS')
-          ? { legacy: { origins: config.legacyAlertOrigins, extraScenarios: config.legacyAlertExtraScenarios } }
+        ...(config.alertFilterMode === 'new'
+          ? {
+              includeOrigins: config.alertIncludeOrigins,
+              excludeOrigins: config.alertExcludeOrigins,
+              includeCapi: config.alertIncludeCapi,
+              includeOriginEmpty: config.alertIncludeOriginEmpty,
+              excludeOriginEmpty: config.alertExcludeOriginEmpty,
+            }
+          : {}),
+        ...(config.alertFilterMode === 'legacy' ||
+        has(env, 'CROWDSEC_ALERT_ORIGINS') ||
+        has(env, 'CROWDSEC_ALERT_EXTRA_SCENARIOS')
+          ? {
+              legacy: {
+                origins: config.legacyAlertOrigins,
+                extraScenarios: config.legacyAlertExtraScenarios,
+              },
+            }
           : {}),
       },
       manualDecisions: { scenarios: config.manualDecisionScenarios },
@@ -717,10 +1184,22 @@ const CONFIG_VALUE_ENV = [
   ['CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGINS', ['crowdsec', 'alertFilters', 'includeOrigins']],
   ['CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGINS', ['crowdsec', 'alertFilters', 'excludeOrigins']],
   ['CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_CAPI', ['crowdsec', 'alertFilters', 'includeCapi']],
-  ['CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGIN_EMPTY', ['crowdsec', 'alertFilters', 'includeOriginEmpty']],
-  ['CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGIN_EMPTY', ['crowdsec', 'alertFilters', 'excludeOriginEmpty']],
-  ['CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS', ['crowdsec', 'alertFilters', 'legacy', 'origins']],
-  ['CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS', ['crowdsec', 'alertFilters', 'legacy', 'extraScenarios']],
+  [
+    'CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGIN_EMPTY',
+    ['crowdsec', 'alertFilters', 'includeOriginEmpty'],
+  ],
+  [
+    'CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGIN_EMPTY',
+    ['crowdsec', 'alertFilters', 'excludeOriginEmpty'],
+  ],
+  [
+    'CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS',
+    ['crowdsec', 'alertFilters', 'legacy', 'origins'],
+  ],
+  [
+    'CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS',
+    ['crowdsec', 'alertFilters', 'legacy', 'extraScenarios'],
+  ],
   ['CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS', ['crowdsec', 'manualDecisions', 'scenarios']],
   ['CONFIG_CROWDSEC_SYNC_LOOKBACK', ['crowdsec', 'sync', 'lookback']],
   ['CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL', ['crowdsec', 'sync', 'refreshInterval']],
@@ -728,7 +1207,10 @@ const CONFIG_VALUE_ENV = [
   ['CONFIG_CROWDSEC_SYNC_IDLE_REFRESH_INTERVAL', ['crowdsec', 'sync', 'idleRefreshInterval']],
   ['CONFIG_CROWDSEC_SYNC_IDLE_THRESHOLD', ['crowdsec', 'sync', 'idleThreshold']],
   ['CONFIG_CROWDSEC_SYNC_REQUEST_TIMEOUT', ['crowdsec', 'sync', 'requestTimeout']],
-  ['CONFIG_CROWDSEC_SYNC_BOUNCER_PROPAGATION_DELAY', ['crowdsec', 'sync', 'bouncerPropagationDelay']],
+  [
+    'CONFIG_CROWDSEC_SYNC_BOUNCER_PROPAGATION_DELAY',
+    ['crowdsec', 'sync', 'bouncerPropagationDelay'],
+  ],
   ['CONFIG_CROWDSEC_SYNC_DELETION_QUEUE_MAX_AGE', ['crowdsec', 'sync', 'deletionQueueMaxAge']],
   ['CONFIG_CROWDSEC_SYNC_METRICS_REQUEST_TIMEOUT', ['crowdsec', 'sync', 'metricsRequestTimeout']],
   ['CONFIG_CROWDSEC_SYNC_HEARTBEAT_INTERVAL', ['crowdsec', 'sync', 'heartbeatInterval']],
@@ -736,10 +1218,19 @@ const CONFIG_VALUE_ENV = [
   ['CONFIG_CROWDSEC_SYNC_ALERT_SYNC_MIN_CHUNK', ['crowdsec', 'sync', 'alertSyncMinChunk']],
   ['CONFIG_CROWDSEC_SYNC_RECONCILE_WINDOW', ['crowdsec', 'sync', 'reconcileWindow']],
   ['CONFIG_CROWDSEC_SYNC_RECONCILE_RECENT_AGE', ['crowdsec', 'sync', 'reconcileRecentAge']],
-  ['CONFIG_CROWDSEC_SYNC_RECONCILE_RECENT_INTERVAL', ['crowdsec', 'sync', 'reconcileRecentInterval']],
-  ['CONFIG_CROWDSEC_SYNC_RECONCILE_ACTIVE_INTERVAL', ['crowdsec', 'sync', 'reconcileActiveInterval']],
+  [
+    'CONFIG_CROWDSEC_SYNC_RECONCILE_RECENT_INTERVAL',
+    ['crowdsec', 'sync', 'reconcileRecentInterval'],
+  ],
+  [
+    'CONFIG_CROWDSEC_SYNC_RECONCILE_ACTIVE_INTERVAL',
+    ['crowdsec', 'sync', 'reconcileActiveInterval'],
+  ],
   ['CONFIG_CROWDSEC_SYNC_RECONCILE_OLD_INTERVAL', ['crowdsec', 'sync', 'reconcileOldInterval']],
-  ['CONFIG_CROWDSEC_SYNC_RECONCILE_WINDOWS_PER_REFRESH', ['crowdsec', 'sync', 'reconcileWindowsPerRefresh']],
+  [
+    'CONFIG_CROWDSEC_SYNC_RECONCILE_WINDOWS_PER_REFRESH',
+    ['crowdsec', 'sync', 'reconcileWindowsPerRefresh'],
+  ],
   ['CONFIG_CROWDSEC_SYNC_BOOTSTRAP_RETRY_DELAY', ['crowdsec', 'sync', 'bootstrapRetryDelay']],
   ['CONFIG_CROWDSEC_SYNC_BOOTSTRAP_RETRY_ENABLED', ['crowdsec', 'sync', 'bootstrapRetryEnabled']],
 ] as const;
@@ -757,8 +1248,14 @@ const CONFIG_ARRAY_ENV = [
   ['CONFIG_AUTH_OIDC_READ_ONLY_GROUPS', ['auth', 'oidc', 'readOnlyGroups']],
   ['CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGINS', ['crowdsec', 'alertFilters', 'includeOrigins']],
   ['CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGINS', ['crowdsec', 'alertFilters', 'excludeOrigins']],
-  ['CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS', ['crowdsec', 'alertFilters', 'legacy', 'origins']],
-  ['CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS', ['crowdsec', 'alertFilters', 'legacy', 'extraScenarios']],
+  [
+    'CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS',
+    ['crowdsec', 'alertFilters', 'legacy', 'origins'],
+  ],
+  [
+    'CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS',
+    ['crowdsec', 'alertFilters', 'legacy', 'extraScenarios'],
+  ],
   ['CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS', ['crowdsec', 'manualDecisions', 'scenarios']],
 ] as const;
 
@@ -843,7 +1340,9 @@ function indexedConfigOverrides(env: NodeJS.ProcessEnv): IndexedConfigOverride[]
     const indexedInstanceMatch = name.match(/^CONFIG_INSTANCES_(\d+)_(.+)$/);
     const defaultInstanceMatch = name.match(/^CONFIG_INSTANCE_(.+)$/);
     if (!indexedInstanceMatch && name.match(/^CONFIG_INSTANCES_(.+)$/)) {
-      throw new Error(`Configuration error: unknown indexed CONFIG_ variable ${name}. Use CONFIG_INSTANCE_* for the default instance or CONFIG_INSTANCES_<INDEX>_* for an indexed instance.`);
+      throw new Error(
+        `Configuration error: unknown indexed CONFIG_ variable ${name}. Use CONFIG_INSTANCE_* for the default instance or CONFIG_INSTANCES_<INDEX>_* for an indexed instance.`,
+      );
     }
     if (!indexedInstanceMatch && !defaultInstanceMatch) continue;
     const instanceIndex = indexedInstanceMatch ? Number(indexedInstanceMatch[1]) : 0;
@@ -866,22 +1365,32 @@ function indexedConfigOverrides(env: NodeJS.ProcessEnv): IndexedConfigOverride[]
       const metricsIndex = indexedMetricsMatch ? Number(indexedMetricsMatch[1]) : 0;
       const metricsSuffix = indexedMetricsMatch ? indexedMetricsMatch[2] : defaultMetricsMatch![1];
       const metricsPath: ConfigPath = [...instancePath, 'metrics', metricsIndex];
-      if (['AUTH_PASSWORD', 'AUTH_PASSWORD_FILE', 'AUTH_TOKEN', 'AUTH_TOKEN_FILE'].includes(metricsSuffix)) {
+      if (
+        ['AUTH_PASSWORD', 'AUTH_PASSWORD_FILE', 'AUTH_TOKEN', 'AUTH_TOKEN_FILE'].includes(
+          metricsSuffix,
+        )
+      ) {
         overrides.push({
           name,
-          path: [...metricsPath, 'auth', metricsSuffix.startsWith('AUTH_TOKEN') ? 'token' : 'password'],
+          path: [
+            ...metricsPath,
+            'auth',
+            metricsSuffix.startsWith('AUTH_TOKEN') ? 'token' : 'password',
+          ],
           secret: metricsSuffix.endsWith('_FILE') ? 'file' : 'direct',
         });
         continue;
       }
       const relativePath = CONFIG_METRICS_VALUE_SUFFIX.get(metricsSuffix);
-      if (!relativePath) throw new Error(`Configuration error: unknown indexed CONFIG_ variable ${name}.`);
+      if (!relativePath)
+        throw new Error(`Configuration error: unknown indexed CONFIG_ variable ${name}.`);
       overrides.push({ name, path: [...metricsPath, ...relativePath], secret: null });
       continue;
     }
 
     const relativePath = CONFIG_INSTANCE_VALUE_SUFFIX.get(suffix);
-    if (!relativePath) throw new Error(`Configuration error: unknown indexed CONFIG_ variable ${name}.`);
+    if (!relativePath)
+      throw new Error(`Configuration error: unknown indexed CONFIG_ variable ${name}.`);
     overrides.push({ name, path: [...instancePath, ...relativePath], secret: null });
   }
   const paths = new Map<string, string>();
@@ -889,7 +1398,9 @@ function indexedConfigOverrides(env: NodeJS.ProcessEnv): IndexedConfigOverride[]
     const pathKey = JSON.stringify(override.path);
     const existing = paths.get(pathKey);
     if (existing) {
-      throw new Error(`Configuration error: both ${existing} and ${override.name} target the same setting. Set only one.`);
+      throw new Error(
+        `Configuration error: both ${existing} and ${override.name} target the same setting. Set only one.`,
+      );
     }
     paths.set(pathKey, override.name);
   }
@@ -902,8 +1413,10 @@ function indexedConfigOverrides(env: NodeJS.ProcessEnv): IndexedConfigOverride[]
 }
 
 export function hasConfigEnvironmentOverrides(env: NodeJS.ProcessEnv): boolean {
-  for (const [name] of [...CONFIG_SECTION_ENV, ...CONFIG_VALUE_ENV]) if (has(env, name)) return true;
-  for (const [name] of CONFIG_SECRET_ENV) if (has(env, name) || has(env, `${name}_FILE`)) return true;
+  for (const [name] of [...CONFIG_SECTION_ENV, ...CONFIG_VALUE_ENV])
+    if (has(env, name)) return true;
+  for (const [name] of CONFIG_SECRET_ENV)
+    if (has(env, name) || has(env, `${name}_FILE`)) return true;
   return indexedConfigOverrides(env).length > 0;
 }
 
@@ -934,7 +1447,9 @@ function setConfigPath(document: UnknownRecord, keys: ConfigPath, value: unknown
       if (Array.isArray(current)) current[Number(key)] = replacement;
       else current[String(key)] = replacement;
     }
-    current = (Array.isArray(current) ? current[Number(key)] : current[String(key)]) as UnknownRecord | unknown[];
+    current = (Array.isArray(current) ? current[Number(key)] : current[String(key)]) as
+      | UnknownRecord
+      | unknown[];
   }
   const lastKey = keys.at(-1)!;
   if (Array.isArray(current)) current[Number(lastKey)] = value;
@@ -960,23 +1475,28 @@ function validateIndexedCollectionContinuity(
   overrides: readonly IndexedConfigOverride[],
   getPath: (keys: ConfigPath) => unknown,
 ): void {
-  const instanceIndexes = [...new Set(overrides.flatMap((override) => (
-    override.path[0] === 'instances' && typeof override.path[1] === 'number'
-      ? [override.path[1]]
-      : []
-  )))].sort((left, right) => left - right);
+  const instanceIndexes = [
+    ...new Set(
+      overrides.flatMap((override) =>
+        override.path[0] === 'instances' && typeof override.path[1] === 'number'
+          ? [override.path[1]]
+          : [],
+      ),
+    ),
+  ].sort((left, right) => left - right);
   const highestInstanceIndex = instanceIndexes.at(-1);
   if (highestInstanceIndex !== undefined) {
     for (let index = 0; index < highestInstanceIndex; index += 1) {
       if (!missingConfigCollectionEntry(getPath(['instances', index]))) continue;
       const configuredIndex = instanceIndexes.find((candidate) => candidate > index)!;
-      const relatedOverrides = overrides.filter((override) => override.path[0] === 'instances'
-        && override.path[1] === configuredIndex);
+      const relatedOverrides = overrides.filter(
+        (override) => override.path[0] === 'instances' && override.path[1] === configuredIndex,
+      );
       throw new ConfigurationEnvironmentError(
-        `instance index ${index} is missing before configured index ${configuredIndex}. `
-          + 'Instance indexes must be zero-based and contiguous. '
-          + `Rename CONFIG_INSTANCES_${configuredIndex}_* to CONFIG_INSTANCES_${index}_*, `
-          + `or define CONFIG_INSTANCES_${index}_* first.`,
+        `instance index ${index} is missing before configured index ${configuredIndex}. ` +
+          'Instance indexes must be zero-based and contiguous. ' +
+          `Rename CONFIG_INSTANCES_${configuredIndex}_* to CONFIG_INSTANCES_${index}_*, ` +
+          `or define CONFIG_INSTANCES_${index}_* first.`,
         relatedOverrides.map((override) => override.name),
       );
     }
@@ -984,10 +1504,13 @@ function validateIndexedCollectionContinuity(
 
   const metricsIndexes = new Map<number, Set<number>>();
   for (const override of overrides) {
-    if (override.path[0] !== 'instances'
-      || typeof override.path[1] !== 'number'
-      || override.path[2] !== 'metrics'
-      || typeof override.path[3] !== 'number') continue;
+    if (
+      override.path[0] !== 'instances' ||
+      typeof override.path[1] !== 'number' ||
+      override.path[2] !== 'metrics' ||
+      typeof override.path[3] !== 'number'
+    )
+      continue;
     const indexes = metricsIndexes.get(override.path[1]) || new Set<number>();
     indexes.add(override.path[3]);
     metricsIndexes.set(override.path[1], indexes);
@@ -996,20 +1519,25 @@ function validateIndexedCollectionContinuity(
     const sortedIndexes = [...configuredIndexes].sort((left, right) => left - right);
     const highestMetricsIndex = sortedIndexes.at(-1)!;
     for (let index = 0; index < highestMetricsIndex; index += 1) {
-      if (!missingConfigCollectionEntry(getPath(['instances', instanceIndex, 'metrics', index]))) continue;
+      if (!missingConfigCollectionEntry(getPath(['instances', instanceIndex, 'metrics', index])))
+        continue;
       const configuredIndex = sortedIndexes.find((candidate) => candidate > index)!;
-      const relatedOverrides = overrides.filter((override) => override.path[0] === 'instances'
-        && override.path[1] === instanceIndex
-        && override.path[2] === 'metrics'
-        && override.path[3] === configuredIndex);
-      const configuredPrefix = relatedOverrides[0]?.name.match(
-        new RegExp(`^(CONFIG_(?:INSTANCE|INSTANCES_\\d+)_METRICS_)${configuredIndex}_`),
-      )?.[1] || `CONFIG_INSTANCES_${instanceIndex}_METRICS_`;
+      const relatedOverrides = overrides.filter(
+        (override) =>
+          override.path[0] === 'instances' &&
+          override.path[1] === instanceIndex &&
+          override.path[2] === 'metrics' &&
+          override.path[3] === configuredIndex,
+      );
+      const configuredPrefix =
+        relatedOverrides[0]?.name.match(
+          new RegExp(`^(CONFIG_(?:INSTANCE|INSTANCES_\\d+)_METRICS_)${configuredIndex}_`),
+        )?.[1] || `CONFIG_INSTANCES_${instanceIndex}_METRICS_`;
       throw new ConfigurationEnvironmentError(
-        `metrics index ${index} is missing for instance ${instanceIndex} before configured index ${configuredIndex}. `
-          + 'Metrics indexes must be zero-based and contiguous. '
-          + `Rename ${configuredPrefix}${configuredIndex}_* `
-          + `to ${configuredPrefix}${index}_*, or define that index first.`,
+        `metrics index ${index} is missing for instance ${instanceIndex} before configured index ${configuredIndex}. ` +
+          'Metrics indexes must be zero-based and contiguous. ' +
+          `Rename ${configuredPrefix}${configuredIndex}_* ` +
+          `to ${configuredPrefix}${index}_*, or define that index first.`,
         relatedOverrides.map((override) => override.name),
       );
     }
@@ -1025,18 +1553,23 @@ function validateIndexedCollectionContinuity(
     scalarArrays.set(key, collection);
   }
   for (const { path: collectionPath, entries } of scalarArrays.values()) {
-    const sortedEntries = entries.sort((left, right) => Number(left.path.at(-1)) - Number(right.path.at(-1)));
+    const sortedEntries = entries.sort(
+      (left, right) => Number(left.path.at(-1)) - Number(right.path.at(-1)),
+    );
     const highestIndex = Number(sortedEntries.at(-1)!.path.at(-1));
     for (let index = 0; index < highestIndex; index += 1) {
       if (!missingConfigCollectionEntry(getPath([...collectionPath, index]))) continue;
       const configuredEntry = sortedEntries.find((entry) => Number(entry.path.at(-1)) > index)!;
       const configuredIndex = Number(configuredEntry.path.at(-1));
-      const suggestedName = configuredEntry.name.replace(new RegExp(`_${configuredIndex}$`), `_${index}`);
+      const suggestedName = configuredEntry.name.replace(
+        new RegExp(`_${configuredIndex}$`),
+        `_${index}`,
+      );
       const label = collectionPath.map((part) => String(part)).join('.');
       throw new ConfigurationEnvironmentError(
-        `index ${index} is missing for ${label} before ${configuredEntry.name}. `
-          + 'Indexed CONFIG_ values must be zero-based and contiguous. '
-          + `Define index ${index} first, or rename ${configuredEntry.name} to ${suggestedName}.`,
+        `index ${index} is missing for ${label} before ${configuredEntry.name}. ` +
+          'Indexed CONFIG_ values must be zero-based and contiguous. ' +
+          `Define index ${index} first, or rename ${configuredEntry.name} to ${suggestedName}.`,
         [configuredEntry.name],
       );
     }
@@ -1050,19 +1583,26 @@ function applyIndexedCollectionDefaults(
   forceSetupDefaults: boolean,
 ): void {
   validateIndexedCollectionContinuity(overrides, getPath);
-  const instanceIndexes = [...new Set(overrides.flatMap((override) => (
-    override.path[0] === 'instances' && typeof override.path[1] === 'number'
-      ? [override.path[1]]
-      : []
-  )))];
+  const instanceIndexes = [
+    ...new Set(
+      overrides.flatMap((override) =>
+        override.path[0] === 'instances' && typeof override.path[1] === 'number'
+          ? [override.path[1]]
+          : [],
+      ),
+    ),
+  ];
 
   for (const instanceIndex of instanceIndexes) {
-    const instanceOverrides = overrides.filter((override) => override.path[0] === 'instances'
-      && override.path[1] === instanceIndex);
-    const hasPath = (...relativePath: ConfigPath): boolean => instanceOverrides.some((override) => (
-      override.path.length === relativePath.length + 2
-      && relativePath.every((part, index) => override.path[index + 2] === part)
-    ));
+    const instanceOverrides = overrides.filter(
+      (override) => override.path[0] === 'instances' && override.path[1] === instanceIndex,
+    );
+    const hasPath = (...relativePath: ConfigPath): boolean =>
+      instanceOverrides.some(
+        (override) =>
+          override.path.length === relativePath.length + 2 &&
+          relativePath.every((part, index) => override.path[index + 2] === part),
+      );
     const idPath: ConfigPath = ['instances', instanceIndex, 'id'];
     if ((!hasPath('id') && forceSetupDefaults) || getPath(idPath) === undefined) {
       setPath(idPath, String(instanceIndex));
@@ -1075,46 +1615,64 @@ function applyIndexedCollectionDefaults(
 
     const authTypePath: ConfigPath = ['instances', instanceIndex, 'lapi', 'auth', 'type'];
     const hasAuthContainerOverride = hasPath('lapi') || hasPath('lapi', 'auth');
-    const hasExplicitAuthType = hasPath('lapi', 'auth', 'type')
-      || (hasAuthContainerOverride && getPath(authTypePath) !== undefined);
-    const hasPasswordOverride = hasPath('lapi', 'auth', 'username') || hasPath('lapi', 'auth', 'password');
-    const hasMtlsOverride = hasPath('lapi', 'auth', 'certFile') || hasPath('lapi', 'auth', 'keyFile');
+    const hasExplicitAuthType =
+      hasPath('lapi', 'auth', 'type') ||
+      (hasAuthContainerOverride && getPath(authTypePath) !== undefined);
+    const hasPasswordOverride =
+      hasPath('lapi', 'auth', 'username') || hasPath('lapi', 'auth', 'password');
+    const hasMtlsOverride =
+      hasPath('lapi', 'auth', 'certFile') || hasPath('lapi', 'auth', 'keyFile');
     if (!hasExplicitAuthType) {
       if (hasPasswordOverride && hasMtlsOverride) {
-        throw new Error(`Configuration error: instances[${instanceIndex}].lapi.auth.type cannot be inferred from mixed password and mTLS credentials.`);
+        throw new Error(
+          `Configuration error: instances[${instanceIndex}].lapi.auth.type cannot be inferred from mixed password and mTLS credentials.`,
+        );
       }
-      const hasMtlsCredentials = hasMtlsOverride
-        || getPath(['instances', instanceIndex, 'lapi', 'auth', 'certFile']) !== undefined
-        || getPath(['instances', instanceIndex, 'lapi', 'auth', 'keyFile']) !== undefined;
-      const hasPasswordCredentials = hasPasswordOverride
-        || getPath(['instances', instanceIndex, 'lapi', 'auth', 'username']) !== undefined
-        || getPath(['instances', instanceIndex, 'lapi', 'auth', 'password']) !== undefined;
+      const hasMtlsCredentials =
+        hasMtlsOverride ||
+        getPath(['instances', instanceIndex, 'lapi', 'auth', 'certFile']) !== undefined ||
+        getPath(['instances', instanceIndex, 'lapi', 'auth', 'keyFile']) !== undefined;
+      const hasPasswordCredentials =
+        hasPasswordOverride ||
+        getPath(['instances', instanceIndex, 'lapi', 'auth', 'username']) !== undefined ||
+        getPath(['instances', instanceIndex, 'lapi', 'auth', 'password']) !== undefined;
       if (hasMtlsOverride || hasPasswordOverride || getPath(authTypePath) === undefined) {
-        setPath(authTypePath, hasMtlsCredentials ? 'mtls' : hasPasswordCredentials ? 'password' : 'none');
+        setPath(
+          authTypePath,
+          hasMtlsCredentials ? 'mtls' : hasPasswordCredentials ? 'password' : 'none',
+        );
       }
     }
   }
 
   const metricsIndexes = new Map<number, Set<number>>();
   for (const override of overrides) {
-    if (override.path[0] !== 'instances'
-      || typeof override.path[1] !== 'number'
-      || override.path[2] !== 'metrics'
-      || typeof override.path[3] !== 'number') continue;
+    if (
+      override.path[0] !== 'instances' ||
+      typeof override.path[1] !== 'number' ||
+      override.path[2] !== 'metrics' ||
+      typeof override.path[3] !== 'number'
+    )
+      continue;
     const endpoints = metricsIndexes.get(override.path[1]) || new Set<number>();
     endpoints.add(override.path[3]);
     metricsIndexes.set(override.path[1], endpoints);
   }
   for (const [instanceIndex, endpointIndexes] of metricsIndexes) {
     for (const endpointIndex of endpointIndexes) {
-      const endpointOverrides = overrides.filter((override) => override.path[0] === 'instances'
-        && override.path[1] === instanceIndex
-        && override.path[2] === 'metrics'
-        && override.path[3] === endpointIndex);
-      const hasEndpointPath = (...relativePath: ConfigPath): boolean => endpointOverrides.some((override) => (
-        override.path.length === relativePath.length + 4
-        && relativePath.every((part, index) => override.path[index + 4] === part)
-      ));
+      const endpointOverrides = overrides.filter(
+        (override) =>
+          override.path[0] === 'instances' &&
+          override.path[1] === instanceIndex &&
+          override.path[2] === 'metrics' &&
+          override.path[3] === endpointIndex,
+      );
+      const hasEndpointPath = (...relativePath: ConfigPath): boolean =>
+        endpointOverrides.some(
+          (override) =>
+            override.path.length === relativePath.length + 4 &&
+            relativePath.every((part, index) => override.path[index + 4] === part),
+        );
       const idPath: ConfigPath = ['instances', instanceIndex, 'metrics', endpointIndex, 'id'];
       const hasExplicitId = hasEndpointPath('id');
       if ((!hasExplicitId && forceSetupDefaults) || getPath(idPath) === undefined) {
@@ -1127,22 +1685,41 @@ function applyIndexedCollectionDefaults(
         setPath(namePath, `Metrics ${endpointIndex}`);
       }
 
-      const authTypePath: ConfigPath = ['instances', instanceIndex, 'metrics', endpointIndex, 'auth', 'type'];
-      const hasExplicitAuthType = hasEndpointPath('auth', 'type')
-        || (hasEndpointPath('auth') && getPath(authTypePath) !== undefined);
-      const hasBasicOverride = hasEndpointPath('auth', 'username') || hasEndpointPath('auth', 'password');
+      const authTypePath: ConfigPath = [
+        'instances',
+        instanceIndex,
+        'metrics',
+        endpointIndex,
+        'auth',
+        'type',
+      ];
+      const hasExplicitAuthType =
+        hasEndpointPath('auth', 'type') ||
+        (hasEndpointPath('auth') && getPath(authTypePath) !== undefined);
+      const hasBasicOverride =
+        hasEndpointPath('auth', 'username') || hasEndpointPath('auth', 'password');
       const hasBearerOverride = hasEndpointPath('auth', 'token');
       if (!hasExplicitAuthType) {
         if (hasBasicOverride && hasBearerOverride) {
-          throw new Error(`Configuration error: instances[${instanceIndex}].metrics[${endpointIndex}].auth.type cannot be inferred from mixed basic and bearer credentials.`);
+          throw new Error(
+            `Configuration error: instances[${instanceIndex}].metrics[${endpointIndex}].auth.type cannot be inferred from mixed basic and bearer credentials.`,
+          );
         }
-        const hasBearerCredentials = hasBearerOverride
-          || getPath(['instances', instanceIndex, 'metrics', endpointIndex, 'auth', 'token']) !== undefined;
-        const hasBasicCredentials = hasBasicOverride
-          || getPath(['instances', instanceIndex, 'metrics', endpointIndex, 'auth', 'username']) !== undefined
-          || getPath(['instances', instanceIndex, 'metrics', endpointIndex, 'auth', 'password']) !== undefined;
+        const hasBearerCredentials =
+          hasBearerOverride ||
+          getPath(['instances', instanceIndex, 'metrics', endpointIndex, 'auth', 'token']) !==
+            undefined;
+        const hasBasicCredentials =
+          hasBasicOverride ||
+          getPath(['instances', instanceIndex, 'metrics', endpointIndex, 'auth', 'username']) !==
+            undefined ||
+          getPath(['instances', instanceIndex, 'metrics', endpointIndex, 'auth', 'password']) !==
+            undefined;
         if (hasBearerOverride || hasBasicOverride || getPath(authTypePath) === undefined) {
-          setPath(authTypePath, hasBearerCredentials ? 'bearer' : hasBasicCredentials ? 'basic' : 'none');
+          setPath(
+            authTypePath,
+            hasBearerCredentials ? 'bearer' : hasBasicCredentials ? 'basic' : 'none',
+          );
         }
       }
     }
@@ -1180,7 +1757,9 @@ function applyConfigEnvironment(
       const pathKey = JSON.stringify(override.path);
       const existing = secrets.get(pathKey);
       if (existing) {
-        throw new Error(`Configuration error: both ${existing.name} and ${override.name} are set. Set only one.`);
+        throw new Error(
+          `Configuration error: both ${existing.name} and ${override.name} are set. Set only one.`,
+        );
       }
       secrets.set(pathKey, override);
       applyOverride(
@@ -1190,7 +1769,8 @@ function applyConfigEnvironment(
       );
     } else {
       const value = parseConfigEnvironmentValue(override.name, env[override.name]);
-      if (override.name.endsWith('_AUTH_TYPE')) applyOverride(override.name, override.path.slice(0, -1), { type: value });
+      if (override.name.endsWith('_AUTH_TYPE'))
+        applyOverride(override.name, override.path.slice(0, -1), { type: value });
       else applyOverride(override.name, override.path, value);
     }
   }
@@ -1210,7 +1790,12 @@ export function applyConfigSetupEnvironment(
     (keys) => getConfigPath(root, keys),
     appliedOverrides,
   );
-  applyIndexedCollectionDefaults(indexedOverrides, setPath, (keys) => getConfigPath(root, keys), true);
+  applyIndexedCollectionDefaults(
+    indexedOverrides,
+    setPath,
+    (keys) => getConfigPath(root, keys),
+    true,
+  );
   return root;
 }
 
@@ -1220,17 +1805,20 @@ export interface MergedApplicationConfig {
   yaml: string;
 }
 
-function useBlockCollectionStyle(node: unknown): void {
+function applyBlockCollectionStyle(node: unknown): void {
   if (isSeq(node)) {
     node.flow = false;
-    for (const item of node.items) useBlockCollectionStyle(item);
+    for (const item of node.items) applyBlockCollectionStyle(item);
   } else if (isMap(node)) {
     node.flow = false;
-    for (const pair of node.items) useBlockCollectionStyle(pair.value);
+    for (const pair of node.items) applyBlockCollectionStyle(pair.value);
   }
 }
 
-export function mergeApplicationConfigEnvironment(file: string, env: NodeJS.ProcessEnv): MergedApplicationConfig {
+export function mergeApplicationConfigEnvironment(
+  file: string,
+  env: NodeJS.ProcessEnv,
+): MergedApplicationConfig {
   let yamlDocument;
   try {
     yamlDocument = parseYamlDocument(fs.readFileSync(file, 'utf8'));
@@ -1251,15 +1839,21 @@ export function mergeApplicationConfigEnvironment(file: string, env: NodeJS.Proc
       } else if (collection.flow) {
         // Persisted array changes remain readable instead of growing an
         // existing inline collection into one long line.
-        useBlockCollectionStyle(collection);
+        applyBlockCollectionStyle(collection);
       }
     }
     yamlDocument.setIn(keys, yamlDocument.createNode(value));
   };
   const appliedOverrides: AppliedConfigEnvironmentOverride[] = [];
-  const getPath = (keys: ConfigPath): unknown => getConfigPath(record(yamlDocument.toJS(), 'config'), keys);
+  const getPath = (keys: ConfigPath): unknown =>
+    getConfigPath(record(yamlDocument.toJS(), 'config'), keys);
   const indexedOverrides = applyConfigEnvironment(env, setPath, getPath, appliedOverrides);
-  applyIndexedCollectionDefaults(indexedOverrides, setPath, (keys) => yamlDocument.getIn(keys), false);
+  applyIndexedCollectionDefaults(
+    indexedOverrides,
+    setPath,
+    (keys) => yamlDocument.getIn(keys),
+    false,
+  );
   return {
     document: record(yamlDocument.toJS(), 'config'),
     overrides: appliedOverrides,
@@ -1290,7 +1884,8 @@ function initialRequiredInstancePaths(document: UnknownRecord): ConfigPath[] {
 
     const lapi = record(instance.lapi, `instances[${instanceIndex}].lapi`);
     paths.push([...instancePath, 'lapi', 'url']);
-    const lapiAuth = lapi.auth === undefined ? {} : record(lapi.auth, `instances[${instanceIndex}].lapi.auth`);
+    const lapiAuth =
+      lapi.auth === undefined ? {} : record(lapi.auth, `instances[${instanceIndex}].lapi.auth`);
     for (const key of ['username', 'password', 'certFile', 'keyFile']) {
       if (lapiAuth[key] !== undefined) paths.push([...instancePath, 'lapi', 'auth', key]);
     }
@@ -1304,9 +1899,10 @@ function initialRequiredInstancePaths(document: UnknownRecord): ConfigPath[] {
       if (endpoint.name !== `Metrics ${metricsIndex}`) paths.push([...endpointPath, 'name']);
       if (endpoint.icon !== undefined) paths.push([...endpointPath, 'icon']);
       paths.push([...endpointPath, 'url']);
-      const metricsAuth = endpoint.auth === undefined
-        ? {}
-        : record(endpoint.auth, `instances[${instanceIndex}].metrics[${metricsIndex}].auth`);
+      const metricsAuth =
+        endpoint.auth === undefined
+          ? {}
+          : record(endpoint.auth, `instances[${instanceIndex}].metrics[${metricsIndex}].auth`);
       for (const key of ['username', 'password', 'token']) {
         if (metricsAuth[key] !== undefined) paths.push([...endpointPath, 'auth', key]);
       }
@@ -1332,13 +1928,16 @@ function initialExplicitConfigPaths(env: NodeJS.ProcessEnv, document: UnknownRec
     if (has(env, name) || has(env, `${name}_FILE`)) paths.push(path);
   }
   for (const override of indexedConfigOverrides(env)) {
-    const arrayPath = CONFIG_ARRAY_ENV.find(([, candidate]) => (
-      configPathStartsWith(override.path, candidate)
-      && typeof override.path[candidate.length] === 'number'
-    ))?.[1];
+    const arrayPath = CONFIG_ARRAY_ENV.find(
+      ([, candidate]) =>
+        configPathStartsWith(override.path, candidate) &&
+        typeof override.path[candidate.length] === 'number',
+    )?.[1];
     paths.push(arrayPath || override.path);
   }
-  return paths.filter((path, index) => paths.findIndex((candidate) => sameConfigPath(candidate, path)) === index);
+  return paths.filter(
+    (path, index) => paths.findIndex((candidate) => sameConfigPath(candidate, path)) === index,
+  );
 }
 
 function initialConfigReference(document: UnknownRecord): UnknownRecord {
@@ -1349,26 +1948,38 @@ function initialConfigReference(document: UnknownRecord): UnknownRecord {
   const audit = record(document.audit, 'audit');
   const crowdsec = record(document.crowdsec, 'crowdsec');
   const sync = record(crowdsec.sync, 'crowdsec.sync');
-  const manualDecisions = crowdsec.manualDecisions === undefined ? {} : record(crowdsec.manualDecisions, 'crowdsec.manualDecisions');
-  const filters = crowdsec.alertFilters === undefined ? {} : record(crowdsec.alertFilters, 'crowdsec.alertFilters');
+  const manualDecisions =
+    crowdsec.manualDecisions === undefined
+      ? {}
+      : record(crowdsec.manualDecisions, 'crowdsec.manualDecisions');
+  const filters =
+    crowdsec.alertFilters === undefined
+      ? {}
+      : record(crowdsec.alertFilters, 'crowdsec.alertFilters');
   const instances = (document.instances as unknown[]).map((rawInstance, instanceIndex) => {
     const instance = record(rawInstance, `instances[${instanceIndex}]`);
     const lapi = record(instance.lapi, `instances[${instanceIndex}].lapi`);
-    const lapiAuth = lapi.auth === undefined ? {} : record(lapi.auth, `instances[${instanceIndex}].lapi.auth`);
-    const lapiTls = lapi.tls === undefined ? {} : record(lapi.tls, `instances[${instanceIndex}].lapi.tls`);
-    const instanceSync = instance.sync === undefined ? {} : record(instance.sync, `instances[${instanceIndex}].sync`);
-    const instanceManualDecisions = instance.manualDecisions === undefined
-      ? {}
-      : record(instance.manualDecisions, `instances[${instanceIndex}].manualDecisions`);
+    const lapiAuth =
+      lapi.auth === undefined ? {} : record(lapi.auth, `instances[${instanceIndex}].lapi.auth`);
+    const lapiTls =
+      lapi.tls === undefined ? {} : record(lapi.tls, `instances[${instanceIndex}].lapi.tls`);
+    const instanceSync =
+      instance.sync === undefined ? {} : record(instance.sync, `instances[${instanceIndex}].sync`);
+    const instanceManualDecisions =
+      instance.manualDecisions === undefined
+        ? {}
+        : record(instance.manualDecisions, `instances[${instanceIndex}].manualDecisions`);
     const rawMetrics = Array.isArray(instance.metrics) ? instance.metrics : [];
     const metrics = (rawMetrics.length > 0 ? rawMetrics : [{}]).map((rawEndpoint, metricsIndex) => {
       const endpoint = record(rawEndpoint, `instances[${instanceIndex}].metrics[${metricsIndex}]`);
-      const metricsAuth = endpoint.auth === undefined
-        ? {}
-        : record(endpoint.auth, `instances[${instanceIndex}].metrics[${metricsIndex}].auth`);
-      const metricsTls = endpoint.tls === undefined
-        ? {}
-        : record(endpoint.tls, `instances[${instanceIndex}].metrics[${metricsIndex}].tls`);
+      const metricsAuth =
+        endpoint.auth === undefined
+          ? {}
+          : record(endpoint.auth, `instances[${instanceIndex}].metrics[${metricsIndex}].auth`);
+      const metricsTls =
+        endpoint.tls === undefined
+          ? {}
+          : record(endpoint.tls, `instances[${instanceIndex}].metrics[${metricsIndex}].tls`);
       return {
         id: String(metricsIndex),
         name: `Metrics ${metricsIndex}`,
@@ -1481,12 +2092,18 @@ function initialConfigReference(document: UnknownRecord): UnknownRecord {
 
 function indentYaml(yaml: string, indentation: number): string[] {
   const prefix = ' '.repeat(indentation);
-  return yaml.trimEnd().split('\n').map((line) => `${prefix}${line}`);
+  return yaml
+    .trimEnd()
+    .split('\n')
+    .map((line) => `${prefix}${line}`);
 }
 
 function commentYaml(yaml: string, indentation: number): string[] {
   const prefix = ' '.repeat(indentation);
-  return yaml.trimEnd().split('\n').map((line) => `${prefix}#${line ? ` ${line}` : ''}`);
+  return yaml
+    .trimEnd()
+    .split('\n')
+    .map((line) => `${prefix}#${line ? ` ${line}` : ''}`);
 }
 
 function stringifyConfigEntry(key: string, value: unknown): string {
@@ -1507,18 +2124,31 @@ function renderInitialConfigMap(
     const childPath: ConfigPath = [...path, key];
     const hasActual = Object.prototype.hasOwnProperty.call(actual, key);
     const childActual = actual[key];
-    const explicitlyActive = hasActual && (inheritedExplicit
-      || explicitPaths.some((explicitPath) => configPathStartsWith(childPath, explicitPath)));
-    const hasExplicitDescendant = explicitPaths.some((explicitPath) => configPathStartsWith(explicitPath, childPath));
+    const explicitlyActive =
+      hasActual &&
+      (inheritedExplicit ||
+        explicitPaths.some((explicitPath) => configPathStartsWith(childPath, explicitPath)));
+    const hasExplicitDescendant = explicitPaths.some((explicitPath) =>
+      configPathStartsWith(explicitPath, childPath),
+    );
 
     if (explicitlyActive) {
       if (Array.isArray(childActual) && childActual.length > 0) {
         const rendered = renderInitialConfigArray(
-          childReference as unknown[], childActual, childPath, indentation + 2, explicitPaths, true,
+          childReference as unknown[],
+          childActual,
+          childPath,
+          indentation + 2,
+          explicitPaths,
+          true,
         );
         lines.push(`${' '.repeat(indentation)}${key}:`, ...rendered.lines);
-      } else if (childActual && typeof childActual === 'object' && !Array.isArray(childActual)
-        && Object.keys(childActual as UnknownRecord).length > 0) {
+      } else if (
+        childActual &&
+        typeof childActual === 'object' &&
+        !Array.isArray(childActual) &&
+        Object.keys(childActual as UnknownRecord).length > 0
+      ) {
         const rendered = renderInitialConfigMap(
           childReference as UnknownRecord,
           childActual as UnknownRecord,
@@ -1538,21 +2168,21 @@ function renderInitialConfigMap(
     if (hasExplicitDescendant && childReference && typeof childReference === 'object') {
       const rendered = Array.isArray(childReference)
         ? renderInitialConfigArray(
-          childReference,
-          Array.isArray(childActual) ? childActual : [],
-          childPath,
-          indentation + 2,
-          explicitPaths,
-        )
+            childReference,
+            Array.isArray(childActual) ? childActual : [],
+            childPath,
+            indentation + 2,
+            explicitPaths,
+          )
         : renderInitialConfigMap(
-          childReference as UnknownRecord,
-          childActual && typeof childActual === 'object' && !Array.isArray(childActual)
-            ? childActual as UnknownRecord
-            : {},
-          childPath,
-          indentation + 2,
-          explicitPaths,
-        );
+            childReference as UnknownRecord,
+            childActual && typeof childActual === 'object' && !Array.isArray(childActual)
+              ? (childActual as UnknownRecord)
+              : {},
+            childPath,
+            indentation + 2,
+            explicitPaths,
+          );
       if (rendered.active) {
         lines.push(`${' '.repeat(indentation)}${key}:`, ...rendered.lines);
         active = true;
@@ -1580,9 +2210,13 @@ function renderInitialConfigArray(
     const childReference = reference[index] ?? actual[index];
     const childActual = actual[index];
     const childPath: ConfigPath = [...path, index];
-    const explicitlyActive = index < actual.length && (inheritedExplicit
-      || explicitPaths.some((explicitPath) => configPathStartsWith(childPath, explicitPath)));
-    const hasExplicitDescendant = explicitPaths.some((explicitPath) => configPathStartsWith(explicitPath, childPath));
+    const explicitlyActive =
+      index < actual.length &&
+      (inheritedExplicit ||
+        explicitPaths.some((explicitPath) => configPathStartsWith(childPath, explicitPath)));
+    const hasExplicitDescendant = explicitPaths.some((explicitPath) =>
+      configPathStartsWith(explicitPath, childPath),
+    );
 
     if (explicitlyActive) {
       if (childActual && typeof childActual === 'object' && !Array.isArray(childActual)) {
@@ -1602,11 +2236,16 @@ function renderInitialConfigArray(
       continue;
     }
 
-    if (hasExplicitDescendant && childReference && typeof childReference === 'object' && !Array.isArray(childReference)) {
+    if (
+      hasExplicitDescendant &&
+      childReference &&
+      typeof childReference === 'object' &&
+      !Array.isArray(childReference)
+    ) {
       const rendered = renderInitialConfigMap(
         childReference as UnknownRecord,
         childActual && typeof childActual === 'object' && !Array.isArray(childActual)
-          ? childActual as UnknownRecord
+          ? (childActual as UnknownRecord)
           : {},
         childPath,
         indentation + 2,
@@ -1624,12 +2263,16 @@ function renderInitialConfigArray(
   return { lines, active };
 }
 
-function stringifyInitialApplicationConfig(document: UnknownRecord, env: NodeJS.ProcessEnv): string {
+function stringifyInitialApplicationConfig(
+  document: UnknownRecord,
+  env: NodeJS.ProcessEnv,
+): string {
   const explicitPaths = initialExplicitConfigPaths(env, document);
   const actual = canonicalizeConfig(document) as UnknownRecord;
   const reference = canonicalizeConfig(initialConfigReference(document)) as UnknownRecord;
   const rendered = renderInitialConfigMap(reference, actual, [], 0, explicitPaths);
-  if (!rendered.active) throw new Error('Configuration error: generated configuration has no active settings.');
+  if (!rendered.active)
+    throw new Error('Configuration error: generated configuration has no active settings.');
   const header = INITIAL_CONFIG_HEADER.map((line) => `# ${line}`).join('\n');
   return `${header}\n\n${rendered.lines.join('\n')}\n`;
 }
@@ -1654,7 +2297,9 @@ export function saveApplicationConfig(
     const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
     if (code === 'EEXIST') return false;
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Configuration error: failed to save generated configuration at "${file}": ${message}`);
+    throw new Error(
+      `Configuration error: failed to save generated configuration at "${file}": ${message}`,
+    );
   }
 }
 
@@ -1663,6 +2308,8 @@ export function persistApplicationConfig(file: string, yaml: string): void {
     fs.writeFileSync(file, yaml, { encoding: 'utf8', mode: 0o600 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Configuration error: failed to persist CONFIG_ overrides at "${file}": ${message}`);
+    throw new Error(
+      `Configuration error: failed to persist CONFIG_ overrides at "${file}": ${message}`,
+    );
   }
 }

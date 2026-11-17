@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { I18nProvider } from '../../lib/I18nProvider';
+
 import { LANGUAGE_SETTING_KEY } from '../../lib/i18n';
+import { I18nProvider } from '../../lib/I18nProvider';
 import { hasOidcAutoLoginRetried, setOidcAutoLoginRetried, setOidcAutoLoginSuppressed } from '../../lib/oidcAutoLogin';
 import { Login } from '../Login';
 
@@ -62,12 +63,14 @@ describe('Login', () => {
   function renderWithAutoLogin(overrides: Record<string, unknown> = {}, initialEntry = '/login') {
     const replace = vi.fn();
     vi.stubGlobal('location', { ...window.location, replace });
-    useAuthMock.mockReturnValue(createAuthState({
-      oidcEnabled: true,
-      oidcAutoLogin: true,
-      passwordLoginDisabled: true,
-      ...overrides,
-    }));
+    useAuthMock.mockReturnValue(
+      createAuthState({
+        oidcEnabled: true,
+        oidcAutoLogin: true,
+        passwordLoginDisabled: true,
+        ...overrides,
+      }),
+    );
     render(
       <MemoryRouter initialEntries={[initialEntry]}>
         <Login />
@@ -152,7 +155,10 @@ describe('Login', () => {
   });
 
   test('shows an expired SSO sign-in when auto-login is inactive', async () => {
-    const replace = renderWithAutoLogin({ oidcAutoLogin: false, passwordLoginDisabled: false }, '/login?oidcError=expired');
+    const replace = renderWithAutoLogin(
+      { oidcAutoLogin: false, passwordLoginDisabled: false },
+      '/login?oidcError=expired',
+    );
 
     expect(await screen.findByText('Your sign-in session expired. Please sign in again.')).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
@@ -244,7 +250,9 @@ describe('Login', () => {
     await user.type(screen.getByLabelText('Authenticator code'), 'sf');
     await user.click(screen.getByRole('button', { name: 'Sign In' }));
 
-    expect(await screen.findByText('Authenticator code can only contain digits and spaces.')).toHaveClass('text-red-200');
+    expect(await screen.findByText('Authenticator code can only contain digits and spaces.')).toHaveClass(
+      'text-red-200',
+    );
     expect(loginMock).toHaveBeenCalledTimes(1);
   });
 

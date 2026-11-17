@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+
 import {
   BRANDING_THEME_STYLE_ID,
   buildBrandingThemeCss,
@@ -46,7 +47,10 @@ export interface PublicBranding {
 export class BrandingValidationError extends Error {}
 
 const DATA_URL_PATTERN = /^data:[^,]*;base64,([A-Za-z0-9+/]+={0,2})$/;
-const parsedLogoCache = new WeakMap<CrowdsecDatabase, Map<AppLogoVariant, { stored: string; logo: AppLogo | null }>>();
+const parsedLogoCache = new WeakMap<
+  CrowdsecDatabase,
+  Map<AppLogoVariant, { stored: string; logo: AppLogo | null }>
+>();
 
 function logoMetaKey(variant: AppLogoVariant): string {
   return variant === 'dark' ? APP_LOGO_DARK_META_KEY : APP_LOGO_META_KEY;
@@ -60,12 +64,17 @@ export function normalizeAppName(value: unknown): string {
   if (typeof value !== 'string') {
     throw new BrandingValidationError('Application name must be a string');
   }
-  const normalized = value
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+  const normalized = Array.from(value, (char) => {
+    const code = char.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f ? ' ' : char;
+  })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim();
   if (normalized.length > MAX_APP_NAME_LENGTH) {
-    throw new BrandingValidationError(`Application name must be ${MAX_APP_NAME_LENGTH} characters or fewer`);
+    throw new BrandingValidationError(
+      `Application name must be ${MAX_APP_NAME_LENGTH} characters or fewer`,
+    );
   }
   return normalized;
 }
@@ -104,7 +113,10 @@ export function detectAppLogoContentType(data: Buffer): AppLogoContentType | nul
 }
 
 /** Validates an uploaded logo (base64 data URL) and returns its decoded form. */
-export function parseAppLogoUpload(dataUrl: unknown): { contentType: AppLogoContentType; data: Buffer } {
+export function parseAppLogoUpload(dataUrl: unknown): {
+  contentType: AppLogoContentType;
+  data: Buffer;
+} {
   const match = typeof dataUrl === 'string' ? DATA_URL_PATTERN.exec(dataUrl.trim()) : null;
   if (!match) {
     throw new BrandingValidationError('Logo must be provided as a base64 data URL');
@@ -128,10 +140,16 @@ export function saveAppLogo(
   logo: { contentType: AppLogoContentType; data: Buffer },
   variant: AppLogoVariant = 'default',
 ): void {
-  database.setMeta(logoMetaKey(variant), `data:${logo.contentType};base64,${logo.data.toString('base64')}`);
+  database.setMeta(
+    logoMetaKey(variant),
+    `data:${logo.contentType};base64,${logo.data.toString('base64')}`,
+  );
 }
 
-export function clearAppLogo(database: CrowdsecDatabase, variant: AppLogoVariant = 'default'): void {
+export function clearAppLogo(
+  database: CrowdsecDatabase,
+  variant: AppLogoVariant = 'default',
+): void {
   database.setMeta(logoMetaKey(variant), '');
 }
 
@@ -148,7 +166,10 @@ function parseStoredLogo(stored: string): AppLogo | null {
   };
 }
 
-export function getAppLogo(database: CrowdsecDatabase, variant: AppLogoVariant = 'default'): AppLogo | null {
+export function getAppLogo(
+  database: CrowdsecDatabase,
+  variant: AppLogoVariant = 'default',
+): AppLogo | null {
   let stored: string;
   try {
     stored = database.getMeta(logoMetaKey(variant))?.value || '';
@@ -169,7 +190,11 @@ export function getAppLogo(database: CrowdsecDatabase, variant: AppLogoVariant =
   return logo;
 }
 
-export function getAppLogoUrl(logo: AppLogo, basePath: string, variant: AppLogoVariant = 'default'): string {
+export function getAppLogoUrl(
+  logo: AppLogo,
+  basePath: string,
+  variant: AppLogoVariant = 'default',
+): string {
   return `${basePath}${variant === 'dark' ? APP_LOGO_DARK_PATH : APP_LOGO_PATH}?v=${logo.version}`;
 }
 
@@ -215,24 +240,33 @@ function escapeHtml(value: string): string {
  */
 export function applyBrandingToIndexHtml(html: string, branding: PublicBranding): string {
   // Function replacers keep "$&"-style sequences in the name literal.
-  let branded = html.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(branding.appName)}</title>`);
+  let branded = html.replace(
+    /<title>[\s\S]*?<\/title>/i,
+    () => `<title>${escapeHtml(branding.appName)}</title>`,
+  );
 
   const { logoUrl } = branding;
   if (logoUrl) {
-    branded = branded.replace(/<link\b[^>]*\brel="(?:icon|shortcut icon|apple-touch-icon)"[^>]*>/gi, (tag) => {
-      const rel = /\brel="([^"]*)"/i.exec(tag)?.[1] ?? 'icon';
-      const sizes = /\bsizes="([^"]*)"/i.exec(tag)?.[1];
-      const defaultHref = /\bhref="([^"]*)"/i.exec(tag)?.[1] ?? '';
-      const defaultType = /\btype="([^"]*)"/i.exec(tag)?.[1] ?? '';
-      const sizesAttribute = sizes ? ` sizes="${sizes}"` : '';
-      return `<link rel="${rel}"${sizesAttribute} href="${escapeHtml(logoUrl)}" data-default-href="${defaultHref}" data-default-type="${defaultType}" />`;
-    });
+    branded = branded.replace(
+      /<link\b[^>]*\brel="(?:icon|shortcut icon|apple-touch-icon)"[^>]*>/gi,
+      (tag) => {
+        const rel = /\brel="([^"]*)"/i.exec(tag)?.[1] ?? 'icon';
+        const sizes = /\bsizes="([^"]*)"/i.exec(tag)?.[1];
+        const defaultHref = /\bhref="([^"]*)"/i.exec(tag)?.[1] ?? '';
+        const defaultType = /\btype="([^"]*)"/i.exec(tag)?.[1] ?? '';
+        const sizesAttribute = sizes ? ` sizes="${sizes}"` : '';
+        return `<link rel="${rel}"${sizesAttribute} href="${escapeHtml(logoUrl)}" data-default-href="${defaultHref}" data-default-type="${defaultType}" />`;
+      },
+    );
   }
 
   // The theme CSS is built only from validated hex colors and preset names.
   const themeCss = buildBrandingThemeCss(branding.theme);
   if (themeCss) {
-    branded = branded.replace('</head>', () => `<style id="${BRANDING_THEME_STYLE_ID}">${themeCss}</style>\n</head>`);
+    branded = branded.replace(
+      '</head>',
+      () => `<style id="${BRANDING_THEME_STYLE_ID}">${themeCss}</style>\n</head>`,
+    );
   }
 
   return branded;

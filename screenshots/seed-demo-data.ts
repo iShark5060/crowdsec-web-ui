@@ -1,10 +1,12 @@
 import { rmSync } from 'node:fs';
 import path from 'node:path';
+
 import { removeStatisticsDatabase, seedStatisticsArchive } from '../scripts/load-test-statistics';
 import { hashPassword } from '../server/app-auth';
 import { CACHE_DATABASE_FILE, CrowdsecDatabase, STATE_DATABASE_FILE } from '../server/database';
 
-const dbDir = process.env.DB_DIR || path.join(process.env.TMPDIR || '/tmp', 'crowdsec-web-ui-screenshots');
+const dbDir =
+  process.env.DB_DIR || path.join(process.env.TMPDIR || '/tmp', 'crowdsec-web-ui-screenshots');
 const configPath = path.join(dbDir, 'screenshot-config.yaml');
 const demoUsername = process.env.CROWDSEC_SCREENSHOT_USERNAME || 'admin';
 const demoPassword = process.env.CROWDSEC_SCREENSHOT_PASSWORD || 'Screenshot123';
@@ -28,7 +30,8 @@ const demoUserId = database.createAuthUser({
 
 const now = new Date();
 const iso = (minutesAgo: number) => new Date(now.getTime() - minutesAgo * 60_000).toISOString();
-const futureIso = (hoursFromNow: number) => new Date(now.getTime() + hoursFromNow * 3_600_000).toISOString();
+const futureIso = (hoursFromNow: number) =>
+  new Date(now.getTime() + hoursFromNow * 3_600_000).toISOString();
 const pastIso = (hoursAgo: number) => new Date(now.getTime() - hoursAgo * 3_600_000).toISOString();
 
 for (const [id, name, query] of [
@@ -36,8 +39,10 @@ for (const [id, name, query] of [
   ['filter-waf', 'WAF activity', 'kind=waf'],
   ['filter-ssh', 'SSH attempts', 'scenario=crowdsecurity/ssh-bf'],
 ]) {
-  database.db.query(`INSERT INTO saved_search_filters (id, owner_id, name, query, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)`).run(id, demoUserId, name, query, now.toISOString(), now.toISOString());
+  database.db
+    .query(`INSERT INTO saved_search_filters (id, owner_id, name, query, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(id, demoUserId, name, query, now.toISOString(), now.toISOString());
 }
 
 for (const [index, query] of [
@@ -47,7 +52,8 @@ for (const [index, query] of [
   'kind=waf',
   'country=NL',
 ].entries()) {
-  database.db.query('INSERT INTO recent_search_filters (owner_id, query, used_at_ms) VALUES (?, ?, ?)')
+  database.db
+    .query('INSERT INTO recent_search_filters (owner_id, query, used_at_ms) VALUES (?, ?, ?)')
     .run(demoUserId, query, now.getTime() - (4 - index) * 60_000);
 }
 
@@ -191,7 +197,14 @@ insertAlert({
   longitude: 4.9041,
   eventsCount: 46,
   decisions: [
-    { id: '4201', type: 'ban', value: '45.146.164.110', origin: 'crowdsec', duration: '4h', stopAt: futureIso(4) },
+    {
+      id: '4201',
+      type: 'ban',
+      value: '45.146.164.110',
+      origin: 'crowdsec',
+      duration: '4h',
+      stopAt: futureIso(4),
+    },
   ],
 });
 
@@ -212,7 +225,14 @@ insertAlert({
   longitude: 8.6821,
   eventsCount: 28,
   decisions: [
-    { id: '4202', type: 'ban', value: '91.240.118.172', origin: 'crowdsec', duration: '2h', stopAt: futureIso(2) },
+    {
+      id: '4202',
+      type: 'ban',
+      value: '91.240.118.172',
+      origin: 'crowdsec',
+      duration: '2h',
+      stopAt: futureIso(2),
+    },
   ],
 });
 
@@ -233,7 +253,14 @@ insertAlert({
   longitude: -122.4194,
   eventsCount: 9,
   decisions: [
-    { id: '4203', type: 'captcha', value: '198.51.100.24', origin: 'crowdsec', duration: '1h', stopAt: futureIso(1) },
+    {
+      id: '4203',
+      type: 'captcha',
+      value: '198.51.100.24',
+      origin: 'crowdsec',
+      duration: '1h',
+      stopAt: futureIso(1),
+    },
   ],
 });
 
@@ -253,7 +280,14 @@ insertAlert({
   longitude: 2.3522,
   eventsCount: 1,
   decisions: [
-    { id: '4204', type: 'ban', value: '203.0.113.77', origin: 'CAPI', duration: '24h', stopAt: futureIso(24) },
+    {
+      id: '4204',
+      type: 'ban',
+      value: '203.0.113.77',
+      origin: 'CAPI',
+      duration: '24h',
+      stopAt: futureIso(24),
+    },
   ],
 });
 
@@ -275,7 +309,15 @@ insertAlert({
   eventsCount: 14,
   simulated: true,
   decisions: [
-    { id: '4205', type: 'ban', value: '192.0.2.44', origin: 'manual', duration: '30m', stopAt: futureIso(0.5), simulated: true },
+    {
+      id: '4205',
+      type: 'ban',
+      value: '192.0.2.44',
+      origin: 'manual',
+      duration: '30m',
+      stopAt: futureIso(0.5),
+      simulated: true,
+    },
   ],
 });
 
@@ -417,8 +459,15 @@ for (const [index, { instanceId, dailyAlerts }] of [
   { instanceId: 'edge', dailyAlerts: 45 },
 ].entries()) {
   seedStatisticsArchive({
-    dbDir, instanceId, seed: index + 1, sourceSeed: 1, nowMs: now.getTime(),
-    historyDays: 30, cacheStartMs: Date.parse(pastIso(1)), dailyAlerts, retentionDays: 90,
+    dbDir,
+    instanceId,
+    seed: index + 1,
+    sourceSeed: 1,
+    nowMs: now.getTime(),
+    historyDays: 30,
+    cacheStartMs: Date.parse(pastIso(1)),
+    dailyAlerts,
+    retentionDays: 90,
     log: (message) => console.log(`${instanceId}: ${message}`),
   });
 }

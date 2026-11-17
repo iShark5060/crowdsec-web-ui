@@ -19,7 +19,8 @@ export interface UpdateCheckOverrides {
 export type UpdateChecker = (overrides?: UpdateCheckOverrides) => Promise<UpdateCheckResponse>;
 
 export function createUpdateChecker(options: UpdateCheckOptions) {
-  const fetchImpl: FetchLike = options.fetchImpl || ((input, init) => fetch(input, init as RequestInit));
+  const fetchImpl: FetchLike =
+    options.fetchImpl || ((input, init) => fetch(input, init as RequestInit));
   const cacheDurationMs = 6 * 60 * 60 * 1_000;
   let cached: { key: string; lastCheck: number; data: UpdateCheckResponse | null } = {
     key: '',
@@ -27,7 +28,9 @@ export function createUpdateChecker(options: UpdateCheckOptions) {
     data: null,
   };
 
-  return async function checkForUpdates(overrides: UpdateCheckOverrides = {}): Promise<UpdateCheckResponse> {
+  return async function checkForUpdates(
+    overrides: UpdateCheckOverrides = {},
+  ): Promise<UpdateCheckResponse> {
     if (!options.enabled) {
       return { update_available: false, reason: 'no_local_hash' };
     }
@@ -37,7 +40,12 @@ export function createUpdateChecker(options: UpdateCheckOptions) {
       commitHash: normalizeLocalValue(overrides.commitHash) || options.commitHash,
       version: normalizeLocalValue(overrides.version) || options.version,
     };
-    const cacheKey = JSON.stringify([options.dockerImageRef, local.branch, local.commitHash, local.version]);
+    const cacheKey = JSON.stringify([
+      options.dockerImageRef,
+      local.branch,
+      local.commitHash,
+      local.version,
+    ]);
     const now = Date.now();
     if (cached.data && cached.key === cacheKey && now - cached.lastCheck < cacheDurationMs) {
       return cached.data;
@@ -68,24 +76,29 @@ export function createUpdateChecker(options: UpdateCheckOptions) {
           tag: 'dev',
         };
       } else {
-        const response = await fetchImpl(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
-          headers: {
-            Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'crowdsec-web-ui-update-check',
+        const response = await fetchImpl(
+          `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
+          {
+            headers: {
+              Accept: 'application/vnd.github.v3+json',
+              'User-Agent': 'crowdsec-web-ui-update-check',
+            },
+            signal: AbortSignal.timeout(10_000),
           },
-          signal: AbortSignal.timeout(10_000),
-        });
+        );
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
 
-        const release = await response.json() as { tag_name: string; html_url: string };
+        const release = (await response.json()) as { tag_name: string; html_url: string };
         const remoteVersion = release.tag_name.replace(/^v/i, '').trim();
         const currentVersion = local.version ? local.version.replace(/^v/i, '').trim() : null;
 
         result = {
-          update_available: Boolean(currentVersion && compareReleaseVersions(remoteVersion, currentVersion) > 0),
+          update_available: Boolean(
+            currentVersion && compareReleaseVersions(remoteVersion, currentVersion) > 0,
+          ),
           local_version: local.version || null,
           remote_version: remoteVersion,
           release_url: release.html_url,
@@ -109,7 +122,8 @@ function normalizeLocalValue(value: string | undefined): string {
 function compareReleaseVersions(left: string, right: string): number {
   const leftParts = left.split('.').map((part) => Number(part));
   const rightParts = right.split('.').map((part) => Number(part));
-  const canCompareNumerically = leftParts.every(Number.isFinite) && rightParts.every(Number.isFinite);
+  const canCompareNumerically =
+    leftParts.every(Number.isFinite) && rightParts.every(Number.isFinite);
 
   if (!canCompareNumerically) {
     return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
@@ -127,15 +141,22 @@ function compareReleaseVersions(left: string, right: string): number {
   return 0;
 }
 
-async function resolveLatestDevBuild(owner: string, repo: string, fetchImpl: FetchLike): Promise<string> {
+async function resolveLatestDevBuild(
+  owner: string,
+  repo: string,
+  fetchImpl: FetchLike,
+): Promise<string> {
   try {
-    const tokenResponse = await fetchImpl(`https://ghcr.io/token?scope=repository:${owner}/${repo}:pull`, {
-      headers: { 'User-Agent': 'crowdsec-web-ui-update-check' },
-      signal: AbortSignal.timeout(10_000),
-    });
+    const tokenResponse = await fetchImpl(
+      `https://ghcr.io/token?scope=repository:${owner}/${repo}:pull`,
+      {
+        headers: { 'User-Agent': 'crowdsec-web-ui-update-check' },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
 
     if (tokenResponse.ok) {
-      const tokenData = await tokenResponse.json() as { token?: string };
+      const tokenData = (await tokenResponse.json()) as { token?: string };
       if (tokenData.token) {
         const tagsResponse = await fetchImpl(`https://ghcr.io/v2/${owner}/${repo}/tags/list`, {
           headers: {
@@ -146,7 +167,7 @@ async function resolveLatestDevBuild(owner: string, repo: string, fetchImpl: Fet
         });
 
         if (tagsResponse.ok) {
-          const tagsData = await tagsResponse.json() as { tags?: string[] };
+          const tagsData = (await tagsResponse.json()) as { tags?: string[] };
           const devTags = (tagsData.tags || []).filter((tag) => /^dev-\d{12}$/.test(tag)).sort();
           if (devTags.length > 0) {
             return devTags[devTags.length - 1].replace('dev-', '');
@@ -173,7 +194,7 @@ async function resolveLatestDevBuild(owner: string, repo: string, fetchImpl: Fet
     throw new Error(`HTTP ${runsResponse.status}`);
   }
 
-  const payload = await runsResponse.json() as {
+  const payload = (await runsResponse.json()) as {
     workflow_runs?: Array<{ run_started_at?: string; created_at: string }>;
   };
 

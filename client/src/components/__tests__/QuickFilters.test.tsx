@@ -1,13 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from 'vitest';
-import { QuickFilters, type QuickFilterSectionId } from '../QuickFilters';
+
+import type { SearchFacetSelection } from '../../../../shared/search';
+import type { SearchDateRange } from '../../../../shared/search';
 import * as api from '../../lib/api';
 import { I18nContext, type I18nContextValue } from '../../lib/i18n';
 import en from '../../locales/en.json';
 import type { FacetField } from '../../types';
-import type { SearchFacetSelection } from '../../../../shared/search';
-import type { SearchDateRange } from '../../../../shared/search';
+import { QuickFilters, type QuickFilterSectionId } from '../QuickFilters';
 
 vi.mock('../../lib/api', () => ({
   fetchFacet: vi.fn(),
@@ -42,10 +43,9 @@ function renderFilters(
     onOpenChange?: Mock<(open: boolean) => void>;
   } = {},
 ) {
-  const onSelectionChange = options.onSelectionChange
-    || vi.fn<(field: FacetField, selection: SearchFacetSelection) => void>();
-  const onDateRangeChange = options.onDateRangeChange
-    || vi.fn<(range: SearchDateRange) => void>();
+  const onSelectionChange =
+    options.onSelectionChange || vi.fn<(field: FacetField, selection: SearchFacetSelection) => void>();
+  const onDateRangeChange = options.onDateRangeChange || vi.fn<(range: SearchDateRange) => void>();
   const onClearAll = options.onClearAll || vi.fn<() => void>();
   const result = render(
     <I18nContext.Provider value={i18n}>
@@ -102,7 +102,9 @@ describe('QuickFilters', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
     await user.click(screen.getByRole('button', { name: 'Filters' }));
-    await user.click(within(screen.getByRole('dialog', { name: 'Quick filters' })).getByRole('button', { name: 'Close filters' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Quick filters' })).getByRole('button', { name: 'Close filters' }),
+    );
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
     await user.click(screen.getByRole('button', { name: 'Filters' }));
     await user.click(screen.getAllByRole('button', { name: 'Close filters' })[0]);
@@ -142,10 +144,7 @@ describe('QuickFilters', () => {
     };
     const { rerender } = render(
       <I18nContext.Provider value={i18n}>
-        <QuickFilters
-          {...props}
-          simulation={{ value: 'all', onChange: onSimulationChange }}
-        />
+        <QuickFilters {...props} simulation={{ value: 'all', onChange: onSimulationChange }} />
       </I18nContext.Provider>,
     );
 
@@ -164,8 +163,9 @@ describe('QuickFilters', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Toggle Live in Mode' }));
     expect(onSimulationChange).toHaveBeenCalledWith('simulated');
 
-    await user.click(within(screen.getByRole('dialog', { name: 'Quick filters' }))
-      .getByRole('button', { name: 'Close filters' }));
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Quick filters' })).getByRole('button', { name: 'Close filters' }),
+    );
     rerender(
       <I18nContext.Provider value={i18n}>
         <QuickFilters {...props} />
@@ -222,9 +222,7 @@ describe('QuickFilters', () => {
           dateRange={{ start: '', end: '' }}
           onDateRangeChange={vi.fn()}
           onClearAll={vi.fn()}
-          formatValue={(field, value) => (
-            field === 'instance' && value === 'primary' ? 'Primary Office' : value
-          )}
+          formatValue={(field, value) => (field === 'instance' && value === 'primary' ? 'Primary Office' : value)}
         />
       </I18nContext.Provider>,
     );
@@ -309,15 +307,17 @@ describe('QuickFilters', () => {
     await user.click(screen.getByRole('button', { name: 'Search Country' }));
     await user.type(screen.getByPlaceholderText('Search values...'), 'Germany');
 
-    await waitFor(() => expect(api.fetchFacet).toHaveBeenLastCalledWith(
-      'alerts',
-      'country',
-      {},
-      expect.objectContaining({
-        search: 'Germany',
-        searchValues: ['DE'],
-      }),
-    ));
+    await waitFor(() =>
+      expect(api.fetchFacet).toHaveBeenLastCalledWith(
+        'alerts',
+        'country',
+        {},
+        expect.objectContaining({
+          search: 'Germany',
+          searchValues: ['DE'],
+        }),
+      ),
+    );
     expect(getSearchValues).toHaveBeenCalledWith('country', 'Germany');
   });
 
@@ -347,9 +347,12 @@ describe('QuickFilters', () => {
     expect(await screen.findByText('DE')).toBeInTheDocument();
 
     let resolveRefresh!: (response: Awaited<ReturnType<typeof api.fetchFacet>>) => void;
-    vi.mocked(api.fetchFacet).mockImplementationOnce(() => new Promise((resolve) => {
-      resolveRefresh = resolve;
-    }));
+    vi.mocked(api.fetchFacet).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
 
     rerender(renderQuickFilters({ q: 'scenario:ssh AND country:DE' }, true));
     expect(screen.getByText('DE')).toBeInTheDocument();
@@ -462,8 +465,7 @@ describe('QuickFilters', () => {
     expect(last24Hours).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Last 48 hours' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Last 30 days' })).not.toBeInTheDocument();
-    expect(within(screen.getByText('Quick ranges').closest('fieldset')!)
-      .getAllByRole('button')).toHaveLength(4);
+    expect(within(screen.getByText('Quick ranges').closest('fieldset')!).getAllByRole('button')).toHaveLength(4);
     expect(screen.getByText('Custom range')).toBeInTheDocument();
     expect(screen.getByLabelText('From')).toHaveClass('text-base', 'sm:text-sm', 'min-w-0');
 
@@ -486,8 +488,7 @@ describe('QuickFilters', () => {
     expect(screen.getByRole('button', { name: 'Last 3 days' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Last 48 hours' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Last 7 days' })).not.toBeInTheDocument();
-    expect(within(screen.getByText('Quick ranges').closest('fieldset')!)
-      .getAllByRole('button')).toHaveLength(4);
+    expect(within(screen.getByText('Quick ranges').closest('fieldset')!).getAllByRole('button')).toHaveLength(4);
 
     fireEvent.click(screen.getByRole('button', { name: 'Last 3 days' }));
     expect(onDateRangeChange).toHaveBeenLastCalledWith({
@@ -506,11 +507,7 @@ describe('QuickFilters', () => {
 
     const selectedRange = screen.getByRole('button', { name: 'Last 7 days' });
     expect(selectedRange).toHaveAttribute('aria-pressed', 'true');
-    expect(selectedRange).toHaveClass(
-      'dark:bg-primary-900',
-      'dark:text-primary-100',
-      'dark:border-primary-400',
-    );
+    expect(selectedRange).toHaveClass('dark:bg-primary-900', 'dark:text-primary-100', 'dark:border-primary-400');
   });
 
   test('orders sections as requested and does not render a date calendar icon', async () => {
@@ -519,9 +516,9 @@ describe('QuickFilters', () => {
 
     await user.click(screen.getByRole('button', { name: 'Filters' }));
     const dialog = screen.getByRole('dialog', { name: 'Quick filters' });
-    const sectionButtons = within(dialog).getAllByRole('button').filter((button) => (
-      ['IP', 'Date and time', 'Country'].includes(button.textContent || '')
-    ));
+    const sectionButtons = within(dialog)
+      .getAllByRole('button')
+      .filter((button) => ['IP', 'Date and time', 'Country'].includes(button.textContent || ''));
 
     expect(sectionButtons.map((button) => button.textContent)).toEqual(['IP', 'Date and time', 'Country']);
     expect(screen.getByRole('button', { name: 'Date and time' }).querySelector('.lucide-calendar-clock')).toBeNull();
@@ -543,8 +540,8 @@ describe('QuickFilters', () => {
     expect(within(hiddenSection!).getByRole('button', { name: 'IP' })).toBeInTheDocument();
     expect(within(hiddenSection!).queryByRole('button', { name: 'Country' })).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Country' }).compareDocumentPosition(hiddenHeading)
-      & Node.DOCUMENT_POSITION_FOLLOWING,
+      screen.getByRole('button', { name: 'Country' }).compareDocumentPosition(hiddenHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
@@ -565,9 +562,7 @@ describe('QuickFilters', () => {
           dateRange={{ start: '', end: '' }}
           onDateRangeChange={vi.fn()}
           onClearAll={vi.fn()}
-          getSelection={(field, selection) => field === 'action'
-            ? { included: ['ban'], excluded: [] }
-            : selection}
+          getSelection={(field, selection) => (field === 'action' ? { included: ['ban'], excluded: [] } : selection)}
           sectionOrder={['country']}
           unavailableSectionOrder={['action']}
         />

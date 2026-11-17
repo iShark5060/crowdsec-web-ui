@@ -1,7 +1,8 @@
 import path from 'path';
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
+
 import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -32,7 +33,12 @@ export default defineConfig({
         'client/src/components/TimeDisplay.tsx',
         'client/src/components/SyncOverlay.tsx',
       ],
-      exclude: ['client/src/test/**', 'client/src/main.tsx', 'client/src/types/**', 'client/src/vite-env.d.ts'],
+      exclude: [
+        'client/src/test/**',
+        'client/src/main.tsx',
+        'client/src/types/**',
+        'client/src/vite-env.d.ts',
+      ],
       thresholds: {
         lines: 90,
         functions: 90,

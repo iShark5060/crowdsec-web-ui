@@ -34,17 +34,23 @@ export class ConfigurationLoadError extends Error {
     super(message, error instanceof Error ? { cause: error } : undefined);
     this.name = 'ConfigurationLoadError';
     this.configFile = options.configFile;
-    this.overrideNames = [...new Set([
-      ...(options.overrides || []).map((override) => override.name),
-      ...(options.overrideNames || []),
-    ])].sort();
+    this.overrideNames = [
+      ...new Set([
+        ...(options.overrides || []).map((override) => override.name),
+        ...(options.overrideNames || []),
+      ]),
+    ].sort();
   }
 }
 
 export function isConfigurationError(error: unknown): boolean {
   const message = errorMessage(error);
-  return error instanceof ConfigurationLoadError
-    || /^Configuration error:/i.test(message)
-    || /^Invalid (?:TZ|TIME_FORMAT|AUTH_)/i.test(message)
-    || /^CrowdSec (?:authentication is misconfigured|password authentication requires|mTLS authentication requires)/i.test(message);
+  return (
+    error instanceof ConfigurationLoadError ||
+    /^Configuration error:/i.test(message) ||
+    /^Invalid (?:TZ|TIME_FORMAT|AUTH_)/i.test(message) ||
+    /^CrowdSec (?:authentication is misconfigured|password authentication requires|mTLS authentication requires)/i.test(
+      message,
+    )
+  );
 }

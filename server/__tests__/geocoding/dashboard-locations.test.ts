@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import {
   addDashboardAttackLocation,
   DASHBOARD_ATTACK_LOCATION_LIMIT,
@@ -13,13 +14,15 @@ describe('dashboard attack locations', () => {
     addDashboardAttackLocation(locations, { latitude: 52.52, longitude: 13.405, simulated: false });
     addDashboardAttackLocation(locations, { latitude: 52.51, longitude: 13.41, simulated: true });
 
-    expect(dashboardAttackLocationData(locations)).toEqual([{
-      latitude: 52.515,
-      longitude: 13.4075,
-      count: 2,
-      liveCount: 1,
-      simulatedCount: 1,
-    }]);
+    expect(dashboardAttackLocationData(locations)).toEqual([
+      {
+        latitude: 52.515,
+        longitude: 13.4075,
+        count: 2,
+        liveCount: 1,
+        simulatedCount: 1,
+      },
+    ]);
   });
 
   test('keeps a 100,000-alert workload bounded to the marker limit', () => {

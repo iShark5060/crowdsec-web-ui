@@ -28,7 +28,11 @@ export function getLoadTestHeadSyncEnd(
   nowMs: number,
   maxLagMs: number,
 ): number | null {
-  if (!Number.isFinite(relativeWindowEndMs) || !Number.isFinite(nowMs) || !Number.isFinite(maxLagMs)) {
+  if (
+    !Number.isFinite(relativeWindowEndMs) ||
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(maxLagMs)
+  ) {
     return null;
   }
 
@@ -130,15 +134,21 @@ export function* getLoadTestDecisionIdsForAlertLayout(
   if (alertId < 1 || alertId > resolved.alertCount || resolved.decisionCount <= 0) return;
 
   if (alertId <= resolved.blocklistDecisionCounts.length) {
-    const start = resolved.blocklistDecisionCounts
-      .slice(0, alertId - 1)
-      .reduce((total, count) => total + count, 0) + 1;
+    const start =
+      resolved.blocklistDecisionCounts
+        .slice(0, alertId - 1)
+        .reduce((total, count) => total + count, 0) + 1;
     const end = start + resolved.blocklistDecisionCounts[alertId - 1] - 1;
     for (let decisionId = start; decisionId <= end; decisionId += 1) yield decisionId;
     return;
   }
 
-  if (alertId < resolved.regularAlertStart || alertId > resolved.regularAlertEnd || resolved.regularAlertCount <= 0) return;
+  if (
+    alertId < resolved.regularAlertStart ||
+    alertId > resolved.regularAlertEnd ||
+    resolved.regularAlertCount <= 0
+  )
+    return;
   const firstDecisionId = resolved.blocklistTotal + 1 + alertId - resolved.regularAlertStart;
   for (
     let decisionId = firstDecisionId;
@@ -154,7 +164,8 @@ export function getLoadTestSourceAlertIdForDecisionLayout(
   layout: LoadTestDecisionLayout,
 ): number | null {
   const resolved = resolveDecisionLayout(layout);
-  if (decisionId < 1 || decisionId > resolved.decisionCount || resolved.alertCount <= 0) return null;
+  if (decisionId < 1 || decisionId > resolved.decisionCount || resolved.alertCount <= 0)
+    return null;
 
   let blocklistEnd = 0;
   for (let index = 0; index < resolved.blocklistDecisionCounts.length; index += 1) {
@@ -163,9 +174,14 @@ export function getLoadTestSourceAlertIdForDecisionLayout(
   }
 
   if (resolved.regularAlertCount <= 0) {
-    return resolved.blocklistDecisionCounts.length > 0 ? resolved.blocklistDecisionCounts.length : null;
+    return resolved.blocklistDecisionCounts.length > 0
+      ? resolved.blocklistDecisionCounts.length
+      : null;
   }
-  return resolved.regularAlertStart + ((decisionId - resolved.blocklistTotal - 1) % resolved.regularAlertCount);
+  return (
+    resolved.regularAlertStart +
+    ((decisionId - resolved.blocklistTotal - 1) % resolved.regularAlertCount)
+  );
 }
 
 export function getLoadTestSourceAlertIdForDecision(

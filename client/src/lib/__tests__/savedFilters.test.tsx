@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
 import { act, render } from '@testing-library/react';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { filterValidForPage, useRecentFilter } from '../savedFilters';
 
 function Probe({ query, quickFiltersOpen = false }: { query: string; quickFiltersOpen?: boolean }) {
@@ -25,14 +26,22 @@ describe('saved filter compatibility and recent recording', () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({ recent: [] }));
     vi.stubGlobal('fetch', fetchMock);
     const view = render(<Probe query="country=DE" />);
-    await act(async () => { vi.advanceTimersByTime(1000); });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
     view.rerender(<Probe query="country=DE" quickFiltersOpen />);
-    await act(async () => { vi.advanceTimersByTime(2000); });
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
     view.rerender(<Probe query="country=US" quickFiltersOpen />);
-    await act(async () => { vi.advanceTimersByTime(2000); });
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
     expect(fetchMock).not.toHaveBeenCalled();
     view.rerender(<Probe query="country=US" />);
-    await act(async () => { vi.advanceTimersByTime(1500); });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({ query: 'country=US' }) });
   });
@@ -42,14 +51,20 @@ describe('saved filter compatibility and recent recording', () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({ recent: [] }));
     vi.stubGlobal('fetch', fetchMock);
     const view = render(<Probe query="country=DE" />);
-    await act(async () => { vi.advanceTimersByTime(1000); });
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(fetchMock).not.toHaveBeenCalled();
     view.rerender(<Probe query="country=US" />);
-    await act(async () => { vi.advanceTimersByTime(1500); });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({ query: 'country=US' }) });
     view.rerender(<Probe query="origin:(manual OR" />);
-    await act(async () => { vi.advanceTimersByTime(2000); });
+    await act(async () => {
+      vi.advanceTimersByTime(2000);
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

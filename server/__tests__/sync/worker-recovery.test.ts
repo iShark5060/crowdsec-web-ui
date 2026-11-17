@@ -1,10 +1,12 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
 import { once } from 'node:events';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { DatabaseWorker as Worker } from '../../database-worker';
+
+import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { CrowdsecDatabase } from '../../database';
+import { DatabaseWorker as Worker } from '../../database-worker';
 import { DatabaseSyncWorker } from '../../sync-worker-client';
 
 type Request = { id: number; request: { type: string } };
@@ -23,9 +25,9 @@ async function createWorker(timeoutMs = 5_000) {
   const client = new DatabaseSyncWorker({ dbPath: database.cachePath, timeoutMs });
   const threads = new Set<Worker>();
   cleanups.push(async () => {
-    const exits = [...threads].filter((thread) => !thread.exited).map((thread) => (
-      new Promise<void>((resolve) => thread.once('exit', () => resolve()))
-    ));
+    const exits = [...threads]
+      .filter((thread) => !thread.exited)
+      .map((thread) => new Promise<void>((resolve) => thread.once('exit', () => resolve())));
     client.close();
     await Promise.all(exits);
     database.close();
@@ -33,11 +35,9 @@ async function createWorker(timeoutMs = 5_000) {
   });
 
   async function captureThread() {
-    let thread!: Worker;
     const postMessage = Worker.prototype.postMessage;
     const spy = vi.spyOn(Worker.prototype, 'postMessage').mockImplementation(function (this: Worker, value) {
-      thread = this;
-      threads.add(thread);
+      threads.add(this);
       postMessage.call(this, value);
     });
     try {
@@ -45,6 +45,8 @@ async function createWorker(timeoutMs = 5_000) {
     } finally {
       spy.mockRestore();
     }
+    const thread = [...threads].at(-1);
+    if (!thread) throw new Error('worker thread was not captured');
     return thread;
   }
 
@@ -58,7 +60,9 @@ function dropReply(thread: Worker, requestType: string) {
   const requests: string[] = [];
   const typesById = new Map<number, string>();
   let received!: () => void;
-  const replyDropped = new Promise<void>((resolve) => { received = resolve; });
+  const replyDropped = new Promise<void>((resolve) => {
+    received = resolve;
+  });
   const postMessage = thread.postMessage.bind(thread);
   vi.spyOn(thread, 'postMessage').mockImplementation((value) => {
     const message = value as Request;
@@ -87,6 +91,8 @@ describe('DatabaseSyncWorker recovery', () => {
         await client.setMeta('uncommitted', 'true');
         await client.refreshDecisionDuplicateFlags(new Date().toISOString());
       });
+      // Attached before the clock jumps so the rejection is not unhandled. Awaited once the timer fires.
+      // oxlint-disable-next-line vitest/valid-expect
       const failed = expect(client.runTransaction(operation)).rejects.toThrow('ms timeout');
       await replyDropped;
       await vi.advanceTimersByTimeAsync(requestType === 'begin-transaction' ? 5_000 : 120_000);
@@ -118,10 +124,12 @@ describe('DatabaseSyncWorker recovery', () => {
         queueMicrotask(() => thread.emit('message', { id: message.id, error: 'injected rollback failure' }));
       } else postMessage(message);
     });
-    await expect(client.runTransaction(async () => {
-      await client.setMeta('uncommitted', 'true');
-      throw new Error('refresh failed');
-    })).rejects.toThrow('refresh failed');
+    await expect(
+      client.runTransaction(async () => {
+        await client.setMeta('uncommitted', 'true');
+        throw new Error('refresh failed');
+      }),
+    ).rejects.toThrow('refresh failed');
     expect(log).toHaveBeenCalledWith('Failed to roll back database refresh transaction:', 'injected rollback failure');
     expect(thread.exited).toBe(true);
     expect(database.getMeta('uncommitted')).toBeNull();
@@ -151,12 +159,14 @@ describe('DatabaseSyncWorker recovery', () => {
 
   test('does not let a swallowed worker failure continue a transaction on a new connection', async () => {
     const { database, client, thread, captureThread } = await createWorker();
-    await expect(client.runTransaction(async () => {
-      await client.setMeta('uncommitted', 'true');
-      thread.emit('error', new Error('injected worker failure'));
-      await expect(client.setMeta('escaped_write', 'true')).rejects.toThrow('no longer available');
-      // Returning normally must still fail the commit of the lost transaction.
-    })).rejects.toThrow('no longer available');
+    await expect(
+      client.runTransaction(async () => {
+        await client.setMeta('uncommitted', 'true');
+        thread.emit('error', new Error('injected worker failure'));
+        await expect(client.setMeta('escaped_write', 'true')).rejects.toThrow('no longer available');
+        // Returning normally must still fail the commit of the lost transaction.
+      }),
+    ).rejects.toThrow('no longer available');
 
     expect(database.getMeta('uncommitted')).toBeNull();
     expect(database.getMeta('escaped_write')).toBeNull();
@@ -169,17 +179,23 @@ describe('DatabaseSyncWorker recovery', () => {
     const { database, client, thread } = await createWorker();
     const { replyDropped } = dropReply(thread, 'refresh-duplicate-flags');
     let releaseTermination!: () => void;
-    const terminationGate = new Promise<void>((resolve) => { releaseTermination = resolve; });
+    const terminationGate = new Promise<void>((resolve) => {
+      releaseTermination = resolve;
+    });
     const terminate = thread.terminate.bind(thread);
     const terminateSpy = vi.spyOn(thread, 'terminate').mockImplementation(async () => {
       await terminationGate;
       return terminate();
     });
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const failed = expect(client.runTransaction(async () => {
-      await client.setMeta('uncommitted', 'true');
-      await client.refreshDecisionDuplicateFlags(new Date().toISOString());
-    })).rejects.toThrow('120000ms timeout');
+    // Attached before the clock jumps so the rejection is not unhandled. Awaited once the timer fires.
+    // oxlint-disable-next-line vitest/valid-expect
+    const failed = expect(
+      client.runTransaction(async () => {
+        await client.setMeta('uncommitted', 'true');
+        await client.refreshDecisionDuplicateFlags(new Date().toISOString());
+      }),
+    ).rejects.toThrow('120000ms timeout');
     let wrote = false;
     const write = client.runExclusive(() => {
       expect(thread.exited).toBe(true);
@@ -202,7 +218,6 @@ describe('DatabaseSyncWorker recovery', () => {
   });
 });
 
-
 test('terminates executing native SQL, rolls back its transaction, and releases queued writes', async () => {
   const { database, client, thread, captureThread } = await createWorker();
   database.db.exec(`
@@ -211,10 +226,14 @@ test('terminates executing native SQL, rolls back its transaction, and releases 
         SELECT COUNT(*) FROM c);
     END;
   `);
-  const failed = expect(client.runTransaction(async () => {
-    await client.setMeta('uncommitted', 'true');
-    await client.setMeta('hang', 'true');
-  })).rejects.toThrow('5000ms timeout');
+  // Attached before the clock jumps so the rejection is not unhandled. Awaited once the timer fires.
+  // oxlint-disable-next-line vitest/valid-expect
+  const failed = expect(
+    client.runTransaction(async () => {
+      await client.setMeta('uncommitted', 'true');
+      await client.setMeta('hang', 'true');
+    }),
+  ).rejects.toThrow('5000ms timeout');
   const queued = client.runExclusive(() => {
     expect(thread.exited).toBe(true);
     database.setMeta('other_writer', 'available');

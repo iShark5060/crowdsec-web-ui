@@ -1,6 +1,7 @@
 import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { FontProvider } from '../FontProvider';
+
+import { Provide } from '../../test/Provide';
 import {
   FONT_PRESETS,
   getFontStack,
@@ -11,6 +12,7 @@ import {
   type FontContextValue,
   type FontPreset,
 } from '../font';
+import { FontProvider } from '../FontProvider';
 import { I18nContext, type I18nContextValue, type SupportedLanguage } from '../i18n';
 
 function i18nValue(language: SupportedLanguage): I18nContextValue {
@@ -53,9 +55,7 @@ describe('font presets', () => {
   });
 
   test('reuses a pending load and retries after a failure', async () => {
-    const load = vi.fn()
-      .mockRejectedValueOnce(new Error('chunk missing'))
-      .mockResolvedValue([]);
+    const load = vi.fn().mockRejectedValueOnce(new Error('chunk missing')).mockResolvedValue([]);
     const preset = { id: 'retry-test', label: 'Retry', family: 'Retry', load } as unknown as FontPreset;
 
     await expect(loadFontPreset(preset)).rejects.toThrow('chunk missing');
@@ -74,9 +74,11 @@ describe('FontProvider', () => {
 
   test('leaves the Tailwind font untouched by default', () => {
     render(
-      <I18nContext.Provider value={i18nValue('ko')}>
-        <FontProvider><span /></FontProvider>
-      </I18nContext.Provider>,
+      <Provide context={I18nContext} value={i18nValue('ko')}>
+        <FontProvider>
+          <span />
+        </FontProvider>
+      </Provide>,
     );
 
     expect(rootFont()).toBe('');
@@ -91,16 +93,20 @@ describe('FontProvider', () => {
     }
 
     const { rerender } = render(
-      <I18nContext.Provider value={i18nValue('ko')}>
-        <FontProvider><Probe /></FontProvider>
-      </I18nContext.Provider>,
+      <Provide context={I18nContext} value={i18nValue('ko')}>
+        <FontProvider>
+          <Probe />
+        </FontProvider>
+      </Provide>,
     );
     expect(rootFont()).toContain('IBM Plex Sans KR');
 
     rerender(
-      <I18nContext.Provider value={i18nValue('ja')}>
-        <FontProvider><Probe /></FontProvider>
-      </I18nContext.Provider>,
+      <Provide context={I18nContext} value={i18nValue('ja')}>
+        <FontProvider>
+          <Probe />
+        </FontProvider>
+      </Provide>,
     );
     expect(rootFont()).toContain('IBM Plex Sans JP');
 

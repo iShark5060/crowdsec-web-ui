@@ -3,7 +3,7 @@
 # ==========================================
 # Stage 0: Node + pnpm
 # ==========================================
-FROM node:24.22.2-trixie-slim AS node-pnpm
+FROM node:26-trixie-slim AS node-pnpm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \

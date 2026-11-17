@@ -1,11 +1,17 @@
-import { chineseI18nValue, flushDecisionSearchDebounce, getVisibleColumnHeaderNames, toPaginatedDecisions } from './harness';
-import { describe, expect, test, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, test, vi } from 'vitest';
+
 import * as api from '../../../lib/api';
-import { Decisions } from '../../Decisions';
 import { I18nContext } from '../../../lib/i18n';
+import { Decisions } from '../../Decisions';
+import {
+  chineseI18nValue,
+  flushDecisionSearchDebounce,
+  getVisibleColumnHeaderNames,
+  toPaginatedDecisions,
+} from './harness';
 
 describe('Decisions page presentation and columns', () => {
   test('pins the actions column', async () => {
@@ -106,29 +112,36 @@ describe('Decisions page presentation and columns', () => {
   });
 
   test('shows the linked alert message when the message column is enabled', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      decisions: ['time', 'scenario', 'message', 'source', 'action', 'expiration', 'alert'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        decisions: ['time', 'scenario', 'message', 'source', 'action', 'expiration', 'alert'],
+      }),
+    );
     vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (page, pageSize) =>
-      toPaginatedDecisions([
-        {
-          id: 92,
-          created_at: '2026-03-23T10:00:00.000Z',
-          value: '203.0.113.92',
-          message: 'Manual decision from Web UI: noisy scanner',
-          expired: false,
-          is_duplicate: false,
-          detail: { origin: 'cscli', reason: 'manual/web-ui' },
-        },
-        {
-          id: 93,
-          created_at: '2026-03-23T09:00:00.000Z',
-          value: '203.0.113.93',
-          expired: false,
-          is_duplicate: false,
-          detail: { origin: 'CAPI', reason: 'crowdsecurity/http-probing' },
-        },
-      ], page, pageSize),
+      toPaginatedDecisions(
+        [
+          {
+            id: 92,
+            created_at: '2026-03-23T10:00:00.000Z',
+            value: '203.0.113.92',
+            message: 'Manual decision from Web UI: noisy scanner',
+            expired: false,
+            is_duplicate: false,
+            detail: { origin: 'cscli', reason: 'manual/web-ui' },
+          },
+          {
+            id: 93,
+            created_at: '2026-03-23T09:00:00.000Z',
+            value: '203.0.113.93',
+            expired: false,
+            is_duplicate: false,
+            detail: { origin: 'CAPI', reason: 'crowdsecurity/http-probing' },
+          },
+        ],
+        page,
+        pageSize,
+      ),
     );
 
     render(
@@ -147,19 +160,25 @@ describe('Decisions page presentation and columns', () => {
 
   test('shows the primary target and distinct target count', async () => {
     vi.mocked(api.fetchDecisionsPaginated).mockImplementationOnce(async (page, pageSize) =>
-      toPaginatedDecisions([{
-        id: 91,
-        created_at: '2026-03-23T10:00:00.000Z',
-        value: '203.0.113.91',
-        expired: false,
-        is_duplicate: false,
-        detail: {
-          origin: 'crowdsec',
-          reason: 'crowdsecurity/http-probing',
-          target: 'api.example.test',
-          target_count: 3,
-        },
-      }], page, pageSize),
+      toPaginatedDecisions(
+        [
+          {
+            id: 91,
+            created_at: '2026-03-23T10:00:00.000Z',
+            value: '203.0.113.91',
+            expired: false,
+            is_duplicate: false,
+            detail: {
+              origin: 'crowdsec',
+              reason: 'crowdsecurity/http-probing',
+              target: 'api.example.test',
+              target_count: 3,
+            },
+          },
+        ],
+        page,
+        pageSize,
+      ),
     );
 
     render(
@@ -177,26 +196,30 @@ describe('Decisions page presentation and columns', () => {
   test('counts decision expiration down live from the absolute stop time', async () => {
     const expiresAt = new Date(Date.now() + 2_500).toISOString();
     vi.mocked(api.fetchDecisionsPaginated).mockImplementationOnce(async (page, pageSize) =>
-      toPaginatedDecisions([
-        {
-          id: 10,
-          created_at: new Date(Date.now() - 60_000).toISOString(),
-          value: '1.2.3.4',
-          expired: false,
-          is_duplicate: false,
-          simulated: false,
-          detail: {
-            origin: 'manual',
-            reason: 'crowdsecurity/ssh-bf',
-            country: 'DE',
-            as: 'Hetzner',
-            action: 'ban',
-            duration: '4m10s',
-            expiration: expiresAt,
-            alert_id: 1,
+      toPaginatedDecisions(
+        [
+          {
+            id: 10,
+            created_at: new Date(Date.now() - 60_000).toISOString(),
+            value: '1.2.3.4',
+            expired: false,
+            is_duplicate: false,
+            simulated: false,
+            detail: {
+              origin: 'manual',
+              reason: 'crowdsecurity/ssh-bf',
+              country: 'DE',
+              as: 'Hetzner',
+              action: 'ban',
+              duration: '4m10s',
+              expiration: expiresAt,
+              alert_id: 1,
+            },
           },
-        },
-      ], page, pageSize),
+        ],
+        page,
+        pageSize,
+      ),
     );
 
     render(
@@ -248,9 +271,12 @@ describe('Decisions page presentation and columns', () => {
   });
 
   test('uses saved decision column order', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      decisions: ['source', 'action', 'time', 'alert'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        decisions: ['source', 'action', 'time', 'alert'],
+      }),
+    );
 
     render(
       <MemoryRouter initialEntries={['/decisions']}>
@@ -263,9 +289,23 @@ describe('Decisions page presentation and columns', () => {
   });
 
   test('shows machine column and allows filtering by machine when enabled', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      decisions: ['time', 'scenario', 'country', 'as', 'source', 'action', 'expiration', 'machine', 'origin', 'alert'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        decisions: [
+          'time',
+          'scenario',
+          'country',
+          'as',
+          'source',
+          'action',
+          'expiration',
+          'machine',
+          'origin',
+          'alert',
+        ],
+      }),
+    );
     vi.mocked(api.fetchConfig).mockResolvedValue({
       lookback_period: '1h',
       lookback_hours: 1,
@@ -296,9 +336,12 @@ describe('Decisions page presentation and columns', () => {
   });
 
   test('shows origin column and allows filtering by origin when enabled', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      decisions: ['time', 'scenario', 'country', 'as', 'source', 'action', 'expiration', 'origin', 'alert'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        decisions: ['time', 'scenario', 'country', 'as', 'source', 'action', 'expiration', 'origin', 'alert'],
+      }),
+    );
     vi.mocked(api.fetchConfig).mockResolvedValue({
       lookback_period: '1h',
       lookback_hours: 1,
@@ -328,5 +371,4 @@ describe('Decisions page presentation and columns', () => {
     await waitFor(() => expect(screen.getByText('1.2.3.4')).toBeInTheDocument());
     await waitFor(() => expect(screen.queryByText('5.6.7.8')).not.toBeInTheDocument());
   });
-
 });

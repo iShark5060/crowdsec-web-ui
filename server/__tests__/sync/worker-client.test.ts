@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, test } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
+import { afterEach, describe, expect, test } from 'vitest';
+
 import { CrowdsecDatabase } from '../../database';
 import { DatabaseSyncWorker } from '../../sync-worker-client';
 
@@ -98,16 +100,20 @@ describe('DatabaseSyncWorker', () => {
     ]);
 
     expect(syncResult.changed).toBe(true);
-    expect(writes.oidcUser).toEqual(expect.objectContaining({
-      username: 'oidc-user',
-      oidc_issuer: 'https://idp.example.com',
-      oidc_subject: 'subject-1',
-    }));
+    expect(writes.oidcUser).toEqual(
+      expect.objectContaining({
+        username: 'oidc-user',
+        oidc_issuer: 'https://idp.example.com',
+        oidc_subject: 'subject-1',
+      }),
+    );
     expect(database.getAllAlerts()).toHaveLength(250);
-    expect(database.getAuthUserById(writes.passwordUserId)).toEqual(expect.objectContaining({
-      username: 'password-user',
-      totp_last_step: 1234,
-    }));
+    expect(database.getAuthUserById(writes.passwordUserId)).toEqual(
+      expect.objectContaining({
+        username: 'password-user',
+        totp_last_step: 1234,
+      }),
+    );
     expect(database.listWebAuthnCredentialsByUser(writes.passwordUserId)[0]?.sign_count).toBe(1);
     expect(database.getMeta('refresh_interval_ms')?.value).toBe('30000');
     expect(database.getAuthUserById(writes.oidcUser.id)?.username).toBe('oidc-user');
@@ -148,20 +154,24 @@ describe('DatabaseSyncWorker', () => {
     database.insertAlert(alert);
     database.insertDecision(decision('stale'));
 
-    await worker.persistAlerts([{
-      alert,
-      decisions: [decision('new-1')],
-      keepDecisionIds: [],
-      reconcileDecisions: false,
-    }]);
+    await worker.persistAlerts([
+      {
+        alert,
+        decisions: [decision('new-1')],
+        keepDecisionIds: [],
+        reconcileDecisions: false,
+      },
+    ]);
     expect(database.getDecisionById('stale')).not.toBeNull();
 
-    await worker.persistAlerts([{
-      alertId: 1,
-      decisions: [decision('new-2')],
-      keepDecisionIds: ['new-1', 'new-2'],
-      reconcileDecisions: true,
-    }]);
+    await worker.persistAlerts([
+      {
+        alertId: 1,
+        decisions: [decision('new-2')],
+        keepDecisionIds: ['new-1', 'new-2'],
+        reconcileDecisions: true,
+      },
+    ]);
     expect(database.getDecisionById('new-1')).not.toBeNull();
     expect(database.getDecisionById('new-2')).not.toBeNull();
     expect(database.getDecisionById('stale')).toBeNull();
@@ -184,19 +194,21 @@ describe('DatabaseSyncWorker', () => {
       $raw_data: JSON.stringify({ id: 1, decisions: [{ id: 'old' }] }),
     });
 
-    await worker.persistAlerts([{
-      alert: {
-        $id: 1,
-        $uuid: 'active-alert',
-        $created_at: '2026-07-14T00:00:00.000Z',
-        $message: 'must not replace indexed fields',
-        $raw_data: JSON.stringify({ id: 1, decisions: [{ id: 'new' }] }),
+    await worker.persistAlerts([
+      {
+        alert: {
+          $id: 1,
+          $uuid: 'active-alert',
+          $created_at: '2026-07-14T00:00:00.000Z',
+          $message: 'must not replace indexed fields',
+          $raw_data: JSON.stringify({ id: 1, decisions: [{ id: 'new' }] }),
+        },
+        decisions: [],
+        keepDecisionIds: [],
+        reconcileDecisions: false,
+        updateAlertRawDataOnly: true,
       },
-      decisions: [],
-      keepDecisionIds: [],
-      reconcileDecisions: false,
-      updateAlertRawDataOnly: true,
-    }]);
+    ]);
 
     expect(database.db.prepare('SELECT message, raw_data FROM alerts WHERE id = 1').get()).toEqual({
       message: 'indexed message',
@@ -233,15 +245,19 @@ describe('DatabaseSyncWorker', () => {
     expect(database.countAlerts()).toBe(1);
     expect(database.getMeta('alert_reconcile_window_state')?.value).toBe('committed');
 
-    await expect(worker.runTransaction(async () => {
-      await worker.persistAlerts([{
-        ...mutation,
-        alert: { ...mutation.alert, $id: 2, $uuid: 'rolled-back-alert' },
-      }]);
-      await worker.setMeta('alert_reconcile_window_state', 'rolled-back');
-      expect(database.countAlerts()).toBe(1);
-      throw new Error('abort refresh');
-    })).rejects.toThrow('abort refresh');
+    await expect(
+      worker.runTransaction(async () => {
+        await worker.persistAlerts([
+          {
+            ...mutation,
+            alert: { ...mutation.alert, $id: 2, $uuid: 'rolled-back-alert' },
+          },
+        ]);
+        await worker.setMeta('alert_reconcile_window_state', 'rolled-back');
+        expect(database.countAlerts()).toBe(1);
+        throw new Error('abort refresh');
+      }),
+    ).rejects.toThrow('abort refresh');
     expect(database.countAlerts()).toBe(1);
     expect(database.getMeta('alert_reconcile_window_state')?.value).toBe('committed');
 
@@ -256,9 +272,13 @@ describe('DatabaseSyncWorker', () => {
     const worker = new DatabaseSyncWorker({ dbPath });
     workers.push(worker);
     let releaseTransaction!: () => void;
-    const transactionGate = new Promise<void>((resolve) => { releaseTransaction = resolve; });
+    const transactionGate = new Promise<void>((resolve) => {
+      releaseTransaction = resolve;
+    });
     let transactionStarted!: () => void;
-    const started = new Promise<void>((resolve) => { transactionStarted = resolve; });
+    const started = new Promise<void>((resolve) => {
+      transactionStarted = resolve;
+    });
     const transaction = worker.runTransaction(async () => {
       transactionStarted();
       await transactionGate;
@@ -331,16 +351,22 @@ describe('DatabaseSyncWorker', () => {
     };
 
     await expect(worker.compareAlertDecisions([comparison])).resolves.toEqual([null]);
-    await expect(worker.compareAlertDecisions([{
-      ...comparison,
-      decisionIds: ['keep', 'add'],
-    }])).resolves.toEqual([{
-      alertId: 1,
-      decisionIdsToPersist: ['add'],
-      removedIds: ['remove'],
-      reconcileDecisions: false,
-      updateAlertRawDataOnly: true,
-    }]);
+    await expect(
+      worker.compareAlertDecisions([
+        {
+          ...comparison,
+          decisionIds: ['keep', 'add'],
+        },
+      ]),
+    ).resolves.toEqual([
+      {
+        alertId: 1,
+        decisionIdsToPersist: ['add'],
+        removedIds: ['remove'],
+        reconcileDecisions: false,
+        updateAlertRawDataOnly: true,
+      },
+    ]);
 
     database.close();
   });

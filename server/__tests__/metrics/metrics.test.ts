@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { parsePrometheusText, summarizeCrowdsecMetrics } from '../../metrics';
 
 describe('CrowdSec Prometheus metrics parsing', () => {
@@ -119,7 +120,8 @@ cs_parsing_time_seconds_sum{source="/var/log/auth.log",type="syslog"} 0.25
   });
 
   test('separates log processor activity, identifies bouncer mode, and includes scenarios', () => {
-    const summary = summarizeCrowdsecMetrics(parsePrometheusText(`
+    const summary = summarizeCrowdsecMetrics(
+      parsePrometheusText(`
 cs_info{version="v1.7.8"} 1
 process_start_time_seconds 1782813600
 cs_active_decisions{reason="ssh",origin="crowdsec",action="ban"} 4
@@ -138,7 +140,8 @@ cs_bucket_overflowed_total{name="crowdsecurity/ssh-bf"} 3
 cs_bucket_underflowed_total{name="crowdsecurity/ssh-bf"} 1
 cs_bucket_canceled_total{name="crowdsecurity/ssh-bf"} 1
 cs_bucket_poured_total{name="crowdsecurity/ssh-bf",source="/var/log/auth.log",type="syslog"} 12
-`));
+`),
+    );
 
     expect(summary.crowdsecVersion).toBe('v1.7.8');
     expect(summary.crowdsecStartedAt).toBe(new Date(1782813600 * 1000).toISOString());
@@ -184,18 +187,22 @@ cs_bucket_poured_total{name="crowdsecurity/ssh-bf",source="/var/log/auth.log",ty
       const requests = index + 1;
       return `cs_lapi_machine_requests_total{machine="machine-${index}",route="/v1/alerts",method="POST"} ${requests}`;
     });
-    const summary = summarizeCrowdsecMetrics(parsePrometheusText(`
+    const summary = summarizeCrowdsecMetrics(
+      parsePrometheusText(`
 cs_bucket_created_total{name="crowdsecurity/ssh-bf"} 8
 ${machineSamples.join('\n')}
 cs_lapi_route_requests_total{route="invalid-endpoint",method="GET"} 1
 cs_lapi_request_duration_seconds_count{endpoint="",method="GET"} 1
 cs_lapi_request_duration_seconds_sum{endpoint="",method="GET"} 0.1
-`));
+`),
+    );
 
-    expect(summary.scenarios).toEqual([expect.objectContaining({
-      name: 'crowdsecurity/ssh-bf',
-      instantiations: 8,
-    })]);
+    expect(summary.scenarios).toEqual([
+      expect.objectContaining({
+        name: 'crowdsecurity/ssh-bf',
+        instantiations: 8,
+      }),
+    ]);
     expect(summary.machines).toHaveLength(13);
     expect(summary.machines[0].name).toBe('machine-12');
     expect(summary.machines[12].name).toBe('machine-0');
@@ -204,22 +211,30 @@ cs_lapi_request_duration_seconds_sum{endpoint="",method="GET"} 0.1
       machineAlertRequests: 91,
       machineHeartbeatRequests: 0,
     });
-    expect(summary.lapiRoutes).toEqual([{
-      method: 'GET',
-      route: 'invalid-endpoint',
-      requests: 1,
-      averageSeconds: 0.1,
-    }]);
+    expect(summary.lapiRoutes).toEqual([
+      {
+        method: 'GET',
+        route: 'invalid-endpoint',
+        requests: 1,
+        averageSeconds: 0.1,
+      },
+    ]);
   });
 
   test('returns every bouncer and machine of a large fleet ordered by activity, then name', () => {
-    const bouncerSamples = Array.from({ length: 40 }, (_, index) => (
-      `cs_lapi_bouncer_requests_total{bouncer="bouncer-${String(index).padStart(2, '0')}",route="/v1/decisions/stream",method="GET"} ${index < 20 ? 10 : 5}`
-    ));
-    const machineSamples = Array.from({ length: 45 }, (_, index) => (
-      `cs_lapi_machine_requests_total{machine="agent-${String(44 - index).padStart(2, '0')}",route="/v1/heartbeat",method="GET"} 3`
-    ));
-    const summary = summarizeCrowdsecMetrics(parsePrometheusText(`${bouncerSamples.join('\n')}\n${machineSamples.join('\n')}\n`));
+    const bouncerSamples = Array.from(
+      { length: 40 },
+      (_, index) =>
+        `cs_lapi_bouncer_requests_total{bouncer="bouncer-${String(index).padStart(2, '0')}",route="/v1/decisions/stream",method="GET"} ${index < 20 ? 10 : 5}`,
+    );
+    const machineSamples = Array.from(
+      { length: 45 },
+      (_, index) =>
+        `cs_lapi_machine_requests_total{machine="agent-${String(44 - index).padStart(2, '0')}",route="/v1/heartbeat",method="GET"} 3`,
+    );
+    const summary = summarizeCrowdsecMetrics(
+      parsePrometheusText(`${bouncerSamples.join('\n')}\n${machineSamples.join('\n')}\n`),
+    );
 
     expect(summary.bouncers).toHaveLength(40);
     expect(summary.bouncers.slice(0, 2).map((bouncer) => bouncer.name)).toEqual(['bouncer-00', 'bouncer-01']);
@@ -287,14 +302,17 @@ cs_active_decisions{reason="ssh"} 5
       parserOk: 33,
     });
     expect(summary.totals.parserAverageSeconds).toBeCloseTo(0.0175);
-    expect(summary.parserSources).toEqual(expect.arrayContaining([
-      expect.objectContaining({ source_id: 'primary:agent-1', source: 'journalctl', processed: 10 }),
-      expect.objectContaining({ source_id: 'secondary:agent-2', source: 'journalctl', processed: 30 }),
-    ]));
-    expect(summary.scenarios).toEqual(expect.arrayContaining([
-      expect.objectContaining({ source_id: 'primary:agent-1', instantiations: 3 }),
-      expect.objectContaining({ source_id: 'secondary:agent-2', instantiations: 7 }),
-    ]));
+    expect(summary.parserSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source_id: 'primary:agent-1', source: 'journalctl', processed: 10 }),
+        expect.objectContaining({ source_id: 'secondary:agent-2', source: 'journalctl', processed: 30 }),
+      ]),
+    );
+    expect(summary.scenarios).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source_id: 'primary:agent-1', instantiations: 3 }),
+        expect.objectContaining({ source_id: 'secondary:agent-2', instantiations: 7 }),
+      ]),
+    );
   });
-
 });

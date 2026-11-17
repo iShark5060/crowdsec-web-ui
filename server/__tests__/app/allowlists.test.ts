@@ -1,7 +1,9 @@
-import { describe, expect, test, vi, type MockInstance } from 'vitest';
 import path from 'node:path';
-import type { RuntimeConfig } from '../../config';
+
+import { describe, expect, test, vi, type MockInstance } from 'vitest';
+
 import { createAllowlistService } from '../../app/allowlists';
+import type { RuntimeConfig } from '../../config';
 import { CrowdsecDatabase } from '../../database';
 import { createAuthSessionCookie, createController, destroyTempDir, tempDir } from './harness';
 
@@ -25,7 +27,8 @@ const lapiAllowlists = [
 
 function allowlistResolver(url: string): Response | undefined {
   if (url.endsWith('/v1/allowlists?with_content=true')) return Response.json(lapiAllowlists);
-  if (url.endsWith('/v1/allowlists/check/10.1.2.3')) return Response.json({ allowlisted: true, reason: '10.0.0.0/8 from office (VPN)' });
+  if (url.endsWith('/v1/allowlists/check/10.1.2.3'))
+    return Response.json({ allowlisted: true, reason: '10.0.0.0/8 from office (VPN)' });
   if (url.includes('/v1/allowlists/check/')) return Response.json({});
   return undefined;
 }
@@ -41,9 +44,14 @@ function createDirectService(fetchers: Record<string, () => Promise<unknown[]>>)
     config,
     lapiClients: new Map(Object.entries(fetchers).map(([id, fetchAllowlists]) => [id, { fetchAllowlists } as never])),
     database,
-    queryWorker: { all: async (sql: string, params: unknown[] = []) => database.db.prepare(sql).all(...params) } as never,
+    queryWorker: {
+      all: async (sql: string, params: unknown[] = []) => database.db.prepare(sql).all(...params),
+    } as never,
     syncWorker: {},
-    runConsistentDatabaseRefresh: async (operation) => ({ result: await operation(), releasePublishedRevision: () => {} }),
+    runConsistentDatabaseRefresh: async (operation) => ({
+      result: await operation(),
+      releasePublishedRevision: () => {},
+    }),
     onChange,
   });
   return { service, config, database, onChange };
@@ -56,12 +64,18 @@ function auditEntries(logSpy: MockInstance): Array<Record<string, unknown>> {
     .map((line) => JSON.parse(line.slice('[audit] '.length)) as Record<string, unknown>);
 }
 
-function postDecision(controller: ReturnType<typeof createController>['controller'], body: Record<string, unknown>, headers: Record<string, string> = {}) {
-  return controller.fetch(new Request('http://localhost/crowdsec/api/decisions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
-  }));
+function postDecision(
+  controller: ReturnType<typeof createController>['controller'],
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+) {
+  return controller.fetch(
+    new Request('http://localhost/crowdsec/api/decisions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 describe('allowlists API', () => {
@@ -88,31 +102,57 @@ describe('allowlists API', () => {
         ],
       });
 
-      const page = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/office/entries?page=1&page_size=10'));
+      const page = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists/office/entries?page=1&page_size=10'),
+      );
       expect(await page.json()).toEqual({
         allowlist: expect.objectContaining({ name: 'office', entry_count: 2, matching_entries: 2 }),
         data: [
-          { value: '10.0.0.0/8', description: 'VPN', created_at: '2026-01-01T00:00:00.000Z', expiration: null, instance_ids: ['default'] },
-          { value: '192.0.2.10', created_at: '2026-01-01T00:00:00.000Z', expiration: '2099-12-01T00:00:00.000Z', instance_ids: ['default'] },
+          {
+            value: '10.0.0.0/8',
+            description: 'VPN',
+            created_at: '2026-01-01T00:00:00.000Z',
+            expiration: null,
+            instance_ids: ['default'],
+          },
+          {
+            value: '192.0.2.10',
+            created_at: '2026-01-01T00:00:00.000Z',
+            expiration: '2099-12-01T00:00:00.000Z',
+            instance_ids: ['default'],
+          },
         ],
         pagination: { page: 1, page_size: 10, total: 2, total_pages: 1, unfiltered_total: 2 },
       });
-      const beyond = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/office/entries?page=2'));
-      expect(await beyond.json()).toMatchObject({ data: [], pagination: { page: 2, page_size: 50, total: 2, total_pages: 1 } });
+      const beyond = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists/office/entries?page=2'),
+      );
+      expect(await beyond.json()).toMatchObject({
+        data: [],
+        pagination: { page: 2, page_size: 50, total: 2, total_pages: 1 },
+      });
 
-      const filtered = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/office/entries?q=vpn'));
+      const filtered = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists/office/entries?q=vpn'),
+      );
       expect(await filtered.json()).toMatchObject({
         allowlist: { matching_entries: 1 },
         data: [{ value: '10.0.0.0/8', description: 'VPN', expiration: null }],
         pagination: { page: 1, page_size: 50, total: 1, unfiltered_total: 2 },
       });
       const summaries = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists?q=vpn'));
-      expect((await summaries.json() as any).allowlists).toEqual([expect.objectContaining({ name: 'office', matching_entries: 1 })]);
+      expect(((await summaries.json()) as any).allowlists).toEqual([
+        expect.objectContaining({ name: 'office', matching_entries: 1 }),
+      ]);
       // Paging and filtering reuse one LAPI download.
       expect(fetchCalls.filter((call) => call.url.includes('/v1/allowlists?'))).toHaveLength(1);
 
-      expect((await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/missing/entries'))).status).toBe(404);
-      expect((await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists?instance=missing'))).status).toBe(404);
+      expect(
+        (await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/missing/entries'))).status,
+      ).toBe(404);
+      expect(
+        (await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists?instance=missing'))).status,
+      ).toBe(404);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -123,22 +163,29 @@ describe('allowlists API', () => {
   test('refreshes cached allowlists with every cache refresh', async () => {
     let items = [{ value: '10.0.0.0/8' }];
     const { controller, database, fetchCalls } = createController({
-      fetchResolver: (url) => url.endsWith('/v1/allowlists?with_content=true') ? Response.json([{ name: 'office', items }]) : undefined,
+      fetchResolver: (url) =>
+        url.endsWith('/v1/allowlists?with_content=true') ? Response.json([{ name: 'office', items }]) : undefined,
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
     });
-    const entries = async () => (await (await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/office/entries'))).json() as any)
-      .data.map((entry: { value: string }) => entry.value);
+    const entries = async () =>
+      (
+        (await (
+          await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/office/entries'))
+        ).json()) as any
+      ).data.map((entry: { value: string }) => entry.value);
     try {
       expect(await entries()).toEqual(['10.0.0.0/8']);
       items = [{ value: '10.0.0.0/8' }, { value: '192.0.2.1' }];
       // Until the next refresh, pages read the cache instead of LAPI.
       expect(await entries()).toEqual(['10.0.0.0/8']);
 
-      const refresh = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'delta' }),
-      }));
+      const refresh = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'delta' }),
+        }),
+      );
       expect(refresh.status).toBe(200);
       expect(await entries()).toEqual(['10.0.0.0/8', '192.0.2.1']);
       expect(fetchCalls.filter((call) => call.url.includes('/v1/allowlists?'))).toHaveLength(2);
@@ -151,27 +198,47 @@ describe('allowlists API', () => {
 
   test('combines allowlists of the same name and keeps per-entry instance membership', async () => {
     const lists = {
-      east: [{ name: 'office', console_managed: false, updated_at: '2026-01-01T00:00:00.000Z', items: [{ value: '10.0.0.0/8' }, { value: '192.0.2.1' }] }],
+      east: [
+        {
+          name: 'office',
+          console_managed: false,
+          updated_at: '2026-01-01T00:00:00.000Z',
+          items: [{ value: '10.0.0.0/8' }, { value: '192.0.2.1' }],
+        },
+      ],
       west: [
-        { name: 'office', console_managed: true, updated_at: '2026-02-01T00:00:00.000Z', items: [{ value: '10.0.0.0/8' }] },
+        {
+          name: 'office',
+          console_managed: true,
+          updated_at: '2026-02-01T00:00:00.000Z',
+          items: [{ value: '10.0.0.0/8' }],
+        },
         { name: 'west-only', items: [{ value: '203.0.113.1' }] },
       ],
     };
-    const { service, config, database } = createDirectService(Object.fromEntries(Object.entries(lists)
-      .map(([id, allowlists]) => [id, async () => allowlists])));
+    const { service, config, database } = createDirectService(
+      Object.fromEntries(Object.entries(lists).map(([id, allowlists]) => [id, async () => allowlists])),
+    );
     try {
       await service.ensureSynced(config.instances);
       expect((await service.listAllowlists(config.instances)).allowlists).toEqual([
-        { name: 'office', console_managed: true, updated_at: '2026-02-01T00:00:00.000Z', instance_ids: ['east', 'west'], entry_count: 2, matching_entries: 2 },
+        {
+          name: 'office',
+          console_managed: true,
+          updated_at: '2026-02-01T00:00:00.000Z',
+          instance_ids: ['east', 'west'],
+          entry_count: 2,
+          matching_entries: 2,
+        },
         { name: 'west-only', console_managed: false, instance_ids: ['west'], entry_count: 1, matching_entries: 1 },
       ]);
       expect((await service.listEntries(config.instances, 'office', { page: 1, pageSize: 50 }))?.data).toEqual([
         { value: '10.0.0.0/8', expiration: null, instance_ids: ['east', 'west'] },
         { value: '192.0.2.1', expiration: null, instance_ids: ['east'] },
       ]);
-      expect((await service.listEntries(config.instances.slice(1), 'office', { page: 1, pageSize: 50 }))?.data).toEqual([
-        { value: '10.0.0.0/8', expiration: null, instance_ids: ['west'] },
-      ]);
+      expect((await service.listEntries(config.instances.slice(1), 'office', { page: 1, pageSize: 50 }))?.data).toEqual(
+        [{ value: '10.0.0.0/8', expiration: null, instance_ids: ['west'] }],
+      );
     } finally {
       database.close();
       destroyTempDir();
@@ -180,28 +247,47 @@ describe('allowlists API', () => {
 
   test('filters values by any active comment while preserving their full instance membership and metadata', async () => {
     const { service, config, database } = createDirectService({
-      east: async () => [{ name: 'office', items: [
-        { value: '10.0.0.1', description: 'VPN', created_at: '2026-02-01T00:00:00Z', expiration: '2099-01-01T00:00:00Z' },
-        { value: '10.0.0.2', description: 'VPN', expiration: '2020-01-01T00:00:00Z' },
-      ] }],
-      west: async () => [{ name: 'office', items: [
-        { value: '10.0.0.1', description: 'Office', created_at: '2026-01-01T00:00:00Z' },
-        { value: '10.0.0.2', description: 'Office' },
-      ] }],
+      east: async () => [
+        {
+          name: 'office',
+          items: [
+            {
+              value: '10.0.0.1',
+              description: 'VPN',
+              created_at: '2026-02-01T00:00:00Z',
+              expiration: '2099-01-01T00:00:00Z',
+            },
+            { value: '10.0.0.2', description: 'VPN', expiration: '2020-01-01T00:00:00Z' },
+          ],
+        },
+      ],
+      west: async () => [
+        {
+          name: 'office',
+          items: [
+            { value: '10.0.0.1', description: 'Office', created_at: '2026-01-01T00:00:00Z' },
+            { value: '10.0.0.2', description: 'Office' },
+          ],
+        },
+      ],
     });
     try {
       await service.ensureSynced(config.instances);
       const page = await service.listEntries(config.instances, 'office', { page: 1, pageSize: 50 }, 'VPN');
-      expect(page?.data).toEqual([{
-        value: '10.0.0.1',
-        description: 'VPN',
-        created_at: '2026-01-01T00:00:00.000Z',
-        expiration: null,
-        instance_ids: ['east', 'west'],
-      }]);
+      expect(page?.data).toEqual([
+        {
+          value: '10.0.0.1',
+          description: 'VPN',
+          created_at: '2026-01-01T00:00:00.000Z',
+          expiration: null,
+          instance_ids: ['east', 'west'],
+        },
+      ]);
       expect(page?.pagination).toMatchObject({ total: 1, unfiltered_total: 2 });
       expect((await service.listAllowlists(config.instances, 'VPN')).allowlists[0].matching_entries).toBe(1);
-      expect((await service.listEntries(config.instances.slice(1), 'office', { page: 1, pageSize: 50 }, 'VPN'))?.data).toEqual([]);
+      expect(
+        (await service.listEntries(config.instances.slice(1), 'office', { page: 1, pageSize: 50 }, 'VPN'))?.data,
+      ).toEqual([]);
     } finally {
       database.close();
       destroyTempDir();
@@ -213,7 +299,9 @@ describe('allowlists API', () => {
     const { service, config, database, onChange } = createDirectService({ east: () => fetchAllowlists() });
     try {
       await service.syncInstance('east');
-      fetchAllowlists = async () => { throw Object.assign(new Error('HTTP 500: Internal Server Error'), { status: 500 }); };
+      fetchAllowlists = async () => {
+        throw Object.assign(new Error('HTTP 500: Internal Server Error'), { status: 500 });
+      };
       await service.syncInstance('east');
       expect(await service.listAllowlists(config.instances)).toMatchObject({
         partial: true,
@@ -221,7 +309,9 @@ describe('allowlists API', () => {
         allowlists: [{ name: 'office', entry_count: 1 }],
       });
 
-      fetchAllowlists = async () => { throw Object.assign(new Error('HTTP 404: Not Found'), { status: 404 }); };
+      fetchAllowlists = async () => {
+        throw Object.assign(new Error('HTTP 404: Not Found'), { status: 404 });
+      };
       await service.syncInstance('east');
       expect((await service.listAllowlists(config.instances)).instances).toEqual([
         { instance_id: 'east', instance_name: 'East', status: 'unsupported' },
@@ -238,7 +328,14 @@ describe('allowlists API', () => {
     const future = new Date(Date.now() + 60 * 60 * 1_000).toISOString();
     const past = new Date(Date.now() - 60 * 60 * 1_000).toISOString();
     let snapshot: unknown[] = [
-      { name: 'office', items: [{ value: '10.0.0.0/8' }, { value: '192.0.2.1', expiration: future }, { value: '192.0.2.2', expiration: past }] },
+      {
+        name: 'office',
+        items: [
+          { value: '10.0.0.0/8' },
+          { value: '192.0.2.1', expiration: future },
+          { value: '192.0.2.2', expiration: past },
+        ],
+      },
       { name: 'old', items: [{ value: '203.0.113.1' }] },
     ];
     const { service, config, database, onChange } = createDirectService({ east: async () => snapshot });
@@ -248,13 +345,18 @@ describe('allowlists API', () => {
       await service.syncInstance('east');
       expect(replace).toHaveBeenCalledTimes(1);
       expect(onChange).not.toHaveBeenCalled();
-      expect((await service.listEntries(config.instances, 'office', { page: 1, pageSize: 50 }))?.data.map((entry) => entry.value))
-        .toEqual(['10.0.0.0/8', '192.0.2.1']);
+      expect(
+        (await service.listEntries(config.instances, 'office', { page: 1, pageSize: 50 }))?.data.map(
+          (entry) => entry.value,
+        ),
+      ).toEqual(['10.0.0.0/8', '192.0.2.1']);
 
       snapshot = [{ name: 'office', items: [{ value: '10.0.0.0/8', description: 'VPN' }] }];
       await service.syncInstance('east');
       expect(onChange).toHaveBeenCalledExactlyOnceWith(['east']);
-      expect((await service.listAllowlists(config.instances)).allowlists.map((allowlist) => allowlist.name)).toEqual(['office']);
+      expect((await service.listAllowlists(config.instances)).allowlists.map((allowlist) => allowlist.name)).toEqual([
+        'office',
+      ]);
       expect((await service.listEntries(config.instances, 'office', { page: 1, pageSize: 50 }))?.data).toEqual([
         { value: '10.0.0.0/8', description: 'VPN', expiration: null, instance_ids: ['east'] },
       ]);
@@ -271,23 +373,31 @@ describe('allowlists API', () => {
   test('checks a value against the allowlists of the selected scope', async () => {
     const { controller, database } = createController({ fetchResolver: allowlistResolver });
     try {
-      const allowlisted = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/check?value=10.1.2.3'));
+      const allowlisted = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists/check?value=10.1.2.3'),
+      );
       expect(await allowlisted.json()).toEqual({
         value: '10.1.2.3',
         allowlisted: true,
-        results: [{
-          instance_id: 'default',
-          instance_name: 'CrowdSec',
-          status: 'available',
-          allowlisted: true,
-          reason: '10.0.0.0/8 from office (VPN)',
-        }],
+        results: [
+          {
+            instance_id: 'default',
+            instance_name: 'CrowdSec',
+            status: 'available',
+            allowlisted: true,
+            reason: '10.0.0.0/8 from office (VPN)',
+          },
+        ],
       });
 
-      const clear = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/check?value=203.0.113.0%2F24&instance=default'));
+      const clear = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists/check?value=203.0.113.0%2F24&instance=default'),
+      );
       expect(await clear.json()).toMatchObject({ value: '203.0.113.0/24', allowlisted: false });
 
-      const invalid = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/check?value=example.com'));
+      const invalid = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists/check?value=example.com'),
+      );
       expect(invalid.status).toBe(400);
     } finally {
       controller.stopBackgroundTasks();
@@ -297,15 +407,32 @@ describe('allowlists API', () => {
   });
 
   test('lets read-only users view allowlists', async () => {
-    const { controller, database } = createController({ env: { AUTH_ENABLED: 'true' }, fetchResolver: allowlistResolver });
+    const { controller, database } = createController({
+      env: { AUTH_ENABLED: 'true' },
+      fetchResolver: allowlistResolver,
+    });
     try {
       database.createAuthUser({ username: 'admin', passwordHash: 'hash', role: 'admin', authProvider: 'password' });
-      const viewerId = database.createAuthUser({ username: 'viewer', passwordHash: 'hash', role: 'read-only', authProvider: 'password' });
-      const cookie = createAuthSessionCookie(database, { userId: viewerId, username: 'viewer', role: 'read-only', authMethod: 'password' });
+      const viewerId = database.createAuthUser({
+        username: 'viewer',
+        passwordHash: 'hash',
+        role: 'read-only',
+        authProvider: 'password',
+      });
+      const cookie = createAuthSessionCookie(database, {
+        userId: viewerId,
+        username: 'viewer',
+        role: 'read-only',
+        authMethod: 'password',
+      });
 
-      const list = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists', { headers: { Cookie: cookie } }));
+      const list = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists', { headers: { Cookie: cookie } }),
+      );
       expect(list.status).toBe(200);
-      const check = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists/check?value=10.1.2.3', { headers: { Cookie: cookie } }));
+      const check = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/allowlists/check?value=10.1.2.3', { headers: { Cookie: cookie } }),
+      );
       expect(check.status).toBe(200);
 
       const anonymous = await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists'));
@@ -343,12 +470,14 @@ describe('manual decisions and allowlists', () => {
       expect(bypassed.status).toBe(200);
       expect(alertPosts()).toHaveLength(1);
       expect(fetchCalls.filter((call) => call.url.includes('/v1/allowlists/check/'))).toHaveLength(1);
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({
-        action: 'decision.add',
-        ip: '10.1.2.3',
-        bypass_allowlist: true,
-        outcome: 'success',
-      })]);
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'decision.add',
+          ip: '10.1.2.3',
+          bypass_allowlist: true,
+          outcome: 'success',
+        }),
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -364,31 +493,56 @@ describe('manual decisions and allowlists', () => {
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
     });
     const alertPosts = () => fetchCalls.filter((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST');
-    const bulkAdd = (body: Record<string, unknown>) => controller.fetch(new Request('http://localhost/crowdsec/api/decisions/bulk-add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }));
+    const bulkAdd = (body: Record<string, unknown>) =>
+      controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions/bulk-add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+      );
     try {
       await lapiClient.login();
 
       expect((await bulkAdd({ values: [] })).status).toBe(400);
       expect((await bulkAdd({ values: ['203.0.113.5', 'example.com'] })).status).toBe(400);
-      expect((await bulkAdd({ values: Array.from({ length: 501 }, (_, index) => `203.0.${index >> 8}.${index & 255}`) })).status).toBe(400);
+      expect(
+        (await bulkAdd({ values: Array.from({ length: 501 }, (_, index) => `203.0.${index >> 8}.${index & 255}`) }))
+          .status,
+      ).toBe(400);
       expect((await bulkAdd({ values: ['203.0.113.5'], duration: 'soon' })).status).toBe(400);
       expect(alertPosts()).toHaveLength(0);
 
-      const response = await bulkAdd({ values: ['203.0.113.5', '10.1.2.3', '198.51.100.0/24', '203.0.113.5'], duration: '4h', reason: 'scanner' });
+      const response = await bulkAdd({
+        values: ['203.0.113.5', '10.1.2.3', '198.51.100.0/24', '203.0.113.5'],
+        duration: '4h',
+        reason: 'scanner',
+      });
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
         added: ['203.0.113.5', '198.51.100.0/24'],
-        allowlisted: [{ value: '10.1.2.3', allowlisted: [{ instance_id: 'default', instance_name: 'CrowdSec', reason: '10.0.0.0/8 from office (VPN)' }] }],
+        allowlisted: [
+          {
+            value: '10.1.2.3',
+            allowlisted: [
+              { instance_id: 'default', instance_name: 'CrowdSec', reason: '10.0.0.0/8 from office (VPN)' },
+            ],
+          },
+        ],
         succeeded: 1,
         failed: 0,
       });
       expect(alertPosts()).toHaveLength(1);
-      expect((alertPosts()[0].body as Array<{ source: { value: string } }>).map((alert) => alert.source.value)).toEqual(['203.0.113.5', '198.51.100.0/24']);
-      expect(auditEntries(logSpy)).toEqual([expect.objectContaining({ action: 'decision.add', values: ['203.0.113.5', '198.51.100.0/24'], outcome: 'success' })]);
+      expect((alertPosts()[0].body as Array<{ source: { value: string } }>).map((alert) => alert.source.value)).toEqual(
+        ['203.0.113.5', '198.51.100.0/24'],
+      );
+      expect(auditEntries(logSpy)).toEqual([
+        expect.objectContaining({
+          action: 'decision.add',
+          values: ['203.0.113.5', '198.51.100.0/24'],
+          outcome: 'success',
+        }),
+      ]);
 
       const bypassed = await bulkAdd({ values: ['10.1.2.3'], bypass_allowlist: true });
       expect(await bypassed.json()).toMatchObject({ added: ['10.1.2.3'], allowlisted: [], succeeded: 1 });
@@ -405,9 +559,10 @@ describe('manual decisions and allowlists', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     let checkStatus = 200;
     const { controller, database, lapiClient } = createController({
-      fetchResolver: (url) => url.includes('/v1/allowlists/check/')
-        ? Response.json(checkStatus === 200 ? {} : { message: 'failure' }, { status: checkStatus })
-        : undefined,
+      fetchResolver: (url) =>
+        url.includes('/v1/allowlists/check/')
+          ? Response.json(checkStatus === 200 ? {} : { message: 'failure' }, { status: checkStatus })
+          : undefined,
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
     });
     try {
@@ -420,7 +575,9 @@ describe('manual decisions and allowlists', () => {
 
       checkStatus = 500;
       expect((await postDecision(controller, { ip: '203.0.113.7' })).status).toBe(200);
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Allowlist check for 203.0.113.7 failed on CrowdSec'));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Allowlist check for 203.0.113.7 failed on CrowdSec'),
+      );
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -433,7 +590,9 @@ describe('manual decisions and allowlists', () => {
 describe('allowlist sync progress', () => {
   test('reports caching progress, results, and failures per instance', async () => {
     let release!: () => void;
-    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     let fetchAllowlists: () => Promise<unknown[]> = async () => {
       await gate;
       return [{ name: 'office', items: [{ value: '10.0.0.0/8' }, { value: '192.0.2.1' }] }];
@@ -447,11 +606,15 @@ describe('allowlist sync progress', () => {
       await sync;
       expect(service.getSyncProgress('east')).toEqual({ state: 'complete', allowlists: 1, entries: 2 });
 
-      fetchAllowlists = async () => { throw Object.assign(new Error('HTTP 500: Internal Server Error'), { status: 500 }); };
+      fetchAllowlists = async () => {
+        throw Object.assign(new Error('HTTP 500: Internal Server Error'), { status: 500 });
+      };
       await service.syncInstance('east');
       expect(service.getSyncProgress('east')).toEqual({ state: 'failed', error: 'HTTP 500: Internal Server Error' });
 
-      fetchAllowlists = async () => { throw Object.assign(new Error('HTTP 404: Not Found'), { status: 404 }); };
+      fetchAllowlists = async () => {
+        throw Object.assign(new Error('HTTP 404: Not Found'), { status: 404 });
+      };
       await service.syncInstance('east');
       expect(service.getSyncProgress('east')).toEqual({ state: 'unsupported' });
     } finally {
@@ -462,14 +625,21 @@ describe('allowlist sync progress', () => {
 
   test('is part of the sync status shown by the sync overlay', async () => {
     const { controller, database } = createController({
-      fetchResolver: (url) => url.endsWith('/v1/allowlists?with_content=true') ? Response.json([{ name: 'office', items: [{ value: '10.0.0.0/8' }] }]) : undefined,
+      fetchResolver: (url) =>
+        url.endsWith('/v1/allowlists?with_content=true')
+          ? Response.json([{ name: 'office', items: [{ value: '10.0.0.0/8' }] }])
+          : undefined,
     });
     try {
-      expect(((await (await controller.fetch(new Request('http://localhost/crowdsec/api/config'))).json()) as any).sync_status.allowlists)
-        .toEqual({ state: 'pending' });
+      expect(
+        ((await (await controller.fetch(new Request('http://localhost/crowdsec/api/config'))).json()) as any)
+          .sync_status.allowlists,
+      ).toEqual({ state: 'pending' });
       await controller.fetch(new Request('http://localhost/crowdsec/api/allowlists'));
-      expect(((await (await controller.fetch(new Request('http://localhost/crowdsec/api/config'))).json()) as any).sync_status.allowlists)
-        .toEqual({ state: 'complete', allowlists: 1, entries: 1 });
+      expect(
+        ((await (await controller.fetch(new Request('http://localhost/crowdsec/api/config'))).json()) as any)
+          .sync_status.allowlists,
+      ).toEqual({ state: 'complete', allowlists: 1, entries: 1 });
     } finally {
       controller.stopBackgroundTasks();
       database.close();

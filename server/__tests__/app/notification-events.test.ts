@@ -1,15 +1,9 @@
-import { describe, expect, test, vi } from 'vitest';
 import path from 'path';
+
+import { describe, expect, test, vi } from 'vitest';
+
 import { CrowdsecDatabase } from '../../database';
-import type { MqttPublishConfig } from '../../notifications/mqtt-client';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleManualWebUiAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, destroyTempDir, sampleAlert, sampleManualWebUiAlert, seedAlert, tempDir } from './harness';
 
 describe('createApp notification events', () => {
   test('supports notification settings APIs and records fired notifications', async () => {
@@ -57,7 +51,7 @@ describe('createApp notification events', () => {
       }),
     );
     expect(createChannel.status).toBe(201);
-    const channelPayload = await createChannel.json() as { id: string };
+    const channelPayload = (await createChannel.json()) as { id: string };
 
     const createRule = await controller.fetch(
       new Request('http://localhost/crowdsec/api/notification-rules', {
@@ -84,7 +78,10 @@ describe('createApp notification events', () => {
 
     const notifications = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications'));
     expect(notifications.status).toBe(200);
-    const notificationsPayload = await notifications.json() as { unread_count: number; data: Array<{ id: string; deliveries: Array<{ status: string }> }> };
+    const notificationsPayload = (await notifications.json()) as {
+      unread_count: number;
+      data: Array<{ id: string; deliveries: Array<{ status: string }> }>;
+    };
     expect(notificationsPayload.unread_count).toBe(1);
     expect(notificationsPayload.data[0]?.deliveries[0]?.status).toBe('delivered');
 
@@ -97,23 +94,35 @@ describe('createApp notification events', () => {
       }),
     );
 
-    const testChannel = await controller.fetch(new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }));
+    const testChannel = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }),
+    );
     expect(testChannel.status).toBe(200);
 
-    const markRead = await controller.fetch(new Request(`http://localhost/crowdsec/api/notifications/${notificationsPayload.data[0]?.id}/read`, { method: 'POST' }));
+    const markRead = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/notifications/${notificationsPayload.data[0]?.id}/read`, {
+        method: 'POST',
+      }),
+    );
     expect(markRead.status).toBe(200);
 
-    const bulkRead = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications/bulk-read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: notificationsPayload.data.map((notification) => notification.id) }),
-    }));
+    const bulkRead = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/notifications/bulk-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: notificationsPayload.data.map((notification) => notification.id) }),
+      }),
+    );
     expect(bulkRead.status).toBe(200);
 
-    const deleteRead = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications/delete-read', { method: 'POST' }));
+    const deleteRead = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/notifications/delete-read', { method: 'POST' }),
+    );
     expect(deleteRead.status).toBe(200);
 
-    const deleteRule = await controller.fetch(new Request('http://localhost/crowdsec/api/notification-rules/not-real', { method: 'DELETE' }));
+    const deleteRule = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/notification-rules/not-real', { method: 'DELETE' }),
+    );
     expect(deleteRule.status).toBe(200);
 
     controller.stopBackgroundTasks();
@@ -197,19 +206,23 @@ describe('createApp notification events', () => {
 
     const notifications = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications'));
     expect(notifications.status).toBe(200);
-    expect((await notifications.json()) as {
-      data: Array<{ rule_type: string; metadata: Record<string, unknown> }>;
-    }).toEqual(expect.objectContaining({
-      data: [
-        expect.objectContaining({
-          rule_type: 'ip-ban',
-          metadata: expect.objectContaining({
-            decision_id: '3770',
-            value: '203.0.113.10',
+    expect(
+      (await notifications.json()) as {
+        data: Array<{ rule_type: string; metadata: Record<string, unknown> }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            rule_type: 'ip-ban',
+            metadata: expect.objectContaining({
+              decision_id: '3770',
+              value: '203.0.113.10',
+            }),
           }),
-        }),
-      ],
-    }));
+        ],
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -287,7 +300,7 @@ describe('createApp notification events', () => {
       }),
     );
     expect(createChannel.status).toBe(201);
-    const channelPayload = await createChannel.json() as { id: string };
+    const channelPayload = (await createChannel.json()) as { id: string };
 
     const createRule = await controller.fetch(
       new Request('http://localhost/crowdsec/api/notification-rules', {
@@ -329,7 +342,8 @@ describe('createApp notification events', () => {
     await vi.waitFor(() => expect(notificationStarted).toBe(true));
 
     releaseNotification();
-    for (let index = 0; index < 10 && !notificationFinished; index += 1) {
+    for (let index = 0; index < 10; index += 1) {
+      if (notificationFinished) break;
       await Promise.resolve();
     }
     expect(notificationFinished).toBe(true);
@@ -381,9 +395,11 @@ describe('createApp notification events', () => {
     expect(cachedStopAt).toBeLessThanOrEqual(afterRefresh + remainingMs);
     expect(cachedStopAt).toBeGreaterThan(Date.now());
 
-    const decisionsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&alert_id=388&include_expired=true'));
+    const decisionsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&alert_id=388&include_expired=true'),
+    );
     expect(decisionsResponse.status).toBe(200);
-    const decisionsJson = await decisionsResponse.json() as {
+    const decisionsJson = (await decisionsResponse.json()) as {
       data: Array<{ id: number; expired: boolean; detail: { duration: string } }>;
       selectable_ids: number[];
     };
@@ -407,42 +423,48 @@ describe('createApp notification events', () => {
       id: 390,
       uuid: 'alert-390',
       created_at: createdAt,
-      decisions: [{
-        id: 3900,
-        type: 'ban',
-        value: '1.2.3.4',
-        duration: '4h',
-        stop_at: new Date(Date.now() + 3 * 60 * 60 * 1_000).toISOString(),
-        origin: 'cscli',
-        scenario: 'manual/web-ui',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 3900,
+          type: 'ban',
+          value: '1.2.3.4',
+          duration: '4h',
+          stop_at: new Date(Date.now() + 3 * 60 * 60 * 1_000).toISOString(),
+          origin: 'cscli',
+          scenario: 'manual/web-ui',
+          simulated: false,
+        },
+      ],
     });
     const expiredOldAlert = sampleManualWebUiAlert({
       ...cachedOldAlert,
-      decisions: [{
-        id: 3900,
-        type: 'ban',
-        value: '1.2.3.4',
-        duration: '-1s',
-        origin: 'cscli',
-        scenario: 'manual/web-ui',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 3900,
+          type: 'ban',
+          value: '1.2.3.4',
+          duration: '-1s',
+          origin: 'cscli',
+          scenario: 'manual/web-ui',
+          simulated: false,
+        },
+      ],
     });
     const replacementAlert = sampleManualWebUiAlert({
       id: 391,
       uuid: 'alert-391',
       created_at: new Date().toISOString(),
-      decisions: [{
-        id: 3910,
-        type: 'ban',
-        value: '1.2.3.4',
-        duration: '4h',
-        origin: 'cscli',
-        scenario: 'manual/web-ui',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 3910,
+          type: 'ban',
+          value: '1.2.3.4',
+          duration: '4h',
+          origin: 'cscli',
+          scenario: 'manual/web-ui',
+          simulated: false,
+        },
+      ],
     });
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
     seedAlert(database, cachedOldAlert);
@@ -452,25 +474,28 @@ describe('createApp notification events', () => {
         CROWDSEC_REFRESH_INTERVAL: '0',
         CROWDSEC_LOOKBACK_PERIOD: '1h',
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([replacementAlert, expiredOldAlert])
-        : undefined,
+      fetchResolver: (url) =>
+        url.includes('/v1/alerts?') ? Response.json([replacementAlert, expiredOldAlert]) : undefined,
     });
 
-    const activeResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50'));
+    const activeResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50'),
+    );
     expect(activeResponse.status).toBe(200);
-    const activeJson = await activeResponse.json() as { data: Array<{ id: number; expired: boolean }> };
-    expect(activeJson.data).toEqual([
-      expect.objectContaining({ id: 3910, expired: false }),
-    ]);
+    const activeJson = (await activeResponse.json()) as { data: Array<{ id: number; expired: boolean }> };
+    expect(activeJson.data).toEqual([expect.objectContaining({ id: 3910, expired: false })]);
 
-    const allResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&include_expired=true'));
+    const allResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&include_expired=true'),
+    );
     expect(allResponse.status).toBe(200);
-    const allJson = await allResponse.json() as { data: Array<{ id: number; expired: boolean }> };
-    expect(allJson.data).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 3900, expired: true }),
-      expect.objectContaining({ id: 3910, expired: false }),
-    ]));
+    const allJson = (await allResponse.json()) as { data: Array<{ id: number; expired: boolean }> };
+    expect(allJson.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 3900, expired: true }),
+        expect.objectContaining({ id: 3910, expired: false }),
+      ]),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -483,27 +508,31 @@ describe('createApp notification events', () => {
       id: 388,
       uuid: 'alert-388',
       created_at: createdAt,
-      decisions: [{
-        id: 3880,
-        type: 'ban',
-        value: '1.2.3.4',
-        duration: '44m40s',
-        origin: 'crowdsec',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 3880,
+          type: 'ban',
+          value: '1.2.3.4',
+          duration: '44m40s',
+          origin: 'crowdsec',
+          simulated: false,
+        },
+      ],
     });
     const newerAlert = sampleManualWebUiAlert({
       id: 389,
       uuid: 'alert-389',
       created_at: createdAt,
-      decisions: [{
-        id: 3890,
-        type: 'ban',
-        value: '1.2.3.4',
-        duration: '44m40s',
-        origin: 'crowdsec',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 3890,
+          type: 'ban',
+          value: '1.2.3.4',
+          duration: '44m40s',
+          origin: 'crowdsec',
+          simulated: false,
+        },
+      ],
     });
 
     const { controller, database } = createController({
@@ -511,9 +540,7 @@ describe('createApp notification events', () => {
         CROWDSEC_REFRESH_INTERVAL: '0',
         CROWDSEC_LOOKBACK_PERIOD: '168h',
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([newerAlert, olderAlert])
-        : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([newerAlert, olderAlert]) : undefined),
     });
 
     const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
@@ -522,15 +549,16 @@ describe('createApp notification events', () => {
 
     const decisionsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions'));
     expect(decisionsResponse.status).toBe(200);
-    const decisions = await decisionsResponse.json() as Array<{ id: number; is_duplicate: boolean }>;
-    expect(decisions).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 3880, is_duplicate: true }),
-      expect.objectContaining({ id: 3890, is_duplicate: false }),
-    ]));
+    const decisions = (await decisionsResponse.json()) as Array<{ id: number; is_duplicate: boolean }>;
+    expect(decisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 3880, is_duplicate: true }),
+        expect.objectContaining({ id: 3890, is_duplicate: false }),
+      ]),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
     destroyTempDir();
   });
-
 });

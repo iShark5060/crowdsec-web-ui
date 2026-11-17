@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 import tls from 'node:tls';
+
 import { LapiClient } from '../server/lapi.ts';
 
 const image = process.env.CROWDSEC_MTLS_IMAGE || 'crowdsecurity/crowdsec:v1.8.1';
@@ -23,7 +24,9 @@ function run(command, args, options = {}) {
 
   if (result.status !== 0) {
     const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-    throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}.\n${output}`);
+    throw new Error(
+      `${command} ${args.join(' ')} failed with exit code ${result.status}.\n${output}`,
+    );
   }
 
   return result.stdout.trim();
@@ -210,15 +213,17 @@ async function assertNoClientCertificateIsRejected(baseUrl, caPath) {
     }, 5_000);
 
     socket.once('secureConnect', () => {
-      socket.write([
-        'POST /v1/watchers/login HTTP/1.1',
-        `Host: ${url.host}`,
-        'Content-Type: application/json',
-        `Content-Length: ${Buffer.byteLength(body)}`,
-        'Connection: close',
-        '',
-        body,
-      ].join('\r\n'));
+      socket.write(
+        [
+          'POST /v1/watchers/login HTTP/1.1',
+          `Host: ${url.host}`,
+          'Content-Type: application/json',
+          `Content-Length: ${Buffer.byteLength(body)}`,
+          'Connection: close',
+          '',
+          body,
+        ].join('\r\n'),
+      );
     });
     socket.on('data', (chunk) => {
       responseBytes += chunk.length;
@@ -302,7 +307,9 @@ async function main() {
     const client = await waitForLogin(createClient, containerName);
     const alertsResponse = await client.fetchLapi('/v1/alerts?since=1h&limit=0');
     if (alertsResponse.status !== 200) {
-      throw new Error(`Expected CrowdSec alerts endpoint to return HTTP 200, got: ${alertsResponse.status}`);
+      throw new Error(
+        `Expected CrowdSec alerts endpoint to return HTTP 200, got: ${alertsResponse.status}`,
+      );
     }
 
     await assertNoClientCertificateIsRejected(crowdsecUrl, path.join(workDir, 'ca.pem'));

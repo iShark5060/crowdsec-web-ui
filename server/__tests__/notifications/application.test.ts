@@ -1,6 +1,6 @@
-import { describe, expect, test, vi } from 'vitest';
-import type { LapiStatus } from '../../../shared/contracts';
-import { createAlert, createDecision, createService, insertAlert, insertDecision } from './harness';
+import { describe, expect, test } from 'vitest';
+
+import { createService } from './harness';
 
 describe('application update notifications', () => {
   test('application update rules keep only the notification for the current target version', async () => {
@@ -82,5 +82,4 @@ describe('application update notifications', () => {
 
     database.close();
   });
-
 });

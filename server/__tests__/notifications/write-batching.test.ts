@@ -1,5 +1,7 @@
-import { expect, test } from 'vitest';
 import dns from 'node:dns';
+
+import { expect, test } from 'vitest';
+
 import { createNotificationService } from '../../notifications';
 import { createNotificationSecretStore } from '../../notifications/secret-store';
 import { createDecision, createTestDatabase, insertDecision } from './harness';
@@ -25,7 +27,10 @@ test('batches incident and history writes into bounded transactions', async () =
     config: { window_minutes: 60, filters: {} },
   });
   for (let index = 0; index < 250; index += 1) {
-    insertDecision(database, createDecision(`decision-${index}`, '2026-03-28T11:55:00.000Z', { value: `192.0.2.${index}` }));
+    insertDecision(
+      database,
+      createDecision(`decision-${index}`, '2026-03-28T11:55:00.000Z', { value: `192.0.2.${index}` }),
+    );
   }
 
   writes = 0;
@@ -38,7 +43,11 @@ test('batches incident and history writes into bounded transactions', async () =
   writes = 0;
   await service.evaluateRules(new Date('2026-03-28T12:05:00.000Z'));
   expect(database.countNotifications()).toBe(250);
-  expect(database.listNotificationIncidentsByRule(rule.id).every((incident) => incident.last_seen_at === '2026-03-28T12:05:00.000Z')).toBe(true);
+  expect(
+    database
+      .listNotificationIncidentsByRule(rule.id)
+      .every((incident) => incident.last_seen_at === '2026-03-28T12:05:00.000Z'),
+  ).toBe(true);
   expect(writes).toBe(3);
 
   database.close();
@@ -69,9 +78,12 @@ test('yields to timers between batches of new notifications', async () => {
   });
   database.transaction<void>(() => {
     for (let index = 0; index < 1_000; index += 1) {
-      insertDecision(database, createDecision(`decision-${index}`, '2026-03-28T11:55:00.000Z', {
-        value: `10.0.${Math.floor(index / 250)}.${index % 250}`,
-      }));
+      insertDecision(
+        database,
+        createDecision(`decision-${index}`, '2026-03-28T11:55:00.000Z', {
+          value: `10.0.${Math.floor(index / 250)}.${index % 250}`,
+        }),
+      );
     }
   })(undefined);
 

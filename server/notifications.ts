@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+
 import type {
   AlertDecision,
   AlertMetaValue,
@@ -28,20 +29,11 @@ import type {
   UpsertNotificationChannelRequest,
   UpsertNotificationRuleRequest,
 } from '../shared/contracts';
-import { CrowdsecDatabase } from './database';
-import type { MqttPublishConfig } from './notifications/mqtt-client';
-import {
-  getNotificationProvider,
-  type NotificationProviderPayload,
-} from './notifications/providers';
-import type { NotificationOutboundGuard } from './notifications/outbound-guard';
-import type { NotificationSecretStore } from './notifications/secret-store';
-import type { UpdateChecker } from './update-check';
-import type { CrowdsecUpdateChecker, CrowdsecUpdateObservation } from './crowdsec-update-check';
-import { getServerTranslator, type Translator } from './i18n';
 import { getAppName } from './branding';
 import type { DateFormat, TimeFormat } from './config';
-import { formatDateTime } from './utils/date-time';
+import type { CrowdsecUpdateChecker, CrowdsecUpdateObservation } from './crowdsec-update-check';
+import { CrowdsecDatabase } from './database';
+import { getServerTranslator, type Translator } from './i18n';
 import {
   ALERT_RECORD_COLUMNS,
   DECISION_RECORD_COLUMNS,
@@ -50,8 +42,17 @@ import {
   type NormalizedAlertRow,
   type NormalizedDecisionRow,
 } from './normalized-record';
+import type { MqttPublishConfig } from './notifications/mqtt-client';
+import type { NotificationOutboundGuard } from './notifications/outbound-guard';
+import {
+  getNotificationProvider,
+  type NotificationProviderPayload,
+} from './notifications/providers';
+import type { NotificationSecretStore } from './notifications/secret-store';
 import type { DatabaseQueryWorker } from './query-worker-client';
 import type { DatabaseWrite } from './sync-worker-client';
+import type { UpdateChecker } from './update-check';
+import { formatDateTime } from './utils/date-time';
 
 const NOTIFICATION_WRITE_BATCH_SIZE = 100;
 
@@ -111,7 +112,10 @@ export interface NotificationService {
   listSettings: () => NotificationSettingsResponse;
   listNotifications: (page?: number, pageSize?: number) => NotificationListResponse;
   createChannel: (input: UpsertNotificationChannelRequest) => Promise<NotificationChannel>;
-  updateChannel: (id: string, input: UpsertNotificationChannelRequest) => Promise<NotificationChannel>;
+  updateChannel: (
+    id: string,
+    input: UpsertNotificationChannelRequest,
+  ) => Promise<NotificationChannel>;
   deleteChannel: (id: string) => Promise<void>;
   createRule: (input: UpsertNotificationRuleRequest) => Promise<NotificationRule>;
   updateRule: (id: string, input: UpsertNotificationRuleRequest) => Promise<NotificationRule>;
@@ -127,12 +131,16 @@ export interface NotificationService {
   evaluateRules: (now?: Date) => Promise<void>;
 }
 
-export function createNotificationService(options: NotificationServiceOptions): NotificationService {
+export function createNotificationService(
+  options: NotificationServiceOptions,
+): NotificationService {
   const database = options.database;
   const writeDatabase: DatabaseWrite = options.writeDatabase ?? (async (operation) => operation());
   const queryWorker = options.queryWorker || {
-    all: async <T>(sql: string, params: unknown[] = []) => database.db.prepare(sql).all(...params) as T[],
-    get: async <T>(sql: string, params: unknown[] = []) => database.db.prepare(sql).get(...params) as T,
+    all: async <T>(sql: string, params: unknown[] = []) =>
+      database.db.prepare(sql).all(...params) as T[],
+    get: async <T>(sql: string, params: unknown[] = []) =>
+      database.db.prepare(sql).get(...params) as T,
   };
   const fetchImpl = options.fetchImpl || fetch;
   const mqttPublishImpl = options.mqttPublishImpl;
@@ -144,8 +152,12 @@ export function createNotificationService(options: NotificationServiceOptions): 
   const secretStore = options.secretStore;
   const debugPayloads = options.debugPayloads === true;
   const instanceAware = options.instanceAware === true;
-  const instanceNames = new Map((options.instances || []).map((instance) => [instance.id, instance.name]));
-  const instanceOrder = new Map((options.instances || []).map((instance, index) => [instance.id, index]));
+  const instanceNames = new Map(
+    (options.instances || []).map((instance) => [instance.id, instance.name]),
+  );
+  const instanceOrder = new Map(
+    (options.instances || []).map((instance, index) => [instance.id, index]),
+  );
 
   return {
     listSettings,
@@ -203,14 +215,19 @@ export function createNotificationService(options: NotificationServiceOptions): 
     };
   }
 
-  async function createChannel(input: UpsertNotificationChannelRequest): Promise<NotificationChannel> {
+  async function createChannel(
+    input: UpsertNotificationChannelRequest,
+  ): Promise<NotificationChannel> {
     const now = new Date().toISOString();
     const channel = normalizeChannelInput(input, null, crypto.randomUUID(), now);
     await writeDatabase(() => saveChannel(channel));
     return sanitizeChannel(channel);
   }
 
-  async function updateChannel(id: string, input: UpsertNotificationChannelRequest): Promise<NotificationChannel> {
+  async function updateChannel(
+    id: string,
+    input: UpsertNotificationChannelRequest,
+  ): Promise<NotificationChannel> {
     const existing = getStoredChannel(id);
     if (!existing) {
       throw new Error('Notification channel not found');
@@ -245,7 +262,10 @@ export function createNotificationService(options: NotificationServiceOptions): 
     return rule;
   }
 
-  async function updateRule(id: string, input: UpsertNotificationRuleRequest): Promise<NotificationRule> {
+  async function updateRule(
+    id: string,
+    input: UpsertNotificationRuleRequest,
+  ): Promise<NotificationRule> {
     const existing = getStoredRule(id);
     if (!existing) {
       throw new Error('Notification rule not found');
@@ -306,7 +326,12 @@ export function createNotificationService(options: NotificationServiceOptions): 
       title: t('server.notifications.test.title'),
       message: t('server.notifications.test.message', {
         appName: getAppName(database),
-        timestamp: formatDateTime(new Date(), options.timeZone ?? null, options.timeFormat ?? 'browser', options.dateFormat ?? 'browser'),
+        timestamp: formatDateTime(
+          new Date(),
+          options.timeZone ?? null,
+          options.timeFormat ?? 'browser',
+          options.dateFormat ?? 'browser',
+        ),
       }),
       metadata: { kind: 'test' },
       dedupeKey: `test:${Date.now()}`,
@@ -328,17 +353,21 @@ export function createNotificationService(options: NotificationServiceOptions): 
       throw new Error('Notification rule not found');
     }
 
-    const channels = loadChannels(false).filter((channel) => channel.enabled && rule.channel_ids.includes(channel.id));
+    const channels = loadChannels(false).filter(
+      (channel) => channel.enabled && rule.channel_ids.includes(channel.id),
+    );
     if (channels.length === 0) {
       throw new Error('This rule has no enabled outbound destinations');
     }
 
     const now = new Date();
     const t = getServerTranslator(database);
-    const candidates = rule.type === 'crowdsec-update'
-      ? evaluateCrowdsecUpdateRule(rule, await crowdsecUpdateChecker?.() || [], t)
-      : await evaluateRule(rule, now, t);
-    const source: NotificationRuleTestResult['source'] = candidates.length > 0 ? 'current' : 'sample';
+    const candidates =
+      rule.type === 'crowdsec-update'
+        ? evaluateCrowdsecUpdateRule(rule, (await crowdsecUpdateChecker?.()) || [], t)
+        : await evaluateRule(rule, now, t);
+    const source: NotificationRuleTestResult['source'] =
+      candidates.length > 0 ? 'current' : 'sample';
     const candidate = candidates.at(-1) || createSampleRuleCandidate(rule, now, t);
     const testCandidate: NotificationCandidate = {
       ...candidate,
@@ -346,69 +375,182 @@ export function createNotificationService(options: NotificationServiceOptions): 
       metadata: { ...candidate.metadata, kind: 'test', test_source: source },
       dedupeKey: `test:${crypto.randomUUID()}`,
     };
-    const deliveries = await Promise.all(channels.map((channel) =>
-      sendToChannel(channel, testCandidate, candidate.severity || rule.severity, rule)));
+    const deliveries = await Promise.all(
+      channels.map((channel) =>
+        sendToChannel(channel, testCandidate, candidate.severity || rule.severity, rule),
+      ),
+    );
 
     return { source, title: testCandidate.title, message: testCandidate.message, deliveries };
   }
 
-  function createSampleRuleCandidate(rule: NotificationRule, now: Date, t: Translator): NotificationCandidate {
+  function createSampleRuleCandidate(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): NotificationCandidate {
     const name = { ruleName: rule.name };
     const timestamp = now.toISOString();
-    const sample = (title: string, message: string, metadata: Record<string, AlertMetaValue>): NotificationCandidate => ({
-      dedupeKey: 'sample', title, message, metadata,
+    const sample = (
+      title: string,
+      message: string,
+      metadata: Record<string, AlertMetaValue>,
+    ): NotificationCandidate => ({
+      dedupeKey: 'sample',
+      title,
+      message,
+      metadata,
     });
 
     if (rule.type === 'alert-spike') {
       const config = normalizeRuleConfig('alert-spike', rule.config);
-      const count = Math.max(10, config.minimum_current_alerts, Math.ceil(config.percent_increase / 100) + 2);
+      const count = Math.max(
+        10,
+        config.minimum_current_alerts,
+        Math.ceil(config.percent_increase / 100) + 2,
+      );
       const previousCount = 1;
       const percent = (count - previousCount) * 100;
-      return sample(t('server.notifications.alertSpike.title', name),
-        t('server.notifications.alertSpike.message', { count, minutes: config.window_minutes, percent, previousCount }),
-        { current_count: count, previous_count: previousCount, increase_percent: percent, window_minutes: config.window_minutes });
+      return sample(
+        t('server.notifications.alertSpike.title', name),
+        t('server.notifications.alertSpike.message', {
+          count,
+          minutes: config.window_minutes,
+          percent,
+          previousCount,
+        }),
+        {
+          current_count: count,
+          previous_count: previousCount,
+          increase_percent: percent,
+          window_minutes: config.window_minutes,
+        },
+      );
     }
     if (rule.type === 'alert-threshold') {
       const config = normalizeRuleConfig('alert-threshold', rule.config);
-      return sample(t('server.notifications.alertThreshold.title', name),
-        t('server.notifications.alertThreshold.message', { count: config.alert_threshold, minutes: config.window_minutes, threshold: config.alert_threshold }),
-        { matched_alerts: config.alert_threshold, threshold: config.alert_threshold, window_minutes: config.window_minutes });
+      return sample(
+        t('server.notifications.alertThreshold.title', name),
+        t('server.notifications.alertThreshold.message', {
+          count: config.alert_threshold,
+          minutes: config.window_minutes,
+          threshold: config.alert_threshold,
+        }),
+        {
+          matched_alerts: config.alert_threshold,
+          threshold: config.alert_threshold,
+          window_minutes: config.window_minutes,
+        },
+      );
     }
     if (rule.type === 'new-alert-decision') {
       const config = normalizeRuleConfig('new-alert-decision', rule.config);
       if (config.event_type === 'decision') {
-        return sample(t('server.notifications.newEvent.decisionTitle', name),
-          t('server.notifications.newEvent.decisionMessage', { id: '1', type: 'ban', value: '192.0.2.1', scenario: 'example/scenario', target: 'ssh', createdAt: timestamp, stopAt: timestamp }),
-          { event_type: 'decision', decision_id: '1', type: 'ban', value: '192.0.2.1', scenario: 'example/scenario', target: 'ssh', created_at: timestamp, stop_at: timestamp });
+        return sample(
+          t('server.notifications.newEvent.decisionTitle', name),
+          t('server.notifications.newEvent.decisionMessage', {
+            id: '1',
+            type: 'ban',
+            value: '192.0.2.1',
+            scenario: 'example/scenario',
+            target: 'ssh',
+            createdAt: timestamp,
+            stopAt: timestamp,
+          }),
+          {
+            event_type: 'decision',
+            decision_id: '1',
+            type: 'ban',
+            value: '192.0.2.1',
+            scenario: 'example/scenario',
+            target: 'ssh',
+            created_at: timestamp,
+            stop_at: timestamp,
+          },
+        );
       }
-      return sample(t('server.notifications.newEvent.alertTitle', name),
-        t('server.notifications.newEvent.alertMessage', { id: '1', scenario: 'example/scenario', source: '192.0.2.1', target: 'ssh', createdAt: timestamp, description: t('server.notifications.ruleTest.sampleAlert') }),
-        { event_type: 'alert', alert_id: '1', scenario: 'example/scenario', source: '192.0.2.1', target: 'ssh', created_at: timestamp, message: t('server.notifications.ruleTest.sampleAlert') });
+      return sample(
+        t('server.notifications.newEvent.alertTitle', name),
+        t('server.notifications.newEvent.alertMessage', {
+          id: '1',
+          scenario: 'example/scenario',
+          source: '192.0.2.1',
+          target: 'ssh',
+          createdAt: timestamp,
+          description: t('server.notifications.ruleTest.sampleAlert'),
+        }),
+        {
+          event_type: 'alert',
+          alert_id: '1',
+          scenario: 'example/scenario',
+          source: '192.0.2.1',
+          target: 'ssh',
+          created_at: timestamp,
+          message: t('server.notifications.ruleTest.sampleAlert'),
+        },
+      );
     }
     if (rule.type === 'new-cve') {
-      return sample(t('server.notifications.newCve.title', name),
-        t('server.notifications.newCve.message', { cveId: `CVE-${now.getUTCFullYear()}-0001`, ageDays: 1, count: 1 }),
-        { cve_id: `CVE-${now.getUTCFullYear()}-0001`, age_days: 1, matched_alerts: 1 });
+      return sample(
+        t('server.notifications.newCve.title', name),
+        t('server.notifications.newCve.message', {
+          cveId: `CVE-${now.getUTCFullYear()}-0001`,
+          ageDays: 1,
+          count: 1,
+        }),
+        { cve_id: `CVE-${now.getUTCFullYear()}-0001`, age_days: 1, matched_alerts: 1 },
+      );
     }
     if (rule.type === 'ip-ban') {
-      return sample(t('server.notifications.ipBan.title', name),
-        t('server.notifications.ipBan.message', { value: '192.0.2.1', scenarioDetail: '', stopAtDetail: '' }),
-        { decision_id: '1', value: '192.0.2.1', type: 'ban', scenario: null, stop_at: null });
+      return sample(
+        t('server.notifications.ipBan.title', name),
+        t('server.notifications.ipBan.message', {
+          value: '192.0.2.1',
+          scenarioDetail: '',
+          stopAtDetail: '',
+        }),
+        { decision_id: '1', value: '192.0.2.1', type: 'ban', scenario: null, stop_at: null },
+      );
     }
     if (rule.type === 'application-update') {
-      return sample(t('server.notifications.applicationUpdate.title', name),
-        t('server.notifications.applicationUpdate.message', { appName: getAppName(database), currentVersion: 'v1.0.0', targetVersion: 'v1.1.0' }),
-        { update_available: true, local_version: 'v1.0.0', remote_version: 'v1.1.0' });
+      return sample(
+        t('server.notifications.applicationUpdate.title', name),
+        t('server.notifications.applicationUpdate.message', {
+          appName: getAppName(database),
+          currentVersion: 'v1.0.0',
+          targetVersion: 'v1.1.0',
+        }),
+        { update_available: true, local_version: 'v1.0.0', remote_version: 'v1.1.0' },
+      );
     }
     if (rule.type === 'crowdsec-update') {
-      return sample(t('server.notifications.crowdsecUpdate.title', name),
-        t('server.notifications.crowdsecUpdate.message', { instanceName: 'CrowdSec', endpointName: 'LAPI', currentVersion: 'v1.0.0', targetVersion: 'v1.1.0' }),
-        { instance_name: 'CrowdSec', endpoint_name: 'LAPI', local_version: 'v1.0.0', remote_version: 'v1.1.0' });
+      return sample(
+        t('server.notifications.crowdsecUpdate.title', name),
+        t('server.notifications.crowdsecUpdate.message', {
+          instanceName: 'CrowdSec',
+          endpointName: 'LAPI',
+          currentVersion: 'v1.0.0',
+          targetVersion: 'v1.1.0',
+        }),
+        {
+          instance_name: 'CrowdSec',
+          endpoint_name: 'LAPI',
+          local_version: 'v1.0.0',
+          remote_version: 'v1.1.0',
+        },
+      );
     }
     const config = normalizeRuleConfig('lapi-availability', rule.config);
-    return sample(t('server.notifications.lapiUnavailable.title', name),
-      t('server.notifications.lapiUnavailable.message', { seconds: config.outage_threshold_seconds }),
-      { outage_threshold_seconds: config.outage_threshold_seconds, outage_duration_seconds: config.outage_threshold_seconds });
+    return sample(
+      t('server.notifications.lapiUnavailable.title', name),
+      t('server.notifications.lapiUnavailable.message', {
+        seconds: config.outage_threshold_seconds,
+      }),
+      {
+        outage_threshold_seconds: config.outage_threshold_seconds,
+        outage_duration_seconds: config.outage_threshold_seconds,
+      },
+    );
   }
 
   async function evaluateRules(now = new Date()): Promise<void> {
@@ -422,22 +564,27 @@ export function createNotificationService(options: NotificationServiceOptions): 
     const t = getServerTranslator(database);
     for (const rule of rules) {
       if (rule.type === 'crowdsec-update' && !crowdsecUpdateChecker) continue;
-      const crowdsecObservations = rule.type === 'crowdsec-update'
-        ? await crowdsecUpdateChecker?.() || []
-        : null;
-      const candidates = dedupeCandidates(crowdsecObservations
-        ? evaluateCrowdsecUpdateRule(rule, crowdsecObservations, t)
-        : await evaluateRule(rule, now, t));
+      const crowdsecObservations =
+        rule.type === 'crowdsec-update' ? (await crowdsecUpdateChecker?.()) || [] : null;
+      const candidates = dedupeCandidates(
+        crowdsecObservations
+          ? evaluateCrowdsecUpdateRule(rule, crowdsecObservations, t)
+          : await evaluateRule(rule, now, t),
+      );
       const activeIncidents = loadActiveIncidents(rule.id);
       const candidateKeys = new Set(candidates.map((candidate) => candidate.dedupeKey));
-      const unknownPrefixes = crowdsecObservations?.filter((observation) => observation.updateAvailable === null)
-        .map((observation) => crowdsecUpdateIncidentPrefix(observation)) || [];
+      const unknownPrefixes =
+        crowdsecObservations
+          ?.filter((observation) => observation.updateAvailable === null)
+          .map((observation) => crowdsecUpdateIncidentPrefix(observation)) || [];
 
       const writes: Array<() => void> = [];
 
       for (const incident of activeIncidents.values()) {
-        if (!candidateKeys.has(incident.incidentKey)
-          && !unknownPrefixes.some((prefix) => incident.incidentKey.startsWith(prefix))) {
+        if (
+          !candidateKeys.has(incident.incidentKey) &&
+          !unknownPrefixes.some((prefix) => incident.incidentKey.startsWith(prefix))
+        ) {
           writes.push(() => {
             database.resolveNotificationIncident(rule.id, incident.incidentKey, timestamp);
             if (rule.type === 'application-update' || rule.type === 'crowdsec-update') {
@@ -450,13 +597,15 @@ export function createNotificationService(options: NotificationServiceOptions): 
       for (const candidate of candidates) {
         const existingIncident = activeIncidents.get(candidate.dedupeKey);
         if (existingIncident) {
-          writes.push(() => database.upsertNotificationIncident({
-            $rule_id: rule.id,
-            $incident_key: existingIncident.incidentKey,
-            $first_seen_at: existingIncident.firstSeenAt,
-            $last_seen_at: timestamp,
-            $resolved_at: null,
-          }));
+          writes.push(() =>
+            database.upsertNotificationIncident({
+              $rule_id: rule.id,
+              $incident_key: existingIncident.incidentKey,
+              $first_seen_at: existingIncident.firstSeenAt,
+              $last_seen_at: timestamp,
+              $resolved_at: null,
+            }),
+          );
           continue;
         }
 
@@ -504,9 +653,11 @@ export function createNotificationService(options: NotificationServiceOptions): 
   async function flushWrites(writes: Array<() => void>): Promise<void> {
     while (writes.length > 0) {
       const batch = writes.splice(0, NOTIFICATION_WRITE_BATCH_SIZE);
-      await writeDatabase(() => database.transaction<void>(() => {
-        for (const write of batch) write();
-      })(undefined));
+      await writeDatabase(() =>
+        database.transaction<void>(() => {
+          for (const write of batch) write();
+        })(undefined),
+      );
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
   }
@@ -575,7 +726,9 @@ export function createNotificationService(options: NotificationServiceOptions): 
     const config = provider.normalizeConfig(parsedConfig.config as Record<string, AlertMetaValue>);
     const configuredSecrets = provider.getConfiguredSecrets(config);
     if (configuredSecrets.length > 0 && !parsedConfig.isEncrypted && !secretStore.hasKey()) {
-      throw new Error('A notification secret key is required to load notification destinations with saved secrets');
+      throw new Error(
+        'A notification secret key is required to load notification destinations with saved secrets',
+      );
     }
     return {
       id: String(row.id),
@@ -607,7 +760,9 @@ export function createNotificationService(options: NotificationServiceOptions): 
       type,
       enabled: row.enabled === 1,
       severity: normalizeSeverity(row.severity),
-      channel_ids: parseJsonArray<string>(row.channel_ids_json).filter((value): value is string => typeof value === 'string'),
+      channel_ids: parseJsonArray<string>(row.channel_ids_json).filter(
+        (value): value is string => typeof value === 'string',
+      ),
       config: normalizeRuleConfig(type, parseJsonRecord(row.config_json)),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
@@ -623,7 +778,10 @@ export function createNotificationService(options: NotificationServiceOptions): 
       $name: channel.name,
       $type: channel.type,
       $enabled: channel.enabled ? 1 : 0,
-      $config_json: secretStore.serializeConfig(channel.config, provider.getConfiguredSecrets(channel.config).length > 0),
+      $config_json: secretStore.serializeConfig(
+        channel.config,
+        provider.getConfiguredSecrets(channel.config).length > 0,
+      ),
     });
   }
 
@@ -690,7 +848,9 @@ export function createNotificationService(options: NotificationServiceOptions): 
     }
 
     const channelIds = Array.isArray(input.channel_ids)
-      ? input.channel_ids.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      ? input.channel_ids.filter(
+          (value): value is string => typeof value === 'string' && value.trim().length > 0,
+        )
       : [];
 
     const knownChannels = new Set(loadChannels(false).map((channel) => channel.id));
@@ -713,7 +873,11 @@ export function createNotificationService(options: NotificationServiceOptions): 
     };
   }
 
-  async function evaluateRule(rule: NotificationRule, now: Date, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateRule(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     if (rule.type === 'alert-spike') {
       return evaluateAlertSpikeRule(rule, now, t);
     }
@@ -735,31 +899,40 @@ export function createNotificationService(options: NotificationServiceOptions): 
     return evaluateNewCveRule(rule, now, t);
   }
 
-  function evaluateCrowdsecUpdateRule(rule: NotificationRule, observations: CrowdsecUpdateObservation[], t: Translator): NotificationCandidate[] {
+  function evaluateCrowdsecUpdateRule(
+    rule: NotificationRule,
+    observations: CrowdsecUpdateObservation[],
+    t: Translator,
+  ): NotificationCandidate[] {
     return observations.flatMap((observation) => {
-      if (!observation.updateAvailable || !observation.currentVersion || !observation.remoteVersion) return [];
-      return [{
-        dedupeKey: `${crowdsecUpdateIncidentPrefix(observation)}${observation.remoteVersion}`,
-        title: t('server.notifications.crowdsecUpdate.title', { ruleName: rule.name }),
-        message: [
-          t('server.notifications.crowdsecUpdate.message', {
-            instanceName: observation.instanceName,
-            endpointName: observation.endpointName,
-            currentVersion: observation.currentVersion,
-            targetVersion: observation.remoteVersion,
-          }),
-          observation.releaseUrl,
-        ].filter(Boolean).join(' '),
-        metadata: {
-          instance_id: observation.instanceId,
-          instance_name: observation.instanceName,
-          endpoint_id: observation.endpointId,
-          endpoint_name: observation.endpointName,
-          local_version: observation.currentVersion,
-          remote_version: observation.remoteVersion,
-          release_url: observation.releaseUrl,
+      if (!observation.updateAvailable || !observation.currentVersion || !observation.remoteVersion)
+        return [];
+      return [
+        {
+          dedupeKey: `${crowdsecUpdateIncidentPrefix(observation)}${observation.remoteVersion}`,
+          title: t('server.notifications.crowdsecUpdate.title', { ruleName: rule.name }),
+          message: [
+            t('server.notifications.crowdsecUpdate.message', {
+              instanceName: observation.instanceName,
+              endpointName: observation.endpointName,
+              currentVersion: observation.currentVersion,
+              targetVersion: observation.remoteVersion,
+            }),
+            observation.releaseUrl,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          metadata: {
+            instance_id: observation.instanceId,
+            instance_name: observation.instanceName,
+            endpoint_id: observation.endpointId,
+            endpoint_name: observation.endpointName,
+            local_version: observation.currentVersion,
+            remote_version: observation.remoteVersion,
+            release_url: observation.releaseUrl,
+          },
         },
-      }];
+      ];
     });
   }
 
@@ -767,13 +940,25 @@ export function createNotificationService(options: NotificationServiceOptions): 
     return `crowdsec-update:${encodeURIComponent(observation.instanceId)}:${encodeURIComponent(observation.endpointId)}:`;
   }
 
-  async function evaluateAlertSpikeRule(rule: NotificationRule, now: Date, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateAlertSpikeRule(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     const config = normalizeRuleConfig('alert-spike', rule.config);
     const windowMs = config.window_minutes * 60_000;
     const currentStart = now.getTime() - windowMs;
     const previousStart = currentStart - windowMs;
-    const currentAlertCounts = await countAlertsByInstanceBetween(new Date(currentStart), now, config.filters);
-    const previousAlertCounts = await countAlertsByInstanceBetween(new Date(previousStart), new Date(currentStart), config.filters);
+    const currentAlertCounts = await countAlertsByInstanceBetween(
+      new Date(currentStart),
+      now,
+      config.filters,
+    );
+    const previousAlertCounts = await countAlertsByInstanceBetween(
+      new Date(previousStart),
+      new Date(currentStart),
+      config.filters,
+    );
     const currentAlertCount = sumCounts(currentAlertCounts);
     const previousAlertCount = sumCounts(previousAlertCounts);
     const baseline = Math.max(previousAlertCount, 1);
@@ -787,53 +972,75 @@ export function createNotificationService(options: NotificationServiceOptions): 
       return [];
     }
 
-    return [withInstanceContext({
-      dedupeKey: 'spike:active',
-      title: t('server.notifications.alertSpike.title', { ruleName: rule.name }),
-      message: t('server.notifications.alertSpike.message', {
-        count: currentAlertCount,
-        minutes: config.window_minutes,
-        percent: Math.round(increasePercent),
-        previousCount: previousAlertCount,
-      }),
-      metadata: {
-        current_count: currentAlertCount,
-        previous_count: previousAlertCount,
-        increase_percent: Math.round(increasePercent),
-        window_minutes: config.window_minutes,
-        filters: toMetaRecord(config.filters),
-      },
-    }, [...currentAlertCounts.keys()])];
+    return [
+      withInstanceContext(
+        {
+          dedupeKey: 'spike:active',
+          title: t('server.notifications.alertSpike.title', { ruleName: rule.name }),
+          message: t('server.notifications.alertSpike.message', {
+            count: currentAlertCount,
+            minutes: config.window_minutes,
+            percent: Math.round(increasePercent),
+            previousCount: previousAlertCount,
+          }),
+          metadata: {
+            current_count: currentAlertCount,
+            previous_count: previousAlertCount,
+            increase_percent: Math.round(increasePercent),
+            window_minutes: config.window_minutes,
+            filters: toMetaRecord(config.filters),
+          },
+        },
+        [...currentAlertCounts.keys()],
+      ),
+    ];
   }
 
-  async function evaluateAlertThresholdRule(rule: NotificationRule, now: Date, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateAlertThresholdRule(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     const config = normalizeRuleConfig('alert-threshold', rule.config);
     const windowMs = config.window_minutes * 60_000;
-    const alertCounts = await countAlertsByInstanceBetween(new Date(now.getTime() - windowMs), now, config.filters);
+    const alertCounts = await countAlertsByInstanceBetween(
+      new Date(now.getTime() - windowMs),
+      now,
+      config.filters,
+    );
     const alertCount = sumCounts(alertCounts);
 
     if (alertCount < config.alert_threshold) {
       return [];
     }
 
-    return [withInstanceContext({
-      dedupeKey: 'threshold:active',
-      title: t('server.notifications.alertThreshold.title', { ruleName: rule.name }),
-      message: t('server.notifications.alertThreshold.message', {
-        count: alertCount,
-        minutes: config.window_minutes,
-        threshold: config.alert_threshold,
-      }),
-      metadata: {
-        matched_alerts: alertCount,
-        threshold: config.alert_threshold,
-        window_minutes: config.window_minutes,
-        filters: toMetaRecord(config.filters),
-      },
-    }, [...alertCounts.keys()])];
+    return [
+      withInstanceContext(
+        {
+          dedupeKey: 'threshold:active',
+          title: t('server.notifications.alertThreshold.title', { ruleName: rule.name }),
+          message: t('server.notifications.alertThreshold.message', {
+            count: alertCount,
+            minutes: config.window_minutes,
+            threshold: config.alert_threshold,
+          }),
+          metadata: {
+            matched_alerts: alertCount,
+            threshold: config.alert_threshold,
+            window_minutes: config.window_minutes,
+            filters: toMetaRecord(config.filters),
+          },
+        },
+        [...alertCounts.keys()],
+      ),
+    ];
   }
 
-  async function evaluateNewAlertDecisionRule(rule: NotificationRule, now: Date, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateNewAlertDecisionRule(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     const config = normalizeRuleConfig('new-alert-decision', rule.config);
     const windowStart = new Date(now.getTime() - config.window_minutes * 60_000);
     const candidates: NotificationCandidate[] = [];
@@ -841,41 +1048,48 @@ export function createNotificationService(options: NotificationServiceOptions): 
     if (config.event_type === 'alert' || config.event_type === 'both') {
       for (const alert of await getAlertsBetween(windowStart, now, config.filters)) {
         const alertId = String(alert.id);
-        const instanceId = String((alert as AlertRecord & { instance_id?: string }).instance_id || 'default');
+        const instanceId = String(
+          (alert as AlertRecord & { instance_id?: string }).instance_id || 'default',
+        );
         const source = getAlertSourceValue(alert);
         const scenario = String(alert.scenario || alert.reason || '—');
         const target = String(alert.target || '—');
         const description = String(alert.message || '—');
 
-        candidates.push(withInstanceContext({
-          dedupeKey: `${instanceAware ? `${encodeURIComponent(instanceId)}:` : ''}new-alert:${encodeURIComponent(alertId)}`,
-          title: t('server.notifications.newEvent.alertTitle', { ruleName: rule.name }),
-          message: t('server.notifications.newEvent.alertMessage', {
-            id: alertId,
-            scenario,
-            source,
-            target,
-            createdAt: alert.created_at,
-            description,
-          }),
-          incidentStartedAt: alert.created_at,
-          metadata: {
-            event_type: 'alert',
-            instance_id: instanceId,
-            alert_id: alertId,
-            uuid: typeof alert.uuid === 'string' ? alert.uuid : null,
-            scenario,
-            source,
-            target,
-            created_at: alert.created_at,
-            message: description,
-            simulated: alert.simulated === true,
-            machine: alert.machine_alias || alert.machine_id || null,
-            events_count: typeof alert.events_count === 'number' ? alert.events_count : null,
-            decision_count: Array.isArray(alert.decisions) ? alert.decisions.length : 0,
-            filters: toMetaRecord(config.filters),
-          },
-        }, [instanceId]));
+        candidates.push(
+          withInstanceContext(
+            {
+              dedupeKey: `${instanceAware ? `${encodeURIComponent(instanceId)}:` : ''}new-alert:${encodeURIComponent(alertId)}`,
+              title: t('server.notifications.newEvent.alertTitle', { ruleName: rule.name }),
+              message: t('server.notifications.newEvent.alertMessage', {
+                id: alertId,
+                scenario,
+                source,
+                target,
+                createdAt: alert.created_at,
+                description,
+              }),
+              incidentStartedAt: alert.created_at,
+              metadata: {
+                event_type: 'alert',
+                instance_id: instanceId,
+                alert_id: alertId,
+                uuid: typeof alert.uuid === 'string' ? alert.uuid : null,
+                scenario,
+                source,
+                target,
+                created_at: alert.created_at,
+                message: description,
+                simulated: alert.simulated === true,
+                machine: alert.machine_alias || alert.machine_id || null,
+                events_count: typeof alert.events_count === 'number' ? alert.events_count : null,
+                decision_count: Array.isArray(alert.decisions) ? alert.decisions.length : 0,
+                filters: toMetaRecord(config.filters),
+              },
+            },
+            [instanceId],
+          ),
+        );
       }
     }
 
@@ -891,44 +1105,60 @@ export function createNotificationService(options: NotificationServiceOptions): 
         const target = String(decision.target || '—');
         const stopAt = String(decision.stop_at || '—');
 
-        candidates.push(withInstanceContext({
-          dedupeKey: `${instanceAware ? `${encodeURIComponent(instanceId)}:` : ''}new-decision:${encodeURIComponent(decisionId)}`,
-          title: t('server.notifications.newEvent.decisionTitle', { ruleName: rule.name }),
-          message: t('server.notifications.newEvent.decisionMessage', {
-            id: decisionId,
-            type: decisionType,
-            value,
-            scenario,
-            target,
-            createdAt,
-            stopAt,
-          }),
-          incidentStartedAt: createdAt,
-          metadata: {
-            event_type: 'decision',
-            instance_id: instanceId,
-            decision_id: decisionId,
-            alert_id: typeof decision.alert_id === 'string' || typeof decision.alert_id === 'number' ? decision.alert_id : null,
-            type: decisionType,
-            value,
-            scenario,
-            target,
-            origin: typeof decision.origin === 'string' ? decision.origin : null,
-            created_at: createdAt,
-            stop_at: stopAt,
-            simulated: decision.simulated === true,
-            filters: toMetaRecord(config.filters),
-          },
-        }, [instanceId]));
+        candidates.push(
+          withInstanceContext(
+            {
+              dedupeKey: `${instanceAware ? `${encodeURIComponent(instanceId)}:` : ''}new-decision:${encodeURIComponent(decisionId)}`,
+              title: t('server.notifications.newEvent.decisionTitle', { ruleName: rule.name }),
+              message: t('server.notifications.newEvent.decisionMessage', {
+                id: decisionId,
+                type: decisionType,
+                value,
+                scenario,
+                target,
+                createdAt,
+                stopAt,
+              }),
+              incidentStartedAt: createdAt,
+              metadata: {
+                event_type: 'decision',
+                instance_id: instanceId,
+                decision_id: decisionId,
+                alert_id:
+                  typeof decision.alert_id === 'string' || typeof decision.alert_id === 'number'
+                    ? decision.alert_id
+                    : null,
+                type: decisionType,
+                value,
+                scenario,
+                target,
+                origin: typeof decision.origin === 'string' ? decision.origin : null,
+                created_at: createdAt,
+                stop_at: stopAt,
+                simulated: decision.simulated === true,
+                filters: toMetaRecord(config.filters),
+              },
+            },
+            [instanceId],
+          ),
+        );
       }
     }
 
     return candidates;
   }
 
-  async function evaluateNewCveRule(rule: NotificationRule, now: Date, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateNewCveRule(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     const config = normalizeRuleConfig('new-cve', rule.config);
-    const alerts = await getAlertsBetween(new Date(now.getTime() - 7 * 86_400_000), now, config.filters);
+    const alerts = await getAlertsBetween(
+      new Date(now.getTime() - 7 * 86_400_000),
+      now,
+      config.filters,
+    );
     const matches = new Map<string, AlertRecord[]>();
 
     for (const alert of alerts) {
@@ -951,28 +1181,37 @@ export function createNotificationService(options: NotificationServiceOptions): 
         continue;
       }
 
-      candidates.push(withInstanceContext({
-        dedupeKey: `cve:${cveId}`,
-        title: t('server.notifications.newCve.title', { ruleName: rule.name }),
-        message: t('server.notifications.newCve.message', {
-          cveId,
-          ageDays,
-          count: matchedAlerts.length,
-        }),
-        metadata: {
-          cve_id: cveId,
-          age_days: ageDays,
-          published_at: publishedAt.toISOString(),
-          matched_alerts: matchedAlerts.length,
-          filters: toMetaRecord(config.filters),
-        },
-      }, matchedAlerts.map((alert) => String(alert.instance_id || 'default'))));
+      candidates.push(
+        withInstanceContext(
+          {
+            dedupeKey: `cve:${cveId}`,
+            title: t('server.notifications.newCve.title', { ruleName: rule.name }),
+            message: t('server.notifications.newCve.message', {
+              cveId,
+              ageDays,
+              count: matchedAlerts.length,
+            }),
+            metadata: {
+              cve_id: cveId,
+              age_days: ageDays,
+              published_at: publishedAt.toISOString(),
+              matched_alerts: matchedAlerts.length,
+              filters: toMetaRecord(config.filters),
+            },
+          },
+          matchedAlerts.map((alert) => String(alert.instance_id || 'default')),
+        ),
+      );
     }
 
     return candidates;
   }
 
-  async function evaluateIpBanRule(rule: NotificationRule, now: Date, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateIpBanRule(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     const config = normalizeRuleConfig('ip-ban', rule.config);
     const windowStart = new Date(now.getTime() - config.window_minutes * 60_000);
     return (await getDecisionsBetween(windowStart, now, config.filters, { activeAt: now }))
@@ -985,35 +1224,47 @@ export function createNotificationService(options: NotificationServiceOptions): 
         const origin = typeof decision.origin === 'string' ? decision.origin : null;
         const target = typeof decision.target === 'string' ? decision.target : null;
         const country = typeof decision.country === 'string' ? decision.country : null;
-        const alertId = typeof decision.alert_id === 'string' || typeof decision.alert_id === 'number' ? decision.alert_id : null;
+        const alertId =
+          typeof decision.alert_id === 'string' || typeof decision.alert_id === 'number'
+            ? decision.alert_id
+            : null;
 
-        return withInstanceContext({
-          dedupeKey: buildIpBanDedupeKey(decision, instanceAware),
-          title: t('server.notifications.ipBan.title', { ruleName: rule.name }),
-          message: t('server.notifications.ipBan.message', {
-            value,
-            scenarioDetail: scenario ? t('server.notifications.ipBan.scenarioDetail', { scenario }) : '',
-            stopAtDetail: stopAt ? t('server.notifications.ipBan.stopAtDetail', { stopAt }) : '',
-          }),
-          incidentStartedAt: typeof decision.created_at === 'string' ? decision.created_at : undefined,
-          metadata: {
-            decision_id: decisionId,
-            value,
-            type: normalizeDecisionType(decision),
-            origin,
-            scenario,
-            target,
-            country,
-            alert_id: alertId,
-            created_at: typeof decision.created_at === 'string' ? decision.created_at : null,
-            stop_at: stopAt,
-            filters: toMetaRecord(config.filters),
+        return withInstanceContext(
+          {
+            dedupeKey: buildIpBanDedupeKey(decision, instanceAware),
+            title: t('server.notifications.ipBan.title', { ruleName: rule.name }),
+            message: t('server.notifications.ipBan.message', {
+              value,
+              scenarioDetail: scenario
+                ? t('server.notifications.ipBan.scenarioDetail', { scenario })
+                : '',
+              stopAtDetail: stopAt ? t('server.notifications.ipBan.stopAtDetail', { stopAt }) : '',
+            }),
+            incidentStartedAt:
+              typeof decision.created_at === 'string' ? decision.created_at : undefined,
+            metadata: {
+              decision_id: decisionId,
+              value,
+              type: normalizeDecisionType(decision),
+              origin,
+              scenario,
+              target,
+              country,
+              alert_id: alertId,
+              created_at: typeof decision.created_at === 'string' ? decision.created_at : null,
+              stop_at: stopAt,
+              filters: toMetaRecord(config.filters),
+            },
           },
-        }, [String(decision.instance_id || 'default')]);
+          [String(decision.instance_id || 'default')],
+        );
       });
   }
 
-  async function evaluateApplicationUpdateRule(rule: NotificationRule, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateApplicationUpdateRule(
+    rule: NotificationRule,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     if (!updateChecker) {
       return [];
     }
@@ -1023,24 +1274,35 @@ export function createNotificationService(options: NotificationServiceOptions): 
       return [];
     }
 
-    const targetVersion = status.tag === 'dev' ? `dev-${status.remote_version}` : status.remote_version;
+    const targetVersion =
+      status.tag === 'dev' ? `dev-${status.remote_version}` : status.remote_version;
     const currentVersion = status.local_version || t('server.notifications.currentVersion');
 
-    return [{
-      dedupeKey: `application-update:${targetVersion}`,
-      title: t('server.notifications.applicationUpdate.title', { ruleName: rule.name }),
-      message: t('server.notifications.applicationUpdate.message', { appName: getAppName(database), currentVersion, targetVersion }),
-      metadata: {
-        update_available: true,
-        local_version: status.local_version || null,
-        remote_version: status.remote_version,
-        release_url: status.release_url || null,
-        tag: status.tag || null,
+    return [
+      {
+        dedupeKey: `application-update:${targetVersion}`,
+        title: t('server.notifications.applicationUpdate.title', { ruleName: rule.name }),
+        message: t('server.notifications.applicationUpdate.message', {
+          appName: getAppName(database),
+          currentVersion,
+          targetVersion,
+        }),
+        metadata: {
+          update_available: true,
+          local_version: status.local_version || null,
+          remote_version: status.remote_version,
+          release_url: status.release_url || null,
+          tag: status.tag || null,
+        },
       },
-    }];
+    ];
   }
 
-  async function evaluateLapiAvailabilityRule(rule: NotificationRule, now: Date, t: Translator): Promise<NotificationCandidate[]> {
+  async function evaluateLapiAvailabilityRule(
+    rule: NotificationRule,
+    now: Date,
+    t: Translator,
+  ): Promise<NotificationCandidate[]> {
     if (!getLapiStatus && !getLapiStatuses) {
       return [];
     }
@@ -1048,63 +1310,95 @@ export function createNotificationService(options: NotificationServiceOptions): 
     const config = normalizeRuleConfig('lapi-availability', rule.config);
     const candidates: NotificationCandidate[] = [];
     const activeIncidents = loadActiveIncidents(rule.id);
-    const statuses = getLapiStatuses?.() || [{ instanceId: 'default', instanceName: 'CrowdSec', status: getLapiStatus!() }];
+    const statuses = getLapiStatuses?.() || [
+      { instanceId: 'default', instanceName: 'CrowdSec', status: getLapiStatus!() },
+    ];
     for (const { instanceId, instanceName, status } of statuses) {
-      const incidentPrefix = getLapiStatuses ? `${encodeURIComponent(instanceId)}:lapi-availability` : 'lapi-availability';
+      const incidentPrefix = getLapiStatuses
+        ? `${encodeURIComponent(instanceId)}:lapi-availability`
+        : 'lapi-availability';
       const activeOutageIncident = activeIncidents.get(`${incidentPrefix}:offline`);
       if (!status.isConnected && status.offline_since) {
-        const outageDurationSeconds = Math.max(0, Math.floor((now.getTime() - new Date(status.offline_since).getTime()) / 1_000));
+        const outageDurationSeconds = Math.max(
+          0,
+          Math.floor((now.getTime() - new Date(status.offline_since).getTime()) / 1_000),
+        );
         if (outageDurationSeconds >= config.outage_threshold_seconds) {
-          candidates.push(withInstanceContext({
-            dedupeKey: `${incidentPrefix}:offline`,
-            title: t('server.notifications.lapiUnavailable.title', { ruleName: rule.name }),
-            message: t('server.notifications.lapiUnavailable.message', { seconds: outageDurationSeconds }),
-            incidentStartedAt: status.offline_since,
-            metadata: {
-              instance_id: instanceId,
-              instance_name: instanceName,
-              offline_since: status.offline_since,
-              last_check: status.lastCheck,
-              last_error: status.lastError,
-              outage_threshold_seconds: config.outage_threshold_seconds,
-              outage_duration_seconds: outageDurationSeconds,
-            },
-          }, [{ id: instanceId, name: instanceName }]));
+          candidates.push(
+            withInstanceContext(
+              {
+                dedupeKey: `${incidentPrefix}:offline`,
+                title: t('server.notifications.lapiUnavailable.title', { ruleName: rule.name }),
+                message: t('server.notifications.lapiUnavailable.message', {
+                  seconds: outageDurationSeconds,
+                }),
+                incidentStartedAt: status.offline_since,
+                metadata: {
+                  instance_id: instanceId,
+                  instance_name: instanceName,
+                  offline_since: status.offline_since,
+                  last_check: status.lastCheck,
+                  last_error: status.lastError,
+                  outage_threshold_seconds: config.outage_threshold_seconds,
+                  outage_duration_seconds: outageDurationSeconds,
+                },
+              },
+              [{ id: instanceId, name: instanceName }],
+            ),
+          );
         }
         continue;
       }
       if (status.isConnected && config.notify_on_recovery && activeOutageIncident) {
         const recoveredAt = now.toISOString();
-        const outageDurationSeconds = Math.max(0, Math.floor((now.getTime() - new Date(activeOutageIncident.firstSeenAt).getTime()) / 1_000));
-        candidates.push(withInstanceContext({
-          dedupeKey: `${incidentPrefix}:recovery:${recoveredAt}`,
-          title: t('server.notifications.lapiRecovered.title', { ruleName: rule.name }),
-          message: t('server.notifications.lapiRecovered.message', { seconds: outageDurationSeconds }),
-          metadata: {
-            instance_id: instanceId,
-            instance_name: instanceName,
-            offline_since: activeOutageIncident.firstSeenAt,
-            recovered_at: recoveredAt,
-            last_check: status.lastCheck,
-            last_error: status.lastError,
-            outage_threshold_seconds: config.outage_threshold_seconds,
-            outage_duration_seconds: outageDurationSeconds,
-          },
-          severity: 'info',
-        }, [{ id: instanceId, name: instanceName }]));
+        const outageDurationSeconds = Math.max(
+          0,
+          Math.floor(
+            (now.getTime() - new Date(activeOutageIncident.firstSeenAt).getTime()) / 1_000,
+          ),
+        );
+        candidates.push(
+          withInstanceContext(
+            {
+              dedupeKey: `${incidentPrefix}:recovery:${recoveredAt}`,
+              title: t('server.notifications.lapiRecovered.title', { ruleName: rule.name }),
+              message: t('server.notifications.lapiRecovered.message', {
+                seconds: outageDurationSeconds,
+              }),
+              metadata: {
+                instance_id: instanceId,
+                instance_name: instanceName,
+                offline_since: activeOutageIncident.firstSeenAt,
+                recovered_at: recoveredAt,
+                last_check: status.lastCheck,
+                last_error: status.lastError,
+                outage_threshold_seconds: config.outage_threshold_seconds,
+                outage_duration_seconds: outageDurationSeconds,
+              },
+              severity: 'info',
+            },
+            [{ id: instanceId, name: instanceName }],
+          ),
+        );
       }
     }
 
     return candidates;
   }
 
-  async function countAlertsByInstanceBetween(start: Date, end: Date, filters?: NotificationFilter): Promise<Map<string, number>> {
+  async function countAlertsByInstanceBetween(
+    start: Date,
+    end: Date,
+    filters?: NotificationFilter,
+  ): Promise<Map<string, number>> {
     const condition = buildNotificationDataCondition('alerts', start, end, filters);
     const rows = await queryWorker.all<{ instance_id: string; count: number }>(
       `SELECT instance_id, COUNT(*) AS count FROM alerts WHERE ${condition.sql} GROUP BY instance_id`,
       condition.params,
     );
-    return new Map(rows.map((row) => [String(row.instance_id || 'default'), Number(row.count || 0)]));
+    return new Map(
+      rows.map((row) => [String(row.instance_id || 'default'), Number(row.count || 0)]),
+    );
   }
 
   function sumCounts(counts: Map<string, number>): number {
@@ -1135,9 +1429,10 @@ export function createNotificationService(options: NotificationServiceOptions): 
     }
     const ids = orderedInstances.map(([id]) => id);
     const names = orderedInstances.map(([, name]) => name);
-    const metadata = ids.length === 1
-      ? { ...candidate.metadata, instance_id: ids[0], instance_name: names[0] }
-      : { ...candidate.metadata, instance_ids: ids, instance_names: names };
+    const metadata =
+      ids.length === 1
+        ? { ...candidate.metadata, instance_id: ids[0], instance_name: names[0] }
+        : { ...candidate.metadata, instance_ids: ids, instance_names: names };
 
     return {
       ...candidate,
@@ -1146,18 +1441,25 @@ export function createNotificationService(options: NotificationServiceOptions): 
     };
   }
 
-  async function getAlertsBetween(start: Date, end: Date, filters?: NotificationFilter): Promise<AlertRecord[]> {
+  async function getAlertsBetween(
+    start: Date,
+    end: Date,
+    filters?: NotificationFilter,
+  ): Promise<AlertRecord[]> {
     const condition = buildNotificationDataCondition('alerts', start, end, filters);
     const alerts: AlertRecord[] = [];
     let lastId: number | null = null;
     while (true) {
-      const rows: NormalizedAlertRow[] = await queryWorker.all<NormalizedAlertRow>(`
+      const rows: NormalizedAlertRow[] = await queryWorker.all<NormalizedAlertRow>(
+        `
         SELECT ${ALERT_RECORD_COLUMNS}
         FROM alerts
         WHERE ${condition.sql}${lastId === null ? '' : ' AND id > ?'}
         ORDER BY id ASC
         LIMIT 1000
-      `, lastId === null ? condition.params : [...condition.params, lastId]);
+      `,
+        lastId === null ? condition.params : [...condition.params, lastId],
+      );
       if (rows.length === 0) break;
       for (const row of rows) {
         const alert = alertFromRow(row);
@@ -1174,17 +1476,26 @@ export function createNotificationService(options: NotificationServiceOptions): 
     filters?: NotificationFilter,
     options: { activeAt?: Date } = {},
   ): Promise<Array<AlertDecision & Record<string, unknown>>> {
-    const condition = buildNotificationDataCondition('decisions', start, end, filters, options.activeAt);
+    const condition = buildNotificationDataCondition(
+      'decisions',
+      start,
+      end,
+      filters,
+      options.activeAt,
+    );
     const decisions: Array<AlertDecision & Record<string, unknown>> = [];
     let lastRowId = 0;
     while (true) {
-      const rows = await queryWorker.all<NormalizedDecisionRow & { rowid: number }>(`
+      const rows = await queryWorker.all<NormalizedDecisionRow & { rowid: number }>(
+        `
         SELECT rowid, ${DECISION_RECORD_COLUMNS}
         FROM decisions
         WHERE ${condition.sql} AND rowid > ?
         ORDER BY rowid ASC
         LIMIT 1000
-      `, [...condition.params, lastRowId]);
+      `,
+        [...condition.params, lastRowId],
+      );
       if (rows.length === 0) break;
       for (const row of rows) {
         const decision = decisionFromRow(row);
@@ -1206,9 +1517,11 @@ export function createNotificationService(options: NotificationServiceOptions): 
     const params: unknown[] = [start.toISOString(), end.toISOString()];
     if (filters?.include_simulated !== true) clauses.push('simulated = 0');
     if (filters?.scenario) {
-      clauses.push(filters.exclude_scenario === true
-        ? "(scenario IS NULL OR LOWER(scenario) NOT LIKE ? ESCAPE '\\')"
-        : "LOWER(scenario) LIKE ? ESCAPE '\\'");
+      clauses.push(
+        filters.exclude_scenario === true
+          ? "(scenario IS NULL OR LOWER(scenario) NOT LIKE ? ESCAPE '\\')"
+          : "LOWER(scenario) LIKE ? ESCAPE '\\'",
+      );
       params.push(`%${escapeSqlLike(filters.scenario.toLowerCase())}%`);
     }
     if (filters?.target) {
@@ -1217,14 +1530,18 @@ export function createNotificationService(options: NotificationServiceOptions): 
     }
     if (filters?.values && filters.values.length > 0) {
       const valueColumn = table === 'alerts' ? 'source_ip' : 'value';
-      clauses.push(`(${filters.values.map(() => `matches_ip_search_value(${valueColumn}, ?) = 1`).join(' OR ')})`);
+      clauses.push(
+        `(${filters.values.map(() => `matches_ip_search_value(${valueColumn}, ?) = 1`).join(' OR ')})`,
+      );
       params.push(...filters.values);
     }
     if (filters?.countries && filters.countries.length > 0) {
       const placeholders = filters.countries.map(() => '?').join(', ');
-      clauses.push(filters.exclude_countries === true
-        ? `(country IS NULL OR country NOT IN (${placeholders}))`
-        : `country IN (${placeholders})`);
+      clauses.push(
+        filters.exclude_countries === true
+          ? `(country IS NULL OR country NOT IN (${placeholders}))`
+          : `country IN (${placeholders})`,
+      );
       params.push(...filters.countries);
     }
     if (table === 'decisions' && activeAt) {
@@ -1245,23 +1562,30 @@ export function createNotificationService(options: NotificationServiceOptions): 
     }
 
     try {
-      const response = await fetchImpl(`https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${encodeURIComponent(cveId)}`, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'crowdsec-web-ui',
+      const response = await fetchImpl(
+        `https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=${encodeURIComponent(cveId)}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'crowdsec-web-ui',
+          },
         },
-      });
+      );
       if (!response.ok) {
         return null;
       }
 
-      const payload = await response.json() as { vulnerabilities?: Array<{ cve?: { published?: string } }> };
+      const payload = (await response.json()) as {
+        vulnerabilities?: Array<{ cve?: { published?: string } }>;
+      };
       const published = payload.vulnerabilities?.[0]?.cve?.published;
       if (!published) {
         return null;
       }
 
-      await writeDatabase(() => database.upsertCveCacheEntry(cveId, published, new Date().toISOString()));
+      await writeDatabase(() =>
+        database.upsertCveCacheEntry(cveId, published, new Date().toISOString()),
+      );
       return new Date(published);
     } catch (error) {
       console.error(`Failed to resolve ${cveId} from NVD:`, error);
@@ -1326,12 +1650,13 @@ export function createNotificationService(options: NotificationServiceOptions): 
     rule: NotificationDeliveryRuleContext | undefined,
     error: unknown,
   ): void {
-    const deliveryError = error instanceof Error ? error as NotificationDeliveryError : null;
-    const contextLabel = rule?.type === 'test'
-      ? 'test notification'
-      : rule
-        ? `rule "${rule.name}" (${rule.type})`
-        : 'notification';
+    const deliveryError = error instanceof Error ? (error as NotificationDeliveryError) : null;
+    const contextLabel =
+      rule?.type === 'test'
+        ? 'test notification'
+        : rule
+          ? `rule "${rule.name}" (${rule.type})`
+          : 'notification';
     const details: string[] = [];
     if (deliveryError?.status) {
       details.push(`status=${deliveryError.status}`);
@@ -1351,18 +1676,40 @@ export function createNotificationService(options: NotificationServiceOptions): 
 }
 
 function normalizeRuleConfig(type: 'alert-spike', config: RuleConfigInput): AlertSpikeRuleConfig;
-function normalizeRuleConfig(type: 'alert-threshold', config: RuleConfigInput): AlertThresholdRuleConfig;
-function normalizeRuleConfig(type: 'new-alert-decision', config: RuleConfigInput): NewAlertDecisionRuleConfig;
+function normalizeRuleConfig(
+  type: 'alert-threshold',
+  config: RuleConfigInput,
+): AlertThresholdRuleConfig;
+function normalizeRuleConfig(
+  type: 'new-alert-decision',
+  config: RuleConfigInput,
+): NewAlertDecisionRuleConfig;
 function normalizeRuleConfig(type: 'new-cve', config: RuleConfigInput): NewCveRuleConfig;
 function normalizeRuleConfig(type: 'ip-ban', config: RuleConfigInput): IpBanRuleConfig;
-function normalizeRuleConfig(type: 'application-update', config: RuleConfigInput): ApplicationUpdateRuleConfig;
-function normalizeRuleConfig(type: 'crowdsec-update', config: RuleConfigInput): CrowdsecUpdateRuleConfig;
-function normalizeRuleConfig(type: 'lapi-availability', config: RuleConfigInput): LapiAvailabilityRuleConfig;
-function normalizeRuleConfig(type: NotificationRuleType, config: RuleConfigInput): NotificationRuleConfig;
-function normalizeRuleConfig(type: NotificationRuleType, config: RuleConfigInput): NotificationRuleConfig {
-  const safeConfig = config && typeof config === 'object' && !Array.isArray(config)
-    ? config as Record<string, unknown>
-    : {};
+function normalizeRuleConfig(
+  type: 'application-update',
+  config: RuleConfigInput,
+): ApplicationUpdateRuleConfig;
+function normalizeRuleConfig(
+  type: 'crowdsec-update',
+  config: RuleConfigInput,
+): CrowdsecUpdateRuleConfig;
+function normalizeRuleConfig(
+  type: 'lapi-availability',
+  config: RuleConfigInput,
+): LapiAvailabilityRuleConfig;
+function normalizeRuleConfig(
+  type: NotificationRuleType,
+  config: RuleConfigInput,
+): NotificationRuleConfig;
+function normalizeRuleConfig(
+  type: NotificationRuleType,
+  config: RuleConfigInput,
+): NotificationRuleConfig {
+  const safeConfig =
+    config && typeof config === 'object' && !Array.isArray(config)
+      ? (config as Record<string, unknown>)
+      : {};
   const filters = normalizeFilters(safeConfig.filters as NotificationFilter | undefined);
 
   if (type === 'alert-spike') {
@@ -1427,7 +1774,13 @@ function normalizeFilters(filters: NotificationFilter | undefined): Notification
   const target = typeof rawFilters.target === 'string' ? rawFilters.target.trim() : '';
   const values = normalizeIpRangeFilterValues(rawFilters.values);
   const countries = normalizeCountryFilterValues(rawFilters.countries);
-  if (!scenario && !target && filters.include_simulated !== true && values.length === 0 && countries.length === 0) {
+  if (
+    !scenario &&
+    !target &&
+    filters.include_simulated !== true &&
+    values.length === 0 &&
+    countries.length === 0
+  ) {
     return undefined;
   }
   return {
@@ -1449,13 +1802,29 @@ function matchesAlertFilters(alert: AlertRecord, filters?: NotificationFilter): 
   if (filters?.include_simulated !== true && alert.simulated === true) {
     return false;
   }
-  if (filters?.scenario && !matchesScenarioFilter(String(alert.scenario || ''), filters.scenario, filters.exclude_scenario === true)) {
+  if (
+    filters?.scenario &&
+    !matchesScenarioFilter(
+      String(alert.scenario || ''),
+      filters.scenario,
+      filters.exclude_scenario === true,
+    )
+  ) {
     return false;
   }
-  if (filters?.target && !String(alert.target || '').toLowerCase().includes(filters.target.toLowerCase())) {
+  if (
+    filters?.target &&
+    !String(alert.target || '')
+      .toLowerCase()
+      .includes(filters.target.toLowerCase())
+  ) {
     return false;
   }
-  if (filters?.values && filters.values.length > 0 && !matchesIpRangeFilters(getAlertSourceValue(alert), filters.values)) {
+  if (
+    filters?.values &&
+    filters.values.length > 0 &&
+    !matchesIpRangeFilters(getAlertSourceValue(alert), filters.values)
+  ) {
     return false;
   }
   if (!matchesCountryFilters(String(alert.source?.cn || ''), filters)) {
@@ -1468,17 +1837,36 @@ function getAlertSourceValue(alert: AlertRecord): string {
   return String(alert.source?.ip || alert.source?.range || alert.source?.value || '—');
 }
 
-function matchesDecisionFilters(decision: AlertDecision & Record<string, unknown>, filters?: NotificationFilter): boolean {
+function matchesDecisionFilters(
+  decision: AlertDecision & Record<string, unknown>,
+  filters?: NotificationFilter,
+): boolean {
   if (filters?.include_simulated !== true && decision.simulated === true) {
     return false;
   }
-  if (filters?.scenario && !matchesScenarioFilter(String(decision.scenario || ''), filters.scenario, filters.exclude_scenario === true)) {
+  if (
+    filters?.scenario &&
+    !matchesScenarioFilter(
+      String(decision.scenario || ''),
+      filters.scenario,
+      filters.exclude_scenario === true,
+    )
+  ) {
     return false;
   }
-  if (filters?.target && !String(decision.target || '').toLowerCase().includes(filters.target.toLowerCase())) {
+  if (
+    filters?.target &&
+    !String(decision.target || '')
+      .toLowerCase()
+      .includes(filters.target.toLowerCase())
+  ) {
     return false;
   }
-  if (filters?.values && filters.values.length > 0 && !matchesIpRangeFilters(String(decision.value || ''), filters.values)) {
+  if (
+    filters?.values &&
+    filters.values.length > 0 &&
+    !matchesIpRangeFilters(String(decision.value || ''), filters.values)
+  ) {
     return false;
   }
   if (!matchesCountryFilters(String(decision.country || ''), filters)) {
@@ -1496,18 +1884,33 @@ function matchesCountryFilters(country: string, filters?: NotificationFilter): b
 }
 
 function normalizeDecisionType(decision: AlertDecision & Record<string, unknown>): string {
-  return String(decision.type || decision.action || '').trim().toLowerCase();
+  return String(decision.type || decision.action || '')
+    .trim()
+    .toLowerCase();
 }
 
-function buildIpBanDedupeKey(decision: AlertDecision & Record<string, unknown>, instanceAware = false): string {
+function buildIpBanDedupeKey(
+  decision: AlertDecision & Record<string, unknown>,
+  instanceAware = false,
+): string {
   return [
     'ip-ban',
     ...(instanceAware ? [String(decision.instance_id || 'default')] : []),
-    String(decision.value || '').trim().toLowerCase(),
-    String(decision.origin || '').trim().toLowerCase(),
-    String(decision.scenario || '').trim().toLowerCase(),
-    String(decision.target || '').trim().toLowerCase(),
-  ].map(encodeURIComponent).join(':');
+    String(decision.value || '')
+      .trim()
+      .toLowerCase(),
+    String(decision.origin || '')
+      .trim()
+      .toLowerCase(),
+    String(decision.scenario || '')
+      .trim()
+      .toLowerCase(),
+    String(decision.target || '')
+      .trim()
+      .toLowerCase(),
+  ]
+    .map(encodeURIComponent)
+    .join(':');
 }
 
 function extractCveIds(alert: AlertRecord): string[] {
@@ -1531,7 +1934,15 @@ function extractCveIds(alert: AlertRecord): string[] {
 }
 
 function normalizeChannelType(value: unknown): NotificationChannelType {
-  if (value === 'apprise' || value === 'ntfy' || value === 'gotify' || value === 'email' || value === 'mqtt' || value === 'webhook') return value;
+  if (
+    value === 'apprise' ||
+    value === 'ntfy' ||
+    value === 'gotify' ||
+    value === 'email' ||
+    value === 'mqtt' ||
+    value === 'webhook'
+  )
+    return value;
   throw new Error('Invalid notification channel type');
 }
 
@@ -1545,11 +1956,14 @@ function normalizeRuleType(value: unknown): NotificationRuleType {
     value === 'application-update' ||
     value === 'crowdsec-update' ||
     value === 'lapi-availability'
-  ) return value;
+  )
+    return value;
   throw new Error('Invalid notification rule type');
 }
 
-function normalizeNewAlertDecisionEventType(value: unknown): NewAlertDecisionRuleConfig['event_type'] {
+function normalizeNewAlertDecisionEventType(
+  value: unknown,
+): NewAlertDecisionRuleConfig['event_type'] {
   return value === 'alert' || value === 'decision' || value === 'both' ? value : 'both';
 }
 
@@ -1582,7 +1996,9 @@ function normalizeCountryFilterValues(value: unknown): string[] {
     : typeof value === 'string'
       ? splitCountryFilterValue(value)
       : [];
-  const countries = [...new Set(rawEntries.map((entry) => entry.trim().toUpperCase()).filter(Boolean))];
+  const countries = [
+    ...new Set(rawEntries.map((entry) => entry.trim().toUpperCase()).filter(Boolean)),
+  ];
   const invalidCountry = countries.find((entry) => !/^[A-Z]{2}$/.test(entry));
   if (invalidCountry) {
     throw new Error(`Invalid country filter value: ${invalidCountry}`);
@@ -1591,11 +2007,17 @@ function normalizeCountryFilterValues(value: unknown): string[] {
 }
 
 function splitCountryFilterValue(value: string): string[] {
-  return value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
+  return value
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function splitIpRangeFilterValue(value: string): string[] {
-  return value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
+  return value
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function isValidIpOrCidr(value: string): boolean {
@@ -1625,7 +2047,11 @@ function matchesIpRangeFilters(value: string, filters: string[]): boolean {
     if (normalizedValue === filter) {
       return true;
     }
-    if (filter.includes('/') && !normalizedValue.includes('/') && cidrContainsIp(filter, normalizedValue)) {
+    if (
+      filter.includes('/') &&
+      !normalizedValue.includes('/') &&
+      cidrContainsIp(filter, normalizedValue)
+    ) {
       return true;
     }
   }
@@ -1643,14 +2069,19 @@ function cidrContainsIp(cidr: string, value: string): boolean {
   const bits = ipVersion === 4 ? 32 : 128;
   const network = parseIpAddress(networkAddress || '', ipVersion);
   const address = parseIpAddress(value, ipVersion);
-  if (network === null || address === null || !Number.isInteger(prefix) || prefix < 0 || prefix > bits) {
+  if (
+    network === null ||
+    address === null ||
+    !Number.isInteger(prefix) ||
+    prefix < 0 ||
+    prefix > bits
+  ) {
     return false;
   }
 
   const hostBits = BigInt(bits - prefix);
-  const mask = hostBits === BigInt(bits)
-    ? 0n
-    : ((1n << BigInt(bits)) - 1n) ^ ((1n << hostBits) - 1n);
+  const mask =
+    hostBits === BigInt(bits) ? 0n : ((1n << BigInt(bits)) - 1n) ^ ((1n << hostBits) - 1n);
   return (network & mask) === (address & mask);
 }
 

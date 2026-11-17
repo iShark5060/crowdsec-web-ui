@@ -1,6 +1,7 @@
-import { act, createRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { act, createRef } from 'react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { BackToTop } from '../BackToTop';
 
 describe('BackToTop', () => {
@@ -12,19 +13,22 @@ describe('BackToTop', () => {
     let notifyIntersection!: IntersectionObserverCallback;
     let observerOptions: IntersectionObserverInit | undefined;
 
-    vi.stubGlobal('IntersectionObserver', class {
-      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
-        notifyIntersection = callback;
-        observerOptions = options;
-      }
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+          notifyIntersection = callback;
+          observerOptions = options;
+        }
 
-      observe(): void {}
-      disconnect(): void {}
-      unobserve(): void {}
-      takeRecords(): IntersectionObserverEntry[] {
-        return [];
-      }
-    });
+        observe(): void {}
+        disconnect(): void {}
+        unobserve(): void {}
+        takeRecords(): IntersectionObserverEntry[] {
+          return [];
+        }
+      },
+    );
 
     const headerRef = createRef<HTMLTableSectionElement>();
     const scrollTo = vi.fn();
@@ -32,7 +36,9 @@ describe('BackToTop', () => {
       <div data-scroll-container>
         <table>
           <thead ref={headerRef}>
-            <tr><th>Header</th></tr>
+            <tr>
+              <th>Header</th>
+            </tr>
           </thead>
         </table>
         <BackToTop visibilityTargetRef={headerRef} />
@@ -49,22 +55,32 @@ describe('BackToTop', () => {
     expect(screen.queryByRole('button', { name: 'Back to top' })).not.toBeInTheDocument();
 
     act(() => {
-      notifyIntersection([{
-        isIntersecting: false,
-        boundingClientRect: { top: 40 },
-        rootBounds: { top: 64 },
-      } as IntersectionObserverEntry], {} as IntersectionObserver);
+      notifyIntersection(
+        [
+          {
+            isIntersecting: false,
+            boundingClientRect: { top: 40 },
+            rootBounds: { top: 64 },
+          } as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      );
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to top' }));
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
 
     act(() => {
-      notifyIntersection([{
-        isIntersecting: false,
-        boundingClientRect: { top: 100 },
-        rootBounds: { top: 64 },
-      } as IntersectionObserverEntry], {} as IntersectionObserver);
+      notifyIntersection(
+        [
+          {
+            isIntersecting: false,
+            boundingClientRect: { top: 100 },
+            rootBounds: { top: 64 },
+          } as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      );
     });
 
     expect(screen.queryByRole('button', { name: 'Back to top' })).not.toBeInTheDocument();

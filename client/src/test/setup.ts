@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+
 import { configure } from '@testing-library/react';
 import { beforeEach } from 'vitest';
 
@@ -28,8 +29,10 @@ function hasWorkingStorage(storage: unknown): storage is Storage {
     return false;
   }
 
-  return ['getItem', 'setItem', 'removeItem', 'clear', 'key'].every((method) =>
-    typeof (storage as Record<StorageMethodName, unknown>)[method as StorageMethodName] === 'function',
+  return ['getItem', 'setItem', 'removeItem', 'clear', 'key'].every(
+    (method) =>
+      typeof (storage as Record<StorageMethodName, unknown>)[method as StorageMethodName] ===
+      'function',
   );
 }
 

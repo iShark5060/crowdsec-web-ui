@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { LapiStatus } from '../../../shared/contracts';
-import { createAlert, createDecision, createService, insertAlert, insertDecision } from './harness';
+
+import { createAlert, createService, insertAlert } from './harness';
 
 describe('notification delivery', () => {
   test('lists notifications with pagination metadata and supports bulk notification mutations', async () => {
@@ -37,12 +37,14 @@ describe('notification delivery', () => {
       $dedupe_key: 'notif-2',
     });
 
-    expect(service.listNotifications(1, 1)).toEqual(expect.objectContaining({
-      data: [expect.objectContaining({ id: 'notif-2' })],
-      pagination: expect.objectContaining({ page: 1, page_size: 1, total: 2, total_pages: 2 }),
-      selectable_ids: ['notif-2', 'notif-1'],
-      unread_count: 1,
-    }));
+    expect(service.listNotifications(1, 1)).toEqual(
+      expect.objectContaining({
+        data: [expect.objectContaining({ id: 'notif-2' })],
+        pagination: expect.objectContaining({ page: 1, page_size: 1, total: 2, total_pages: 2 }),
+        selectable_ids: ['notif-2', 'notif-1'],
+        unread_count: 1,
+      }),
+    );
 
     expect(await service.markNotificationsRead(['notif-1', 'notif-2'])).toBe(1);
     expect(await service.deleteNotification('notif-2')).toBe(true);
@@ -102,15 +104,21 @@ describe('notification delivery', () => {
       },
     });
     const channel = await service.createChannel({
-      name: 'Ops webhook', type: 'webhook', enabled: true,
+      name: 'Ops webhook',
+      type: 'webhook',
+      enabled: true,
       config: {
-        url: 'https://example.com/webhook', method: 'POST',
+        url: 'https://example.com/webhook',
+        method: 'POST',
         body: { mode: 'json', template: '{"title":{{event.titleJson}},"rule":{{event.rule_nameJson}}}' },
         retryAttempts: 0,
       },
     });
     const rule = await service.createRule({
-      name: 'Admin panel', type: 'alert-threshold', enabled: false, severity: 'warning',
+      name: 'Admin panel',
+      type: 'alert-threshold',
+      enabled: false,
+      severity: 'warning',
       channel_ids: [channel.id],
       config: { window_minutes: 60, alert_threshold: 1, filters: { scenario: 'ssh' } },
     });
@@ -142,8 +150,12 @@ describe('notification delivery', () => {
     const { database, service } = createService();
     await expect(service.testRule('missing')).rejects.toThrow('Notification rule not found');
     const rule = await service.createRule({
-      name: 'No destinations', type: 'ip-ban', enabled: true, severity: 'info',
-      channel_ids: [], config: { window_minutes: 60 },
+      name: 'No destinations',
+      type: 'ip-ban',
+      enabled: true,
+      severity: 'info',
+      channel_ids: [],
+      config: { window_minutes: 60 },
     });
     await expect(service.testRule(rule.id)).rejects.toThrow('no enabled outbound destinations');
     database.close();
@@ -189,18 +201,25 @@ describe('notification delivery', () => {
       await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
       const notification = service.listNotifications().data[0];
-      expect(notification?.deliveries[0]).toEqual(expect.objectContaining({
-        status: 'failed',
-        error: 'Webhook request failed with status 400: {"error":"Rule must not be null"}',
-      }));
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Notification delivery failed for rule "Threshold" (alert-threshold) to "Fluxer webhook" (webhook)'));
+      expect(notification?.deliveries[0]).toEqual(
+        expect.objectContaining({
+          status: 'failed',
+          error: 'Webhook request failed with status 400: {"error":"Rule must not be null"}',
+        }),
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Notification delivery failed for rule "Threshold" (alert-threshold) to "Fluxer webhook" (webhook)',
+        ),
+      );
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('status=400'));
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('response="{\"error\":\"Rule must not be null\"}"'));
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('request_body="{\"title\":\"Threshold: threshold exceeded\",\"rule\":\"Threshold\"}"'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('response="{"error":"Rule must not be null"}"'));
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('request_body="{"title":"Threshold: threshold exceeded","rule":"Threshold"}"'),
+      );
     } finally {
       warn.mockRestore();
       database.close();
     }
   });
-
 });

@@ -1,7 +1,9 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
 import { afterEach, describe, expect, test } from 'vitest';
+
 import { resolveSecretEnv } from '../../env-secrets';
 
 const tempDirs: string[] = [];
@@ -40,20 +42,25 @@ describe('resolveSecretEnv', () => {
   });
 
   test('rejects direct and _FILE environment variables together', () => {
-    expect(() => resolveSecretEnv('TEST_SECRET', {
-      TEST_SECRET: '',
-      TEST_SECRET_FILE: '/run/secrets/test-secret',
-    })).toThrow('both TEST_SECRET and TEST_SECRET_FILE are set');
+    expect(() =>
+      resolveSecretEnv('TEST_SECRET', {
+        TEST_SECRET: '',
+        TEST_SECRET_FILE: '/run/secrets/test-secret',
+      }),
+    ).toThrow('both TEST_SECRET and TEST_SECRET_FILE are set');
   });
 
   test('rejects an empty _FILE path', () => {
-    expect(() => resolveSecretEnv('TEST_SECRET', { TEST_SECRET_FILE: '' }))
-      .toThrow('TEST_SECRET_FILE is set but empty');
+    expect(() => resolveSecretEnv('TEST_SECRET', { TEST_SECRET_FILE: '' })).toThrow(
+      'TEST_SECRET_FILE is set but empty',
+    );
   });
 
   test('rejects an unreadable _FILE path', () => {
-    expect(() => resolveSecretEnv('TEST_SECRET', {
-      TEST_SECRET_FILE: '/tmp/crowdsec-web-ui-does-not-exist/secret.txt',
-    })).toThrow('failed to read TEST_SECRET_FILE');
+    expect(() =>
+      resolveSecretEnv('TEST_SECRET', {
+        TEST_SECRET_FILE: '/tmp/crowdsec-web-ui-does-not-exist/secret.txt',
+      }),
+    ).toThrow('failed to read TEST_SECRET_FILE');
   });
 });

@@ -1,6 +1,7 @@
-import { createContext, useContext } from 'react';
 import i18next from 'i18next';
+import { createContext, useContext } from 'react';
 import { initReactI18next } from 'react-i18next';
+
 import en from '../locales/en.json';
 
 export const LANGUAGE_SETTING_KEY = 'language';
@@ -26,19 +27,20 @@ export type TranslationValues = Record<string, string | number | boolean | null 
 
 export const i18nResources = { en: { translation: en } } as const;
 
-const localeLoaders: Record<SupportedLanguage, () => Promise<{ default: Record<string, string> }>> = {
-  ar: () => import('../locales/ar.json'),
-  de: () => import('../locales/de.json'),
-  en: async () => ({ default: en as Record<string, string> }),
-  es: () => import('../locales/es.json'),
-  fr: () => import('../locales/fr.json'),
-  hi: () => import('../locales/hi.json'),
-  ja: () => import('../locales/ja.json'),
-  ko: () => import('../locales/ko.json'),
-  pt: () => import('../locales/pt.json'),
-  ru: () => import('../locales/ru.json'),
-  zh: () => import('../locales/zh.json'),
-};
+const localeLoaders: Record<SupportedLanguage, () => Promise<{ default: Record<string, string> }>> =
+  {
+    ar: () => import('../locales/ar.json'),
+    de: () => import('../locales/de.json'),
+    en: async () => ({ default: en as Record<string, string> }),
+    es: () => import('../locales/es.json'),
+    fr: () => import('../locales/fr.json'),
+    hi: () => import('../locales/hi.json'),
+    ja: () => import('../locales/ja.json'),
+    ko: () => import('../locales/ko.json'),
+    pt: () => import('../locales/pt.json'),
+    ru: () => import('../locales/ru.json'),
+    zh: () => import('../locales/zh.json'),
+  };
 const languageResourcePromises = new Map<SupportedLanguage, Promise<void>>();
 
 const supportedLanguageCodes = new Set<string>(
@@ -46,23 +48,21 @@ const supportedLanguageCodes = new Set<string>(
 );
 
 if (!i18next.isInitialized) {
-  void i18next
-    .use(initReactI18next)
-    .init({
-      resources: i18nResources,
-      lng: 'en',
-      fallbackLng: 'en',
-      supportedLngs: SUPPORTED_LANGUAGES.map((language) => language.code),
-      interpolation: {
-        escapeValue: false,
-        prefix: '{',
-        suffix: '}',
-      },
-      returnNull: false,
-      react: {
-        useSuspense: false,
-      },
-    });
+  void i18next.use(initReactI18next).init({
+    resources: i18nResources,
+    lng: 'en',
+    fallbackLng: 'en',
+    supportedLngs: SUPPORTED_LANGUAGES.map((language) => language.code),
+    interpolation: {
+      escapeValue: false,
+      prefix: '{',
+      suffix: '}',
+    },
+    returnNull: false,
+    react: {
+      useSuspense: false,
+    },
+  });
 }
 
 export async function loadLanguageResources(language: SupportedLanguage): Promise<void> {
@@ -119,17 +119,12 @@ export function getBrowserLanguage(): SupportedLanguage {
   return 'en';
 }
 
-export function resolveLanguagePreference(
-  preference: LanguagePreference,
-): SupportedLanguage {
+export function resolveLanguagePreference(preference: LanguagePreference): SupportedLanguage {
   return preference === BROWSER_LANGUAGE_SETTING ? getBrowserLanguage() : preference;
 }
 
 export function getLanguageLabelKey(language: SupportedLanguage): string {
-  return (
-    SUPPORTED_LANGUAGES.find((candidate) => candidate.code === language)?.labelKey ??
-    language
-  );
+  return SUPPORTED_LANGUAGES.find((candidate) => candidate.code === language)?.labelKey ?? language;
 }
 
 export type I18nContextValue = {
@@ -146,7 +141,7 @@ const fallbackI18n: I18nContextValue = {
   preference: BROWSER_LANGUAGE_SETTING,
   browserLanguage: 'en',
   setLanguagePreference: () => undefined,
-  t: (key, values) => String(i18next.t(key, values)),
+  t: (key, values) => String(values === undefined ? i18next.t(key) : i18next.t(key, values)),
 };
 
 export const I18nContext = createContext<I18nContextValue>(fallbackI18n);
