@@ -1,12 +1,7 @@
-import Database from 'better-sqlite3';
 import { describe, expect, test } from 'vitest';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs';
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { tmpdir } from 'os';
+
 import { CrowdsecDatabase } from '../../database';
-import { decisionFromRow } from '../../normalized-record';
-import { createLegacyDatabase, createTestDatabase, createTestDatabasePath, tempDirs } from './harness';
+import { createTestDatabase, createTestDatabasePath } from './harness';
 
 describe('CrowdsecDatabase duplicates and indexes', () => {
   test('transaction helper batches work', () => {
@@ -60,13 +55,21 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
 
     expect(db.insertAlert(alert)).toBe(false);
     expect(db.insertDecision(decision)).toBe(false);
-    expect((db.db.prepare('SELECT is_duplicate FROM decisions WHERE id = ?').get('10') as { is_duplicate: number }).is_duplicate).toBe(1);
+    expect(
+      (db.db.prepare('SELECT is_duplicate FROM decisions WHERE id = ?').get('10') as { is_duplicate: number })
+        .is_duplicate,
+    ).toBe(1);
     expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts').get() as { count: number }).count).toBe(1);
     expect((db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts').get() as { count: number }).count).toBe(1);
 
-    expect(db.insertAlert({ ...alert, $message: 'updated', $raw_data: JSON.stringify({ id: 1, message: 'updated' }) })).toBe(true);
+    expect(
+      db.insertAlert({ ...alert, $message: 'updated', $raw_data: JSON.stringify({ id: 1, message: 'updated' }) }),
+    ).toBe(true);
     expect(db.insertDecision({ ...decision, $stop_at: '2031-01-01T00:00:00.000Z' })).toBe(true);
-    expect((db.db.prepare('SELECT is_duplicate FROM decisions WHERE id = ?').get('10') as { is_duplicate: number }).is_duplicate).toBe(0);
+    expect(
+      (db.db.prepare('SELECT is_duplicate FROM decisions WHERE id = ?').get('10') as { is_duplicate: number })
+        .is_duplicate,
+    ).toBe(0);
 
     db.close();
   });
@@ -84,29 +87,45 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
     };
 
     expect(db.insertAlert(alert)).toBe(true);
-    expect((db.db.prepare(`
+    expect(
+      (
+        db.db
+          .prepare(`
       SELECT COUNT(*) AS count FROM dashboard_record_changes WHERE table_name = 'alerts'
-    `).get() as { count: number }).count).toBe(1);
+    `)
+          .get() as { count: number }
+      ).count,
+    ).toBe(1);
     db.db.exec('DELETE FROM dashboard_record_changes');
 
     expect(db.insertAlert(alert)).toBe(false);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes').get() as { count: number }).count).toBe(0);
-    expect(db.insertAlert({
-      ...alert,
-      $scenario: 'crowdsecurity/ssh-bf',
-      $raw_data: JSON.stringify({ id: 41, scenario: 'crowdsecurity/ssh-bf' }),
-    })).toBe(true);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes').get() as { count: number }).count).toBe(1);
+    expect(
+      (db.db.prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes').get() as { count: number }).count,
+    ).toBe(0);
+    expect(
+      db.insertAlert({
+        ...alert,
+        $scenario: 'crowdsecurity/ssh-bf',
+        $raw_data: JSON.stringify({ id: 41, scenario: 'crowdsecurity/ssh-bf' }),
+      }),
+    ).toBe(true);
+    expect(
+      (db.db.prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes').get() as { count: number }).count,
+    ).toBe(1);
 
     const epochBefore = Number(db.getMeta('dashboard_change_epoch')?.value);
     db.beginDeferredSearchIndexUpdates();
     expect(db.getMeta('dashboard_change_tracking_enabled')?.value).toBe('false');
-    expect(db.insertAlert({
-      ...alert,
-      $id: 42,
-      $uuid: 'dashboard-change-alert-bulk',
-    })).toBe(true);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes').get() as { count: number }).count).toBe(0);
+    expect(
+      db.insertAlert({
+        ...alert,
+        $id: 42,
+        $uuid: 'dashboard-change-alert-bulk',
+      }),
+    ).toBe(true);
+    expect(
+      (db.db.prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes').get() as { count: number }).count,
+    ).toBe(0);
     db.rebuildSearchIndexes();
 
     expect(db.getMeta('dashboard_change_tracking_enabled')?.value).toBe('true');
@@ -117,18 +136,19 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
 
   test('updates duplicate flags differentially and skips unchanged rows', () => {
     const db = createTestDatabase();
-    const insertDecision = (id: string, stopAt: string) => db.insertDecision({
-      $id: id,
-      $uuid: id,
-      $alert_id: 1,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $stop_at: stopAt,
-      $value: '1.2.3.4',
-      $type: 'ban',
-      $origin: 'crowdsec',
-      $scenario: 'crowdsecurity/ssh-bf',
-      $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: stopAt }),
-    });
+    const insertDecision = (id: string, stopAt: string) =>
+      db.insertDecision({
+        $id: id,
+        $uuid: id,
+        $alert_id: 1,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $stop_at: stopAt,
+        $value: '1.2.3.4',
+        $type: 'ban',
+        $origin: 'crowdsec',
+        $scenario: 'crowdsecurity/ssh-bf',
+        $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: stopAt }),
+      });
 
     insertDecision('10', '2030-01-03T00:00:00.000Z');
     insertDecision('11', '2030-01-02T00:00:00.000Z');
@@ -154,18 +174,19 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
 
   test('keeps the newest decision visible when duplicate expirations are equal', () => {
     const db = createTestDatabase();
-    const insertDecision = (id: string) => db.insertDecision({
-      $id: id,
-      $uuid: id,
-      $alert_id: 1,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $stop_at: '2030-01-03T00:00:00.000Z',
-      $value: '1.2.3.4',
-      $type: 'ban',
-      $origin: 'crowdsec',
-      $scenario: 'crowdsecurity/ssh-bf',
-      $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: '2030-01-03T00:00:00.000Z' }),
-    });
+    const insertDecision = (id: string) =>
+      db.insertDecision({
+        $id: id,
+        $uuid: id,
+        $alert_id: 1,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $stop_at: '2030-01-03T00:00:00.000Z',
+        $value: '1.2.3.4',
+        $type: 'ban',
+        $origin: 'crowdsec',
+        $scenario: 'crowdsecurity/ssh-bf',
+        $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: '2030-01-03T00:00:00.000Z' }),
+      });
 
     insertDecision('10');
     insertDecision('12');
@@ -182,18 +203,19 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
   test('rebuilds persisted duplicate flags after the ranking algorithm changes', () => {
     const dbPath = createTestDatabasePath();
     let db = new CrowdsecDatabase({ cachePath: dbPath });
-    const insertDecision = (id: string) => db.insertDecision({
-      $id: id,
-      $uuid: id,
-      $alert_id: 1,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $stop_at: '2030-01-03T00:00:00.000Z',
-      $value: '1.2.3.4',
-      $type: 'ban',
-      $origin: 'crowdsec',
-      $scenario: 'crowdsecurity/ssh-bf',
-      $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: '2030-01-03T00:00:00.000Z' }),
-    });
+    const insertDecision = (id: string) =>
+      db.insertDecision({
+        $id: id,
+        $uuid: id,
+        $alert_id: 1,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $stop_at: '2030-01-03T00:00:00.000Z',
+        $value: '1.2.3.4',
+        $type: 'ban',
+        $origin: 'crowdsec',
+        $scenario: 'crowdsecurity/ssh-bf',
+        $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: '2030-01-03T00:00:00.000Z' }),
+      });
 
     insertDecision('10');
     insertDecision('12');
@@ -246,25 +268,28 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
     const db = createTestDatabase();
     const expiring = 200_000;
     // Imported blocklists expire in bulk; insert them directly to keep the test fast.
-    db.db.prepare(`
+    db.db
+      .prepare(`
       WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
       INSERT INTO decisions (id, uuid, alert_id, created_at, stop_at, value, type, origin, scenario)
       SELECT 'list-' || i, 'list-' || i, 1, '2026-01-01T00:00:00.000Z', '2029-06-01T00:00:00.000Z',
         '10.' || (i / 65536) || '.' || ((i / 256) % 256) || '.' || (i % 256), 'ban', 'lists', 'crowdsecurity/blocklist-import'
       FROM n
-    `).run(expiring);
-    const insertDecision = (id: string, stopAt: string) => db.insertDecision({
-      $id: id,
-      $uuid: id,
-      $alert_id: 2,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $stop_at: stopAt,
-      $value: '1.2.3.4',
-      $type: 'ban',
-      $origin: 'crowdsec',
-      $scenario: 'crowdsecurity/ssh-bf',
-      $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: stopAt }),
-    });
+    `)
+      .run(expiring);
+    const insertDecision = (id: string, stopAt: string) =>
+      db.insertDecision({
+        $id: id,
+        $uuid: id,
+        $alert_id: 2,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $stop_at: stopAt,
+        $value: '1.2.3.4',
+        $type: 'ban',
+        $origin: 'crowdsec',
+        $scenario: 'crowdsecurity/ssh-bf',
+        $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: stopAt }),
+      });
     insertDecision('active', '2030-01-01T00:00:00.000Z');
     insertDecision('expiring', '2029-06-01T00:00:00.000Z');
 
@@ -273,7 +298,7 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
 
     // Every decision expired since the last refresh is a dirty key of the incremental pass.
     expect(db.refreshDecisionDuplicateFlags('2029-07-01T00:00:00.000Z')).toBe(1);
-    expect(db.db.prepare("SELECT id, is_duplicate FROM decisions WHERE alert_id = 2 ORDER BY id").all()).toEqual([
+    expect(db.db.prepare('SELECT id, is_duplicate FROM decisions WHERE alert_id = 2 ORDER BY id').all()).toEqual([
       { id: 'active', is_duplicate: 0 },
       { id: 'expiring', is_duplicate: 0 },
     ]);
@@ -284,18 +309,19 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
 
   test('deleting retained expired decisions does not dirty active duplicate flags', () => {
     const db = createTestDatabase();
-    const insertDecision = (id: string, stopAt: string) => db.insertDecision({
-      $id: id,
-      $uuid: id,
-      $alert_id: 1,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $stop_at: stopAt,
-      $value: '1.2.3.4',
-      $type: 'ban',
-      $origin: 'crowdsec',
-      $scenario: 'crowdsecurity/ssh-bf',
-      $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: stopAt }),
-    });
+    const insertDecision = (id: string, stopAt: string) =>
+      db.insertDecision({
+        $id: id,
+        $uuid: id,
+        $alert_id: 1,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $stop_at: stopAt,
+        $value: '1.2.3.4',
+        $type: 'ban',
+        $origin: 'crowdsec',
+        $scenario: 'crowdsecurity/ssh-bf',
+        $raw_data: JSON.stringify({ id, value: '1.2.3.4', stop_at: stopAt }),
+      });
 
     insertDecision('expired', '2025-01-01T00:00:00.000Z');
     insertDecision('active-1', '2030-01-03T00:00:00.000Z');
@@ -360,9 +386,12 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
   test('plans active reconciliation windows from a covering index', () => {
     const db = createTestDatabase();
     expect(
-      (db.db.prepare("PRAGMA index_info('idx_decisions_stop_alert_id')").all() as Array<{ name: string }>).map((column) => column.name),
+      (db.db.prepare("PRAGMA index_info('idx_decisions_stop_alert_id')").all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
     ).toEqual(['stop_at', 'alert_id', 'instance_id']);
-    const plan = db.db.prepare(`
+    const plan = db.db
+      .prepare(`
       EXPLAIN QUERY PLAN
       SELECT alerts.created_at
       FROM alerts
@@ -373,7 +402,8 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
           WHERE active.stop_at > ?
             AND active.instance_id = ?
         )
-    `).all('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'default') as Array<{ detail: string }>;
+    `)
+      .all('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'default') as Array<{ detail: string }>;
     expect(plan.map((row) => row.detail).join('\n')).toContain('COVERING INDEX idx_decisions_stop_alert_id');
 
     db.close();
@@ -384,7 +414,9 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
 
     db.beginDeferredSearchIndexUpdates();
     const alertIndexesDuringImport = db.db.prepare("PRAGMA index_list('alerts')").all() as Array<{ name: string }>;
-    const decisionIndexesDuringImport = db.db.prepare("PRAGMA index_list('decisions')").all() as Array<{ name: string }>;
+    const decisionIndexesDuringImport = db.db.prepare("PRAGMA index_list('decisions')").all() as Array<{
+      name: string;
+    }>;
     expect(alertIndexesDuringImport.every((index) => index.name.startsWith('sqlite_autoindex_'))).toBe(true);
     expect(decisionIndexesDuringImport.every((index) => index.name.startsWith('sqlite_autoindex_'))).toBe(true);
 
@@ -428,24 +460,31 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
     expect(rebuiltDecisionIndexes.map((index) => index.name)).toContain('idx_decisions_alert_created_id');
     expect(rebuiltDecisionIndexes.map((index) => index.name)).toContain('idx_decisions_alert_summary');
     expect(
-      (db.db.prepare("PRAGMA index_info('idx_decisions_alert_created_id')").all() as Array<{ name: string }>).map((column) => column.name),
+      (db.db.prepare("PRAGMA index_info('idx_decisions_alert_created_id')").all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
     ).toEqual(['alert_id', 'created_at', 'id', 'stop_at']);
-    const alertDecisionPagingPlan = db.db.prepare(`
+    const alertDecisionPagingPlan = db.db
+      .prepare(`
       EXPLAIN QUERY PLAN
       SELECT raw_data
       FROM decisions
       WHERE (created_at >= ? OR stop_at > ?) AND alert_id = ?
       ORDER BY created_at DESC, id DESC
       LIMIT ? OFFSET ?
-    `).all('2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z', 1, 50, 0) as Array<{ detail: string }>;
+    `)
+      .all('2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z', 1, 50, 0) as Array<{ detail: string }>;
     expect(alertDecisionPagingPlan.map((step) => step.detail).join('\n')).toContain(
       'USING INDEX idx_decisions_alert_created_id (alert_id=?)',
     );
     expect(alertDecisionPagingPlan.map((step) => step.detail).join('\n')).not.toContain('USE TEMP B-TREE');
     expect(
-      (db.db.prepare("PRAGMA index_info('idx_decisions_alert_summary')").all() as Array<{ name: string }>).map((column) => column.name),
+      (db.db.prepare("PRAGMA index_info('idx_decisions_alert_summary')").all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
     ).toEqual(['alert_id', 'origin', 'simulated', 'stop_at']);
-    const alertDecisionSummaryPlan = db.db.prepare(`
+    const alertDecisionSummaryPlan = db.db
+      .prepare(`
       EXPLAIN QUERY PLAN
       SELECT alert_id, origin, simulated,
         SUM(CASE WHEN stop_at > ? THEN 1 ELSE 0 END) AS active_count,
@@ -453,38 +492,51 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
       FROM decisions INDEXED BY idx_decisions_alert_summary
       WHERE alert_id IN (?, ?)
       GROUP BY alert_id, origin, simulated
-    `).all(
-      '2026-01-01T00:00:00.000Z',
-      '2026-01-01T00:00:00.000Z',
-      1,
-      2,
-    ) as Array<{ detail: string }>;
+    `)
+      .all('2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', 1, 2) as Array<{ detail: string }>;
     expect(alertDecisionSummaryPlan.map((step) => step.detail).join('\n')).toContain(
       'USING COVERING INDEX idx_decisions_alert_summary (alert_id=?)',
     );
     expect(alertDecisionSummaryPlan.map((step) => step.detail).join('\n')).not.toContain('USE TEMP B-TREE');
     expect(
-      (db.db.prepare("PRAGMA index_info('idx_decisions_duplicate_filters')").all() as Array<{ name: string }>).map((column) => column.name),
+      (db.db.prepare("PRAGMA index_info('idx_decisions_duplicate_filters')").all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
     ).toEqual([
-      'is_duplicate', 'instance_id', 'stop_at', 'scenario', 'value', 'as_name', 'target', 'country',
-      'country_name', 'region', 'city', 'machine', 'origin', 'type', 'simulated', 'alert_id', 'created_at', 'id',
+      'is_duplicate',
+      'instance_id',
+      'stop_at',
+      'scenario',
+      'value',
+      'as_name',
+      'target',
+      'country',
+      'country_name',
+      'region',
+      'city',
+      'machine',
+      'origin',
+      'type',
+      'simulated',
+      'alert_id',
+      'created_at',
+      'id',
     ]);
-    const filteredDecisionCountPlan = db.db.prepare(`
+    const filteredDecisionCountPlan = db.db
+      .prepare(`
       EXPLAIN QUERY PLAN
       SELECT COUNT(*)
       FROM decisions INDEXED BY idx_decisions_duplicate_filters
       WHERE instance_id IN (?, ?)
         AND stop_at > ?
         AND is_duplicate = 0
-    `).all(
-      'primary',
-      'secondary',
-      '2026-01-01T00:00:00.000Z',
-    ) as Array<{ detail: string }>;
+    `)
+      .all('primary', 'secondary', '2026-01-01T00:00:00.000Z') as Array<{ detail: string }>;
     expect(filteredDecisionCountPlan.map((step) => step.detail).join('\n')).toContain(
       'USING COVERING INDEX idx_decisions_duplicate_filters (is_duplicate=? AND instance_id=? AND stop_at>?)',
     );
-    const decisionPagingPlan = db.db.prepare(`
+    const decisionPagingPlan = db.db
+      .prepare(`
       EXPLAIN QUERY PLAN
       SELECT COALESCE(upstream_id, CAST(id AS TEXT)) AS id, id AS internal_id, created_at
       FROM decisions AS decisions INDEXED BY idx_decisions_duplicate_paging
@@ -493,18 +545,14 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
         AND is_duplicate = 0
       ORDER BY decisions.created_at DESC, decisions.id DESC
       LIMIT ? OFFSET ?
-    `).all(
-      'primary',
-      'secondary',
-      '2026-01-01T00:00:00.000Z',
-      50,
-      0,
-    ) as Array<{ detail: string }>;
+    `)
+      .all('primary', 'secondary', '2026-01-01T00:00:00.000Z', 50, 0) as Array<{ detail: string }>;
     expect(decisionPagingPlan.map((step) => step.detail).join('\n')).toContain(
       'USING INDEX idx_decisions_duplicate_paging (is_duplicate=?)',
     );
     expect(decisionPagingPlan.map((step) => step.detail).join('\n')).not.toContain('USE TEMP B-TREE');
-    const filteredDuplicateRankingPlan = db.db.prepare(`
+    const filteredDuplicateRankingPlan = db.db
+      .prepare(`
       EXPLAIN QUERY PLAN
       WITH ranked_filtered_decisions AS (
         SELECT decisions.*,
@@ -528,37 +576,62 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
       SELECT COUNT(*)
       FROM ranked_filtered_decisions
       WHERE filtered_duplicate_rank = 1
-    `).all(
-      '2026-01-01T00:00:00.000Z',
-      'default',
-      '2026-01-01T00:00:00.000Z',
-      'crowdsecurity/http-probing',
-      'DE',
-      'bw.tausend.me',
-    ) as Array<{ detail: string }>;
+    `)
+      .all(
+        '2026-01-01T00:00:00.000Z',
+        'default',
+        '2026-01-01T00:00:00.000Z',
+        'crowdsecurity/http-probing',
+        'DE',
+        'bw.tausend.me',
+      ) as Array<{ detail: string }>;
     expect(filteredDuplicateRankingPlan.map((step) => step.detail).join('\n')).toContain(
       'SEARCH decisions USING INDEX idx_decisions_target (target=?)',
     );
     expect(
-      (db.db.prepare("PRAGMA index_info('idx_alerts_filters')").all() as Array<{ name: string }>).map((column) => column.name),
+      (db.db.prepare("PRAGMA index_info('idx_alerts_filters')").all() as Array<{ name: string }>).map(
+        (column) => column.name,
+      ),
     ).toEqual([
-      'instance_id', 'country', 'scenario', 'kind', 'as_name', 'source_ip', 'target', 'country_name',
-      'region', 'city', 'machine', 'origins', 'message', 'upstream_id', 'simulated', 'created_at', 'id',
+      'instance_id',
+      'country',
+      'scenario',
+      'kind',
+      'as_name',
+      'source_ip',
+      'target',
+      'country_name',
+      'region',
+      'city',
+      'machine',
+      'origins',
+      'message',
+      'upstream_id',
+      'simulated',
+      'created_at',
+      'id',
     ]);
-    const filteredAlertCountPlan = db.db.prepare(`
+    const filteredAlertCountPlan = db.db
+      .prepare(`
       EXPLAIN QUERY PLAN
       SELECT COUNT(*)
       FROM alerts INDEXED BY idx_alerts_filters
       WHERE instance_id = ?
         AND country IN (?, ?)
         AND COALESCE(LOWER(scenario), '') LIKE ?
-    `).all('default', 'DE', 'NL', '%crowdsecurity/http-probing%') as Array<{ detail: string }>;
+    `)
+      .all('default', 'DE', 'NL', '%crowdsecurity/http-probing%') as Array<{ detail: string }>;
     expect(filteredAlertCountPlan.map((step) => step.detail).join('\n')).toContain(
       'USING COVERING INDEX idx_alerts_filters (instance_id=? AND country=?)',
     );
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('deferred') as { count: number }).count).toBe(1);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('deferred') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(1);
 
     db.close();
   });
-
 });

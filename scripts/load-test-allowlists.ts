@@ -14,7 +14,14 @@ const ALLOWLIST_NAMES = [
   'payment-providers',
   'support-staff',
 ] as const;
-const DESCRIPTIONS = ['Customer', 'Office', 'VPN gateway', 'Monitoring probe', 'Contractor', 'Ticket'] as const;
+const DESCRIPTIONS = [
+  'Customer',
+  'Office',
+  'VPN gateway',
+  'Monitoring probe',
+  'Contractor',
+  'Ticket',
+] as const;
 // Load-test alert sources use 45.1.0.0-45.223.255.255; the first allowlist
 // covers part of that space so alert badges and the decision guard trigger.
 const ALERT_SOURCE_RANGES = 8;
@@ -69,19 +76,29 @@ export function buildLoadTestAllowlists(options: LoadTestAllowlistOptions): Lapi
     const createdAt = new Date(nowMs - (30 + listIndex * 15) * DAY_MS).toISOString();
     const items: LapiAllowlistItem[] = [];
     for (let entryIndex = 0; entryIndex < sizes[listIndex]; entryIndex += 1) {
-      if (instanceIndex > 0 && entryIndex >= ALERT_SOURCE_RANGES && entryIndex % 50 === instanceIndex) continue;
+      if (
+        instanceIndex > 0 &&
+        entryIndex >= ALERT_SOURCE_RANGES &&
+        entryIndex % 50 === instanceIndex
+      )
+        continue;
       const kind = fraction(entryIndex, listSeed, 1);
       const value = entryValue(listIndex, entryIndex, kind);
-      const description = fraction(entryIndex, listSeed, 2) < 0.6
-        ? `${DESCRIPTIONS[hash32(entryIndex, listSeed) % DESCRIPTIONS.length]} ${entryIndex + 1}`
-        : undefined;
+      const description =
+        fraction(entryIndex, listSeed, 2) < 0.6
+          ? `${DESCRIPTIONS[hash32(entryIndex, listSeed) % DESCRIPTIONS.length]} ${entryIndex + 1}`
+          : undefined;
       const expires = fraction(entryIndex, listSeed, 3) < 0.2;
       items.push({
         value,
         ...(description ? { description } : {}),
-        created_at: new Date(nowMs - Math.floor(fraction(entryIndex, listSeed, 4) * 365 * DAY_MS)).toISOString(),
+        created_at: new Date(
+          nowMs - Math.floor(fraction(entryIndex, listSeed, 4) * 365 * DAY_MS),
+        ).toISOString(),
         expiration: expires
-          ? new Date(nowMs + Math.ceil(fraction(entryIndex, listSeed, 5) * 90 * DAY_MS)).toISOString()
+          ? new Date(
+              nowMs + Math.ceil(fraction(entryIndex, listSeed, 5) * 90 * DAY_MS),
+            ).toISOString()
           : LOAD_TEST_ALLOWLIST_ZERO_TIME,
       });
     }
@@ -139,7 +156,13 @@ export function parseLoadTestAddressRange(value: string): AddressRange | null {
   if (parsed === null) return null;
   const bits = family === 4 ? 32 : 128;
   const prefix = prefixText === undefined ? bits : Number(prefixText);
-  if (!Number.isInteger(prefix) || prefix < 0 || prefix > bits || (prefixText !== undefined && !/^\d+$/.test(prefixText))) return null;
+  if (
+    !Number.isInteger(prefix) ||
+    prefix < 0 ||
+    prefix > bits ||
+    (prefixText !== undefined && !/^\d+$/.test(prefixText))
+  )
+    return null;
   const hostMask = (1n << BigInt(bits - prefix)) - 1n;
   return { family, start: parsed & ~hostMask, end: parsed | hostMask };
 }
@@ -148,15 +171,23 @@ export function parseLoadTestAddressRange(value: string): AddressRange | null {
  * Matches like LAPI: the value is inside an allowlisted range or contains an
  * allowlisted value. Reasons follow CrowdSec's `<value> from <name> (<comment>)`.
  */
-export function createLoadTestAllowlistMatcher(allowlists: LapiAllowlist[], nowMs: () => number = Date.now) {
+export function createLoadTestAllowlistMatcher(
+  allowlists: LapiAllowlist[],
+  nowMs: () => number = Date.now,
+) {
   const entries = allowlists
-    .flatMap((allowlist) => (allowlist.items || []).flatMap((item) => {
-      const range = item.value ? parseLoadTestAddressRange(item.value) : null;
-      if (!range) return [];
-      const expiresAt = item.expiration && item.expiration !== LOAD_TEST_ALLOWLIST_ZERO_TIME ? Date.parse(item.expiration) : null;
-      const reason = `${item.value} from ${allowlist.name}${item.description ? ` (${item.description})` : ''}`;
-      return [{ ...range, name: allowlist.name || '', expiresAt, reason }];
-    }))
+    .flatMap((allowlist) =>
+      (allowlist.items || []).flatMap((item) => {
+        const range = item.value ? parseLoadTestAddressRange(item.value) : null;
+        if (!range) return [];
+        const expiresAt =
+          item.expiration && item.expiration !== LOAD_TEST_ALLOWLIST_ZERO_TIME
+            ? Date.parse(item.expiration)
+            : null;
+        const reason = `${item.value} from ${allowlist.name}${item.description ? ` (${item.description})` : ''}`;
+        return [{ ...range, name: allowlist.name || '', expiresAt, reason }];
+      }),
+    )
     .sort((left, right) => left.name.localeCompare(right.name));
 
   return (value: string): { allowlisted: boolean; reason?: string } => {
@@ -164,20 +195,32 @@ export function createLoadTestAllowlistMatcher(allowlists: LapiAllowlist[], nowM
     if (!query) return { allowlisted: false };
     const now = nowMs();
     const reasons = entries
-      .filter((entry) => entry.family === query.family
-        && (entry.expiresAt === null || entry.expiresAt > now)
-        && ((entry.start <= query.start && query.end <= entry.end) || (query.start <= entry.start && entry.end <= query.end)))
+      .filter(
+        (entry) =>
+          entry.family === query.family &&
+          (entry.expiresAt === null || entry.expiresAt > now) &&
+          ((entry.start <= query.start && query.end <= entry.end) ||
+            (query.start <= entry.start && entry.end <= query.end)),
+      )
       .map((entry) => entry.reason);
-    return reasons.length > 0 ? { allowlisted: true, reason: reasons.join(', ') } : { allowlisted: false };
+    return reasons.length > 0
+      ? { allowlisted: true, reason: reasons.join(', ') }
+      : { allowlisted: false };
   };
 }
 
 /** LAPI leaves expired entries out of allowlist listings. */
-export function withoutExpiredLoadTestAllowlistItems(allowlists: LapiAllowlist[], nowMs: number): LapiAllowlist[] {
+export function withoutExpiredLoadTestAllowlistItems(
+  allowlists: LapiAllowlist[],
+  nowMs: number,
+): LapiAllowlist[] {
   return allowlists.map((allowlist) => ({
     ...allowlist,
-    items: (allowlist.items || []).filter((item) => !item.expiration
-      || item.expiration === LOAD_TEST_ALLOWLIST_ZERO_TIME
-      || Date.parse(item.expiration) > nowMs),
+    items: (allowlist.items || []).filter(
+      (item) =>
+        !item.expiration ||
+        item.expiration === LOAD_TEST_ALLOWLIST_ZERO_TIME ||
+        Date.parse(item.expiration) > nowMs,
+    ),
   }));
 }

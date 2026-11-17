@@ -27,7 +27,9 @@ export function createNotificationSecretStore(secretKey?: string): NotificationS
         return payload;
       }
       if (!encryptionKey) {
-        throw new Error('A notification secret key is required to save notification destinations with secrets');
+        throw new Error(
+          'A notification secret key is required to save notification destinations with secrets',
+        );
       }
 
       const iv = crypto.randomBytes(12);
@@ -49,11 +51,15 @@ export function createNotificationSecretStore(secretKey?: string): NotificationS
       }
 
       if (!encryptionKey) {
-        throw new Error('A notification secret key is required to load encrypted notification destinations');
+        throw new Error(
+          'A notification secret key is required to load encrypted notification destinations',
+        );
       }
 
       try {
-        const envelope = JSON.parse(serialized.slice(ENCRYPTED_PREFIX.length)) as Partial<EncryptedEnvelope>;
+        const envelope = JSON.parse(
+          serialized.slice(ENCRYPTED_PREFIX.length),
+        ) as Partial<EncryptedEnvelope>;
         const iv = Buffer.from(String(envelope.iv || ''), 'base64');
         const tag = Buffer.from(String(envelope.tag || ''), 'base64');
         const data = Buffer.from(String(envelope.data || ''), 'base64');

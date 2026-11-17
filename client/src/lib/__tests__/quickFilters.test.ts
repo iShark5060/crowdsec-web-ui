@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from 'vitest';
+
+import { compileAlertSearch, compileDecisionSearch } from '../../../../shared/search';
 import {
   QUICK_FILTERS_STORAGE_KEY,
   emptyStoredQuickFilters,
@@ -9,7 +11,6 @@ import {
   setStoredQuickFilterSelection,
   syncStoredQuickFiltersFromSearch,
 } from '../quickFilters';
-import { compileAlertSearch, compileDecisionSearch } from '../../../../shared/search';
 
 describe('persisted quick filters', () => {
   afterEach(() => {
@@ -17,13 +18,16 @@ describe('persisted quick filters', () => {
   });
 
   test('normalizes malformed browser storage', () => {
-    window.localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        country: { included: ['DE', 'DE', 42], excluded: ['DE', 'US'] },
-        unknown: { included: ['value'], excluded: [] },
-      },
-      dateRange: { start: 42, end: '2026-03-24T12:00' },
-    }));
+    window.localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          country: { included: ['DE', 'DE', 42], excluded: ['DE', 'US'] },
+          unknown: { included: ['value'], excluded: [] },
+        },
+        dateRange: { start: 42, end: '2026-03-24T12:00' },
+      }),
+    );
 
     expect(loadStoredQuickFilters()).toEqual({
       selections: {
@@ -73,9 +77,7 @@ describe('persisted quick filters', () => {
     };
 
     expect(mergeStoredQuickFiltersIntoQuery('alerts', '', filters)).toBe('sim=simulated');
-    expect(mergeStoredQuickFiltersIntoQuery('decisions', 'country:DE', filters)).toBe(
-      'country:DE AND sim=simulated',
-    );
+    expect(mergeStoredQuickFiltersIntoQuery('decisions', 'country:DE', filters)).toBe('country:DE AND sim=simulated');
   });
 
   test('persists both simulation checkboxes being cleared', () => {
@@ -89,12 +91,10 @@ describe('persisted quick filters', () => {
     const compiled = compileAlertSearch(query);
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
-    const synced = syncStoredQuickFiltersFromSearch(
-      emptyStoredQuickFilters(),
-      'alerts',
-      compiled.ast,
-      { start: '', end: '' },
-    );
+    const synced = syncStoredQuickFiltersFromSearch(emptyStoredQuickFilters(), 'alerts', compiled.ast, {
+      start: '',
+      end: '',
+    });
     saveStoredQuickFilters(synced);
     expect(loadStoredQuickFilters().simulation).toBe('none');
   });
@@ -108,12 +108,7 @@ describe('persisted quick filters', () => {
     expect(compiled.ok).toBe(true);
     if (!compiled.ok) return;
 
-    filters = syncStoredQuickFiltersFromSearch(
-      filters,
-      'alerts',
-      compiled.ast,
-      { start: '', end: '' },
-    );
+    filters = syncStoredQuickFiltersFromSearch(filters, 'alerts', compiled.ast, { start: '', end: '' });
     saveStoredQuickFilters(filters);
 
     expect(getStoredQuickFilterSelection(loadStoredQuickFilters(), 'action')).toEqual({

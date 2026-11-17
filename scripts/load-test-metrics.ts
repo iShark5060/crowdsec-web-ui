@@ -39,12 +39,16 @@ export function buildLoadTestFleetMetrics(options: LoadTestFleetMetricsOptions):
     const requests = 50 + (value % 2_000);
     const mode = (value >>> 8) % 3;
     if (mode !== 1) {
-      lines.push(`cs_lapi_bouncer_requests_total{bouncer="${name}",route="/v1/decisions/stream",method="GET"} ${requests}`);
+      lines.push(
+        `cs_lapi_bouncer_requests_total{bouncer="${name}",route="/v1/decisions/stream",method="GET"} ${requests}`,
+      );
     }
     if (mode !== 0) {
       const liveRequests = Math.max(1, Math.floor(requests / 2));
       const nonEmpty = (value >>> 16) % Math.max(1, Math.floor(liveRequests / 10));
-      lines.push(`cs_lapi_bouncer_requests_total{bouncer="${name}",route="/v1/decisions",method="GET"} ${liveRequests}`);
+      lines.push(
+        `cs_lapi_bouncer_requests_total{bouncer="${name}",route="/v1/decisions",method="GET"} ${liveRequests}`,
+      );
       lines.push(`cs_lapi_decisions_ok_total{bouncer="${name}"} ${nonEmpty}`);
       lines.push(`cs_lapi_decisions_ko_total{bouncer="${name}"} ${liveRequests - nonEmpty}`);
     }
@@ -56,16 +60,26 @@ export function buildLoadTestFleetMetrics(options: LoadTestFleetMetricsOptions):
     const heartbeats = 10 + (value % 3_000);
     const alerts = (value >>> 8) % 200;
     const status = index % 10;
-    lines.push(`cs_lapi_machine_requests_total{machine="${name}",route="/v1/heartbeat",method="GET"} ${heartbeats}`);
+    lines.push(
+      `cs_lapi_machine_requests_total{machine="${name}",route="/v1/heartbeat",method="GET"} ${heartbeats}`,
+    );
     if (alerts > 0) {
-      lines.push(`cs_lapi_machine_requests_total{machine="${name}",route="/v1/alerts",method="POST"} ${alerts}`);
+      lines.push(
+        `cs_lapi_machine_requests_total{machine="${name}",route="/v1/alerts",method="POST"} ${alerts}`,
+      );
     }
-    lines.push(`cs_lapi_machine_requests_total{machine="${name}",route="/v1/watchers/login",method="POST"} ${1 + (value >>> 16) % 20}`);
+    lines.push(
+      `cs_lapi_machine_requests_total{machine="${name}",route="/v1/watchers/login",method="POST"} ${1 + ((value >>> 16) % 20)}`,
+    );
     // 70% online, 20% stale, 10% without a heartbeat timestamp.
     if (status < 7) {
-      lines.push(`cs_machines_last_heartbeat_timestamp{machine="${name}"} ${(nowSeconds - (value % 60)).toFixed(3)}`);
+      lines.push(
+        `cs_machines_last_heartbeat_timestamp{machine="${name}"} ${(nowSeconds - (value % 60)).toFixed(3)}`,
+      );
     } else if (status < 9) {
-      lines.push(`cs_machines_last_heartbeat_timestamp{machine="${name}"} ${(nowSeconds - 900 - (value % 86_400)).toFixed(3)}`);
+      lines.push(
+        `cs_machines_last_heartbeat_timestamp{machine="${name}"} ${(nowSeconds - 900 - (value % 86_400)).toFixed(3)}`,
+      );
     }
 
     const source = `/var/log/${name}/auth.log`;
@@ -77,19 +91,37 @@ export function buildLoadTestFleetMetrics(options: LoadTestFleetMetricsOptions):
     lines.push(`cs_parser_hits_total{${sourceLabels}} ${read}`);
     lines.push(`cs_parser_hits_ok_total{${sourceLabels}} ${parsed}`);
     lines.push(`cs_parser_hits_ko_total{${sourceLabels}} ${unparsed}`);
-    lines.push(`cs_node_hits_total{name="crowdsecurity/syslog-logs",stage="s00-raw",${sourceLabels}} ${read}`);
-    lines.push(`cs_node_hits_ok_total{name="crowdsecurity/syslog-logs",stage="s00-raw",${sourceLabels}} ${read}`);
-    lines.push(`cs_node_hits_ko_total{name="crowdsecurity/syslog-logs",stage="s00-raw",${sourceLabels}} 0`);
-    lines.push(`cs_node_hits_total{name="crowdsecurity/sshd-logs",stage="s01-parse",${sourceLabels}} ${read}`);
-    lines.push(`cs_node_hits_ok_total{name="crowdsecurity/sshd-logs",stage="s01-parse",${sourceLabels}} ${parsed}`);
-    lines.push(`cs_node_hits_ko_total{name="crowdsecurity/sshd-logs",stage="s01-parse",${sourceLabels}} ${unparsed}`);
+    lines.push(
+      `cs_node_hits_total{name="crowdsecurity/syslog-logs",stage="s00-raw",${sourceLabels}} ${read}`,
+    );
+    lines.push(
+      `cs_node_hits_ok_total{name="crowdsecurity/syslog-logs",stage="s00-raw",${sourceLabels}} ${read}`,
+    );
+    lines.push(
+      `cs_node_hits_ko_total{name="crowdsecurity/syslog-logs",stage="s00-raw",${sourceLabels}} 0`,
+    );
+    lines.push(
+      `cs_node_hits_total{name="crowdsecurity/sshd-logs",stage="s01-parse",${sourceLabels}} ${read}`,
+    );
+    lines.push(
+      `cs_node_hits_ok_total{name="crowdsecurity/sshd-logs",stage="s01-parse",${sourceLabels}} ${parsed}`,
+    );
+    lines.push(
+      `cs_node_hits_ko_total{name="crowdsecurity/sshd-logs",stage="s01-parse",${sourceLabels}} ${unparsed}`,
+    );
     lines.push(`cs_parsing_time_seconds_count{${sourceLabels}} ${read}`);
-    lines.push(`cs_parsing_time_seconds_sum{${sourceLabels}} ${(read * (0.0002 + ((value >>> 12) % 50) / 10_000)).toFixed(6)}`);
+    lines.push(
+      `cs_parsing_time_seconds_sum{${sourceLabels}} ${(read * (0.0002 + ((value >>> 12) % 50) / 10_000)).toFixed(6)}`,
+    );
 
     if (index % 3 === 0) {
       const appsecRequests = 100 + ((value >>> 6) % 20_000);
-      lines.push(`cs_appsec_reqs_total{source="${name}:7422",appsec_engine="appsec"} ${appsecRequests}`);
-      lines.push(`cs_appsec_block_total{source="${name}:7422",appsec_engine="appsec"} ${(value >>> 10) % Math.max(1, Math.floor(appsecRequests / 10))}`);
+      lines.push(
+        `cs_appsec_reqs_total{source="${name}:7422",appsec_engine="appsec"} ${appsecRequests}`,
+      );
+      lines.push(
+        `cs_appsec_block_total{source="${name}:7422",appsec_engine="appsec"} ${(value >>> 10) % Math.max(1, Math.floor(appsecRequests / 10))}`,
+      );
     }
 
     if (index % 4 === 0) {
@@ -108,8 +140,12 @@ export function buildLoadTestFleetMetrics(options: LoadTestFleetMetricsOptions):
       lines.push(`cs_buckets{name="${name}"} ${value % 20}`);
       lines.push(`cs_bucket_instantiation_total{name="${name}"} ${instantiations}`);
       const pouredFrom = `agent-${padIndex(index % options.machines, options.machines)}`;
-      lines.push(`cs_bucket_poured_total{name="${name}",source="/var/log/${pouredFrom}/auth.log",type="file"} ${instantiations * 3}`);
-      lines.push(`cs_bucket_overflowed_total{name="${name}"} ${(value >>> 8) % Math.max(1, Math.floor(instantiations / 10))}`);
+      lines.push(
+        `cs_bucket_poured_total{name="${name}",source="/var/log/${pouredFrom}/auth.log",type="file"} ${instantiations * 3}`,
+      );
+      lines.push(
+        `cs_bucket_overflowed_total{name="${name}"} ${(value >>> 8) % Math.max(1, Math.floor(instantiations / 10))}`,
+      );
       lines.push(`cs_bucket_underflowed_total{name="${name}"} ${Math.floor(instantiations / 2)}`);
       lines.push(`cs_bucket_canceled_total{name="${name}"} 0`);
     }

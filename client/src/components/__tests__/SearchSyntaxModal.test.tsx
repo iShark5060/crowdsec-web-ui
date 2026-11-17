@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
+
 import { getSearchHelpDefinition } from '../../../../shared/search';
 import { SearchSyntaxModal } from '../SearchSyntaxModal';
 
@@ -15,11 +16,15 @@ describe('SearchSyntaxModal', () => {
     );
 
     const exampleButton = screen.getByRole('button', { name: /status:active AND action:ban/i });
-    const highlightedExample = within(exampleButton).getByText('status').closest('[data-search-highlight-layer="true"]');
+    const highlightedExample = within(exampleButton)
+      .getByText('status')
+      .closest('[data-search-highlight-layer="true"]');
 
     expect(highlightedExample).not.toBeNull();
     expect(highlightedExample?.querySelector('[data-search-highlight-kind="field"]')).toHaveTextContent('status');
-    expect(highlightedExample?.querySelector('[data-search-highlight-kind="booleanOperator"]')).toHaveTextContent('AND');
+    expect(highlightedExample?.querySelector('[data-search-highlight-kind="booleanOperator"]')).toHaveTextContent(
+      'AND',
+    );
   });
 
   test('keeps query examples out of the operator section', () => {

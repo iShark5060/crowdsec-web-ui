@@ -1,12 +1,18 @@
-import { configureStatisticsCapture, readStatisticsBatch, acknowledgeStatisticsBatch, resetStatisticsCapture, statisticsPendingFrom } from './statistics-capture';
 import { CrowdsecDatabase, type CachedAllowlist } from './database';
 import { installTimestampedConsole } from './logging';
-import type { WorkerReadyMessage } from './worker-lifecycle';
+import {
+  configureStatisticsCapture,
+  readStatisticsBatch,
+  acknowledgeStatisticsBatch,
+  resetStatisticsCapture,
+  statisticsPendingFrom,
+} from './statistics-capture';
 import type {
   AlertDecisionComparison,
   AlertDecisionComparisonResult,
   SyncAlertMutation,
 } from './sync-worker-client';
+import type { WorkerReadyMessage } from './worker-lifecycle';
 
 const workerData = JSON.parse(process.argv[2]);
 process.once('disconnect', () => process.exit(0));
@@ -47,11 +53,20 @@ process.on('message', (message: WorkerRequest) => {
 });
 
 function execute(request: WorkerRequest['request']): unknown {
-  if (request.type === 'statistics-configure') { configureStatisticsCapture(database.db, Boolean(request.enabled)); return; }
-  if (request.type === 'statistics-reset') { resetStatisticsCapture(database.db); return; }
-  if (request.type === 'statistics-batch') return readStatisticsBatch(database.db, Boolean(request.backfill));
-  if (request.type === 'statistics-ack') return acknowledgeStatisticsBatch(database.db, request.ids as number[], String(request.cutoff));
-  if (request.type === 'statistics-pending-from') return statisticsPendingFrom(database.db, Number(request.afterSeq) || 0);
+  if (request.type === 'statistics-configure') {
+    configureStatisticsCapture(database.db, Boolean(request.enabled));
+    return;
+  }
+  if (request.type === 'statistics-reset') {
+    resetStatisticsCapture(database.db);
+    return;
+  }
+  if (request.type === 'statistics-batch')
+    return readStatisticsBatch(database.db, Boolean(request.backfill));
+  if (request.type === 'statistics-ack')
+    return acknowledgeStatisticsBatch(database.db, request.ids as number[], String(request.cutoff));
+  if (request.type === 'statistics-pending-from')
+    return statisticsPendingFrom(database.db, Number(request.afterSeq) || 0);
   if (request.type === 'set-meta') {
     database.setMeta(String(request.key), String(request.value));
     return undefined;
@@ -80,18 +95,23 @@ function execute(request: WorkerRequest['request']): unknown {
         }
         if (mutation.alert) {
           changed = mutation.updateAlertRawDataOnly
-            ? database.updateAlertRawData(mutation.alert.$id, mutation.alert.$raw_data, mutation.instanceId) || changed
+            ? database.updateAlertRawData(
+                mutation.alert.$id,
+                mutation.alert.$raw_data,
+                mutation.instanceId,
+              ) || changed
             : database.insertAlert(mutation.alert) || changed;
         }
         for (const decision of mutation.decisions) {
           changed = database.insertDecision(decision) || changed;
         }
         if (mutation.reconcileDecisions !== false) {
-          changed = database.deleteDecisionsByAlertIdExcept(
-            alertId,
-            mutation.keepDecisionIds,
-            mutation.instanceId,
-          ) > 0 || changed;
+          changed =
+            database.deleteDecisionsByAlertIdExcept(
+              alertId,
+              mutation.keepDecisionIds,
+              mutation.instanceId,
+            ) > 0 || changed;
         }
       }
     });
@@ -125,7 +145,9 @@ function execute(request: WorkerRequest['request']): unknown {
     return undefined;
   }
   if (request.type === 'rebuild-search-indexes') {
-    database.rebuildSearchIndexes(request.scope as Parameters<typeof database.rebuildSearchIndexes>[0]);
+    database.rebuildSearchIndexes(
+      request.scope as Parameters<typeof database.rebuildSearchIndexes>[0],
+    );
     return undefined;
   }
   if (request.type === 'refresh-duplicate-flags') {
@@ -173,10 +195,9 @@ function compareAlertDecisions(
     return fullDecisionComparison(comparison.alertId);
   }
 
-  const cachedIds = new Set(database.getDecisionIdsByAlertId(
-    comparison.alertId,
-    comparison.instanceId,
-  ));
+  const cachedIds = new Set(
+    database.getDecisionIdsByAlertId(comparison.alertId, comparison.instanceId),
+  );
   if (snapshot.decision_count !== cachedIds.size) {
     return fullDecisionComparison(comparison.alertId);
   }
@@ -212,8 +233,8 @@ function compareAlertDecisions(
     decisionIdsToPersist: addedIds,
     removedIds,
     reconcileDecisions: false,
-    updateAlertRawDataOnly: snapshot.origins === comparison.origins
-      && snapshot.simulated === comparison.simulated,
+    updateAlertRawDataOnly:
+      snapshot.origins === comparison.origins && snapshot.simulated === comparison.simulated,
   };
 }
 

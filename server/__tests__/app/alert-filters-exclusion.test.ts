@@ -1,15 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import type { AlertRecord } from '../../../shared/contracts';
+
 import {
   createController,
   destroyTempDir,
   sampleAlert,
   sampleAppSecAlert,
-  sampleBlocklistImportAlert,
   sampleCapiAlert,
   sampleListsAlert,
   sampleManualWebUiAlert,
-  sampleRangeAlert,
   seedAlert,
 } from './harness';
 
@@ -60,10 +58,8 @@ describe('createApp alert source filter exclusion', () => {
 
     const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
     expect(alertsResponse.status).toBe(200);
-    const alerts = await alertsResponse.json() as Array<{ id: number }>;
-    expect(alerts).toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: 59 })]),
-    );
+    const alerts = (await alertsResponse.json()) as Array<{ id: number }>;
+    expect(alerts).toEqual(expect.arrayContaining([expect.objectContaining({ id: 59 })]));
     expect(alerts.some((alert) => alert.id === 58)).toBe(false);
 
     const alertRequests = fetchCalls.filter((call) => call.url.includes('/v1/alerts?'));
@@ -180,7 +176,7 @@ describe('createApp alert source filter exclusion', () => {
     const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
     expect(alertsResponse.status).toBe(200);
 
-    const alerts = await alertsResponse.json() as Array<{ id: number }>;
+    const alerts = (await alertsResponse.json()) as Array<{ id: number }>;
     expect(alerts).toEqual([expect.objectContaining({ id: 22 })]);
 
     const alertRequests = fetchCalls.filter((call) => call.url.includes('/v1/alerts?'));
@@ -246,7 +242,9 @@ describe('createApp alert source filter exclusion', () => {
     expect(await alertsResponse.json()).toEqual([]);
 
     const alertRequests = fetchCalls.filter((call) => call.url.includes('/v1/alerts?'));
-    expect(alertRequests.some((call) => !call.url.includes('origin=') && call.url.includes('include_capi=false'))).toBe(true);
+    expect(alertRequests.some((call) => !call.url.includes('origin=') && call.url.includes('include_capi=false'))).toBe(
+      true,
+    );
     expect(alertRequests.some((call) => call.url.includes('origin=CAPI'))).toBe(false);
 
     controller.stopBackgroundTasks();
@@ -303,7 +301,9 @@ describe('createApp alert source filter exclusion', () => {
 
     const storedAlerts = database.db.query('SELECT id FROM alerts ORDER BY id').all() as Array<{ id: number }>;
     expect(storedAlerts).toEqual([{ id: 68 }]);
-    const storedDecisions = database.db.query('SELECT origin FROM decisions ORDER BY id').all() as Array<{ origin: string }>;
+    const storedDecisions = database.db.query('SELECT origin FROM decisions ORDER BY id').all() as Array<{
+      origin: string;
+    }>;
     expect(storedDecisions).toEqual([{ origin: 'crowdsec' }]);
 
     const alertRequests = fetchCalls.filter((call) => call.url.includes('/v1/alerts?'));
@@ -422,17 +422,39 @@ describe('createApp alert source filter exclusion', () => {
     const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
     expect(alertsResponse.status).toBe(200);
 
-    const alerts = await alertsResponse.json() as Array<{ id: number; scenario?: string }>;
-    expect(alerts).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: 14, scenario: 'crowdsecurity/ssh-bf' }),
-      expect.objectContaining({ id: 15, scenario: 'crowdsecurity/community-blocklist' }),
-    ]));
+    const alerts = (await alertsResponse.json()) as Array<{ id: number; scenario?: string }>;
+    expect(alerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 14, scenario: 'crowdsecurity/ssh-bf' }),
+        expect.objectContaining({ id: 15, scenario: 'crowdsecurity/community-blocklist' }),
+      ]),
+    );
 
     const alertRequests = fetchCalls.filter((call) => call.url.includes('/v1/alerts?'));
-    expect(alertRequests.some((call) => !call.url.includes('origin=') && call.url.includes('include_capi=false') && !call.url.includes('scope='))).toBe(true);
-    expect(alertRequests.some((call) => !call.url.includes('origin=') && call.url.includes('include_capi=false') && call.url.includes('scope=ip'))).toBe(true);
-    expect(alertRequests.some((call) => !call.url.includes('origin=') && call.url.includes('include_capi=false') && call.url.includes('scope=range'))).toBe(true);
-    expect(alertRequests.some((call) => call.url.includes('origin=CAPI') && call.url.includes('include_capi=true') && !call.url.includes('scope='))).toBe(true);
+    expect(
+      alertRequests.some(
+        (call) =>
+          !call.url.includes('origin=') && call.url.includes('include_capi=false') && !call.url.includes('scope='),
+      ),
+    ).toBe(true);
+    expect(
+      alertRequests.some(
+        (call) =>
+          !call.url.includes('origin=') && call.url.includes('include_capi=false') && call.url.includes('scope=ip'),
+      ),
+    ).toBe(true);
+    expect(
+      alertRequests.some(
+        (call) =>
+          !call.url.includes('origin=') && call.url.includes('include_capi=false') && call.url.includes('scope=range'),
+      ),
+    ).toBe(true);
+    expect(
+      alertRequests.some(
+        (call) =>
+          call.url.includes('origin=CAPI') && call.url.includes('include_capi=true') && !call.url.includes('scope='),
+      ),
+    ).toBe(true);
 
     const alertCount = (database.db.query('SELECT COUNT(*) AS count FROM alerts').get() as { count: number }).count;
     expect(alertCount).toBe(2);
@@ -481,26 +503,44 @@ describe('createApp alert source filter exclusion', () => {
     const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
     expect(alertsResponse.status).toBe(200);
 
-    const alerts = await alertsResponse.json() as Array<{ id: number; scenario?: string; reason?: string }>;
-    expect(alerts).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: 6,
-        scenario: 'crowdsecurity/appsec-vpatch',
-      }),
-      expect.objectContaining({
-        id: 7,
-        scenario: 'crowdsecurity/ssh-bf',
-      }),
-    ]));
+    const alerts = (await alertsResponse.json()) as Array<{ id: number; scenario?: string; reason?: string }>;
+    expect(alerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 6,
+          scenario: 'crowdsecurity/appsec-vpatch',
+        }),
+        expect.objectContaining({
+          id: 7,
+          scenario: 'crowdsecurity/ssh-bf',
+        }),
+      ]),
+    );
 
     const alertRequests = fetchCalls.filter((call) => call.url.includes('/v1/alerts?'));
-    expect(alertRequests.some((call) => call.url.includes('origin=crowdsec') && call.url.includes('include_capi=false') && call.url.includes('scope=ip'))).toBe(true);
-    expect(alertRequests.some((call) => call.url.includes('origin=crowdsec') && call.url.includes('include_capi=false') && call.url.includes('scope=range'))).toBe(true);
+    expect(
+      alertRequests.some(
+        (call) =>
+          call.url.includes('origin=crowdsec') &&
+          call.url.includes('include_capi=false') &&
+          call.url.includes('scope=ip'),
+      ),
+    ).toBe(true);
+    expect(
+      alertRequests.some(
+        (call) =>
+          call.url.includes('origin=crowdsec') &&
+          call.url.includes('include_capi=false') &&
+          call.url.includes('scope=range'),
+      ),
+    ).toBe(true);
 
     const storedAlert = database.getAlertDecisionSnapshot(6);
-    expect(JSON.parse(storedAlert?.raw_data || 'null')).toEqual(expect.objectContaining({
-      scenario: 'crowdsecurity/appsec-vpatch',
-    }));
+    expect(JSON.parse(storedAlert?.raw_data || 'null')).toEqual(
+      expect.objectContaining({
+        scenario: 'crowdsecurity/appsec-vpatch',
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();

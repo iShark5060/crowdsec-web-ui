@@ -1,41 +1,41 @@
-import Database from 'better-sqlite3';
 import { describe, expect, test } from 'vitest';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs';
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { tmpdir } from 'os';
+
 import { CrowdsecDatabase } from '../../database';
 import { decisionFromRow } from '../../normalized-record';
-import { createLegacyDatabase, createTestDatabase, createTestDatabasePath, tempDirs } from './harness';
+import { createTestDatabase, createTestDatabasePath } from './harness';
 
 describe('CrowdsecDatabase identity and storage', () => {
   test('isolates colliding upstream alert, decision, and UUID identities by instance', () => {
     const db = createTestDatabase();
     db.setMeta('multi_instance_primary_id', 'primary');
     for (const instanceId of ['primary', 'secondary']) {
-      expect(db.insertAlert({
-        $id: 1,
-        $instance_id: instanceId,
-        $uuid: 'same-alert-uuid',
-        $created_at: '2026-07-19T10:00:00.000Z',
-        $scenario: 'crowdsecurity/ssh-bf',
-        $source_ip: instanceId === 'primary' ? '1.1.1.1' : '2.2.2.2',
-        $message: instanceId,
-        $raw_data: JSON.stringify({ id: 1, uuid: 'same-alert-uuid' }),
-      })).toBe(true);
-      expect(db.insertDecision({
-        $id: '1',
-        $instance_id: instanceId,
-        $uuid: 'same-decision-uuid',
-        $alert_id: 1,
-        $created_at: '2026-07-19T10:00:00.000Z',
-        $stop_at: '2026-07-20T10:00:00.000Z',
-        $value: '3.3.3.3',
-        $type: 'ban',
-        $origin: 'crowdsec',
-        $scenario: 'crowdsecurity/ssh-bf',
-        $raw_data: JSON.stringify({ id: 1, alert_id: 1 }),
-      })).toBe(true);
+      expect(
+        db.insertAlert({
+          $id: 1,
+          $instance_id: instanceId,
+          $uuid: 'same-alert-uuid',
+          $created_at: '2026-07-19T10:00:00.000Z',
+          $scenario: 'crowdsecurity/ssh-bf',
+          $source_ip: instanceId === 'primary' ? '1.1.1.1' : '2.2.2.2',
+          $message: instanceId,
+          $raw_data: JSON.stringify({ id: 1, uuid: 'same-alert-uuid' }),
+        }),
+      ).toBe(true);
+      expect(
+        db.insertDecision({
+          $id: '1',
+          $instance_id: instanceId,
+          $uuid: 'same-decision-uuid',
+          $alert_id: 1,
+          $created_at: '2026-07-19T10:00:00.000Z',
+          $stop_at: '2026-07-20T10:00:00.000Z',
+          $value: '3.3.3.3',
+          $type: 'ban',
+          $origin: 'crowdsec',
+          $scenario: 'crowdsecurity/ssh-bf',
+          $raw_data: JSON.stringify({ id: 1, alert_id: 1 }),
+        }),
+      ).toBe(true);
     }
 
     expect(db.countAlerts()).toBe(2);
@@ -43,7 +43,9 @@ describe('CrowdsecDatabase identity and storage', () => {
     expect(db.getAlertInternalId('primary', 1)).not.toBe(db.getAlertInternalId('secondary', 1));
     expect(db.getDecisionInternalId('primary', 1)).not.toBe(db.getDecisionInternalId('secondary', 1));
     db.refreshDecisionDuplicateFlags('2026-07-19T11:00:00.000Z', true);
-    const duplicateFlags = db.db.prepare('SELECT instance_id, is_duplicate FROM decisions ORDER BY instance_id').all() as Array<{ instance_id: string; is_duplicate: number }>;
+    const duplicateFlags = db.db
+      .prepare('SELECT instance_id, is_duplicate FROM decisions ORDER BY instance_id')
+      .all() as Array<{ instance_id: string; is_duplicate: number }>;
     expect(duplicateFlags).toEqual([
       { instance_id: 'primary', is_duplicate: 0 },
       { instance_id: 'secondary', is_duplicate: 0 },
@@ -92,12 +94,14 @@ describe('CrowdsecDatabase identity and storage', () => {
     original.close();
 
     const reopened = new CrowdsecDatabase({ cachePath: dbPath });
-    expect(reopened.getAlertDeletionTombstone(1)).toEqual(expect.objectContaining({
-      alert_id: '1',
-      decision_ids_json: '["10"]',
-      requested_at: requestedAt,
-      completed_at: null,
-    }));
+    expect(reopened.getAlertDeletionTombstone(1)).toEqual(
+      expect.objectContaining({
+        alert_id: '1',
+        decision_ids_json: '["10"]',
+        requested_at: requestedAt,
+        completed_at: null,
+      }),
+    );
     expect(reopened.insertAlert(alert)).toBe(false);
     expect(reopened.insertDecision(decision)).toBe(false);
     expect(reopened.countAlerts()).toBe(0);
@@ -135,14 +139,24 @@ describe('CrowdsecDatabase identity and storage', () => {
 
     expect(db.countAlerts()).toBe(1);
     expect(db.searchIndexAvailable).toBe(true);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('alert') as { count: number }).count).toBe(1);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('ler') as { count: number }).count).toBe(1);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('alert') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(1);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('ler') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(1);
     expect(db.getAlertsSince('2024-12-31T00:00:00.000Z')).toHaveLength(1);
     expect(db.getActiveDecisions('2025-01-01T00:00:00.000Z')).toHaveLength(1);
     expect(db.getDecisionById('10')?.stop_at).toBe('2030-01-01T00:00:00.000Z');
-    expect(db.getDecisionStopAtBatch(['10', 'missing'])).toEqual(
-      new Map([['10', '2030-01-01T00:00:00.000Z']]),
-    );
+    expect(db.getDecisionStopAtBatch(['10', 'missing'])).toEqual(new Map([['10', '2030-01-01T00:00:00.000Z']]));
     expect(db.getMeta('refresh_interval_ms')?.value).toBe('5000');
     expect(db.getAlertsBetween('2024-12-31T00:00:00.000Z', '2025-01-02T00:00:00.000Z')).toHaveLength(1);
     expect(db.getAlertDecisionSnapshot(1)).toEqual({
@@ -168,18 +182,19 @@ describe('CrowdsecDatabase identity and storage', () => {
 
   test('only excludes the literal dup_ prefix when selecting an active decision', () => {
     const db = createTestDatabase();
-    const insert = (id: string, stopAt: string) => db.insertDecision({
-      $id: id,
-      $uuid: id,
-      $alert_id: 1,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $stop_at: stopAt,
-      $value: '198.51.100.42',
-      $type: 'ban',
-      $origin: 'crowdsec',
-      $scenario: 'crowdsecurity/test',
-      $raw_data: JSON.stringify({ id, value: '198.51.100.42', stop_at: stopAt }),
-    });
+    const insert = (id: string, stopAt: string) =>
+      db.insertDecision({
+        $id: id,
+        $uuid: id,
+        $alert_id: 1,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $stop_at: stopAt,
+        $value: '198.51.100.42',
+        $type: 'ban',
+        $origin: 'crowdsec',
+        $scenario: 'crowdsecurity/test',
+        $raw_data: JSON.stringify({ id, value: '198.51.100.42', stop_at: stopAt }),
+      });
     insert('real', '2027-01-02T00:00:00.000Z');
     insert('dup_1', '2027-01-04T00:00:00.000Z');
     insert('dupX1', '2027-01-03T00:00:00.000Z');
@@ -278,7 +293,9 @@ describe('CrowdsecDatabase identity and storage', () => {
       $record: decision,
     });
 
-    const storedAlert = db.db.prepare('SELECT kind, raw_data, extra_data, source_extra_data FROM alerts WHERE id = 42').get() as {
+    const storedAlert = db.db
+      .prepare('SELECT kind, raw_data, extra_data, source_extra_data FROM alerts WHERE id = 42')
+      .get() as {
       kind: string;
       raw_data: string | null;
       extra_data: string;
@@ -295,17 +312,21 @@ describe('CrowdsecDatabase identity and storage', () => {
     };
     expect(storedDecision.raw_data).toBeNull();
     expect(JSON.parse(storedDecision.extra_data)).toEqual({ remediation: 'custom-extension' });
-    expect(decisionFromRow(db.getDecisionById('420')!)).toEqual(expect.objectContaining({
-      id: 420,
-      scope: 'ip',
-      remediation: 'custom-extension',
-    }));
-    expect(JSON.parse(db.getAlertsSince('2026-07-17T00:00:00.000Z')[0].raw_data)).toEqual(expect.objectContaining({
-      id: 42,
-      kind: 'capi',
-      events: alert.events,
-      source: expect.objectContaining({ provider: 'example', scope: 'ip' }),
-    }));
+    expect(decisionFromRow(db.getDecisionById('420')!)).toEqual(
+      expect.objectContaining({
+        id: 420,
+        scope: 'ip',
+        remediation: 'custom-extension',
+      }),
+    );
+    expect(JSON.parse(db.getAlertsSince('2026-07-17T00:00:00.000Z')[0].raw_data)).toEqual(
+      expect.objectContaining({
+        id: 42,
+        kind: 'capi',
+        events: alert.events,
+        source: expect.objectContaining({ provider: 'example', scope: 'ip' }),
+      }),
+    );
     db.close();
   });
 });

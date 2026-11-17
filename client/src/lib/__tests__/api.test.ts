@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import {
   addDecision,
   addDecisions,
@@ -61,7 +62,12 @@ describe('api helpers', () => {
           return Response.json([{ id: 1 }]);
         }
         if (String(input).includes('/api/notifications')) {
-          return Response.json({ data: [{ id: 1 }], pagination: { page: 1, page_size: 50, total: 1, total_pages: 1, unfiltered_total: 1 }, selectable_ids: ['1'], unread_count: 1 });
+          return Response.json({
+            data: [{ id: 1 }],
+            pagination: { page: 1, page_size: 50, total: 1, total_pages: 1, unfiltered_total: 1 },
+            selectable_ids: ['1'],
+            unread_count: 1,
+          });
         }
         if (String(input).includes('/api/alerts/1?')) {
           return Response.json([{ id: 1 }]);
@@ -78,9 +84,21 @@ describe('api helpers', () => {
     await expect(fetchDashboardStats({ simulation: 'live' })).resolves.toEqual([{ id: 1 }]);
     await expect(fetchConfig()).resolves.toEqual([{ id: 1 }]);
     await expect(fetchNotificationSettings()).resolves.toEqual([{ id: 1 }]);
-    await expect(fetchNotifications()).resolves.toEqual({ data: [{ id: 1 }], pagination: { page: 1, page_size: 50, total: 1, total_pages: 1, unfiltered_total: 1 }, selectable_ids: ['1'], unread_count: 1 });
-    await expect(fetchNotificationsPaginated()).resolves.toEqual({ data: [{ id: 1 }], pagination: { page: 1, page_size: 50, total: 1, total_pages: 1, unfiltered_total: 1 }, selectable_ids: ['1'], unread_count: 1 });
-    expect(String(vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes('/api/alerts/1'))?.[0])).toContain('include_decisions=false');
+    await expect(fetchNotifications()).resolves.toEqual({
+      data: [{ id: 1 }],
+      pagination: { page: 1, page_size: 50, total: 1, total_pages: 1, unfiltered_total: 1 },
+      selectable_ids: ['1'],
+      unread_count: 1,
+    });
+    await expect(fetchNotificationsPaginated()).resolves.toEqual({
+      data: [{ id: 1 }],
+      pagination: { page: 1, page_size: 50, total: 1, total_pages: 1, unfiltered_total: 1 },
+      selectable_ids: ['1'],
+      unread_count: 1,
+    });
+    expect(
+      String(vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes('/api/alerts/1'))?.[0]),
+    ).toContain('include_decisions=false');
   });
 
   test('requests alert sessions with only populated filters', async () => {
@@ -103,8 +121,14 @@ describe('api helpers', () => {
     );
     mockFetch(fetchMock);
 
-    await expect(fetchAlertsPaginated(2, 25, { scenario: 'ssh', country: '' })).resolves.toEqual({ items: [], total: 0 });
-    await expect(fetchDecisionsPaginated(3, 10, { ip: '1.2.3.4', target: '' })).resolves.toEqual({ items: [], total: 0 });
+    await expect(fetchAlertsPaginated(2, 25, { scenario: 'ssh', country: '' })).resolves.toEqual({
+      items: [],
+      total: 0,
+    });
+    await expect(fetchDecisionsPaginated(3, 10, { ip: '1.2.3.4', target: '' })).resolves.toEqual({
+      items: [],
+      total: 0,
+    });
     await expect(fetchNotificationsPaginated(4, 20)).resolves.toEqual({ items: [], total: 0 });
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
@@ -132,17 +156,29 @@ describe('api helpers', () => {
 
   test('facet requests encode search values, populated filters and pagination, and forward cancellation', async () => {
     const signal = new AbortController().signal;
-    const payload = { field: 'scenario', values: [{ value: 'crowdsecurity/ssh-bf', count: 3 }], offset: 20, has_more: true };
+    const payload = {
+      field: 'scenario',
+      values: [{ value: 'crowdsecurity/ssh-bf', count: 3 }],
+      offset: 20,
+      has_more: true,
+    };
     const fetchMock = vi.fn(async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) => Response.json(payload));
     mockFetch(fetchMock);
 
-    await expect(fetchFacet('alerts', 'scenario', { country: 'DE', target: '' }, {
-      search: 'ssh & http',
-      searchValues: ['crowdsecurity/ssh-bf', 'custom/http'],
-      offset: 20,
-      limit: 25,
-      signal,
-    })).resolves.toEqual(payload);
+    await expect(
+      fetchFacet(
+        'alerts',
+        'scenario',
+        { country: 'DE', target: '' },
+        {
+          search: 'ssh & http',
+          searchValues: ['crowdsecurity/ssh-bf', 'custom/http'],
+          offset: 20,
+          limit: 25,
+          signal,
+        },
+      ),
+    ).resolves.toEqual(payload);
 
     const url = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://localhost');
     expect(Object.fromEntries(url.searchParams)).toEqual({
@@ -164,10 +200,9 @@ describe('api helpers', () => {
   });
 
   test('uses instance-aware resource paths and bulk reference payloads', async () => {
-    const fetchMock = vi.fn(async (
-      _input: Parameters<typeof fetch>[0],
-      _init?: Parameters<typeof fetch>[1],
-    ) => Response.json({ ok: true }));
+    const fetchMock = vi.fn(async (_input: Parameters<typeof fetch>[0], _init?: Parameters<typeof fetch>[1]) =>
+      Response.json({ ok: true }),
+    );
     mockFetch(fetchMock);
 
     await expect(fetchAlert('alert/id', 'eu west')).resolves.toEqual({ ok: true });
@@ -179,41 +214,49 @@ describe('api helpers', () => {
     await expect(bulkDeleteAlerts([{ instance_id: 'eu-west', id: 'alert-1' }])).resolves.toEqual({ ok: true });
     await expect(bulkDeleteDecisions([{ instance_id: 'eu-west', id: 'decision-1' }])).resolves.toEqual({ ok: true });
 
-    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(expect.arrayContaining([
-      '/api/instances/eu%20west/alerts/alert%2Fid',
-      '/api/instances/eu%20west/decisions/decision%2Fid',
-      '/api/instances/eu%20west/metrics/lapi%2Fmain',
-      '/api/metrics/crowdsec',
-      '/api/metrics/crowdsec/combined?instance=eu%20west',
-    ]));
-    expect(fetchMock.mock.calls.map(([, init]) => init?.body)).toEqual(expect.arrayContaining([
-      JSON.stringify({ refs: [{ instance_id: 'eu-west', id: 'alert-1' }] }),
-      JSON.stringify({ refs: [{ instance_id: 'eu-west', id: 'decision-1' }] }),
-    ]));
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(
+      expect.arrayContaining([
+        '/api/instances/eu%20west/alerts/alert%2Fid',
+        '/api/instances/eu%20west/decisions/decision%2Fid',
+        '/api/instances/eu%20west/metrics/lapi%2Fmain',
+        '/api/metrics/crowdsec',
+        '/api/metrics/crowdsec/combined?instance=eu%20west',
+      ]),
+    );
+    expect(fetchMock.mock.calls.map(([, init]) => init?.body)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify({ refs: [{ instance_id: 'eu-west', id: 'alert-1' }] }),
+        JSON.stringify({ refs: [{ instance_id: 'eu-west', id: 'decision-1' }] }),
+      ]),
+    );
   });
 
   test('combines cleanup results returned by multiple instances', async () => {
-    mockFetch(vi.fn(async () => Response.json({
-      results: [
-        {
-          instance_id: 'primary',
-          instance_name: 'Primary',
-          success: true,
-          result: {
-            requested_alerts: 2,
-            requested_decisions: 3,
-            deleted_alerts: 1,
-            deleted_decisions: 2,
-            failed: [{ kind: 'decision', id: 'decision-1', error: 'still active' }],
-          },
-        },
-        { instance_id: 'empty', instance_name: 'Empty', success: true },
-        { instance_id: 'offline', instance_name: 'Offline', success: false, error: 'unreachable' },
-        { instance_id: 'unknown', instance_name: 'Unknown', success: false },
-      ],
-      succeeded: 2,
-      failed: 2,
-    })));
+    mockFetch(
+      vi.fn(async () =>
+        Response.json({
+          results: [
+            {
+              instance_id: 'primary',
+              instance_name: 'Primary',
+              success: true,
+              result: {
+                requested_alerts: 2,
+                requested_decisions: 3,
+                deleted_alerts: 1,
+                deleted_decisions: 2,
+                failed: [{ kind: 'decision', id: 'decision-1', error: 'still active' }],
+              },
+            },
+            { instance_id: 'empty', instance_name: 'Empty', success: true },
+            { instance_id: 'offline', instance_name: 'Offline', success: false, error: 'unreachable' },
+            { instance_id: 'unknown', instance_name: 'Unknown', success: false },
+          ],
+          succeeded: 2,
+          failed: 2,
+        }),
+      ),
+    );
 
     await expect(cleanupByIp({ ip: '1.2.3.4', scope: 'all' })).resolves.toMatchObject({
       requested_alerts: 2,
@@ -248,16 +291,21 @@ describe('api helpers', () => {
       added: [],
       allowlisted: [],
     };
-    const fetchMock = vi.fn(async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) => Response.json(payload, { status }));
+    const fetchMock = vi.fn(async (_input: Parameters<typeof fetch>[0], _init?: RequestInit) =>
+      Response.json(payload, { status }),
+    );
     mockFetch(fetchMock);
     const request = { values: ['1.2.3.4', '10.0.0.0/24'], duration: '4h', bypass_allowlist: true };
 
     await expect(addDecisions(request)).resolves.toEqual(payload);
-    expect(fetchMock).toHaveBeenCalledWith('/api/decisions/bulk-add', expect.objectContaining({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request),
-    }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/decisions/bulk-add',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      }),
+    );
   });
 
   test.each([
@@ -283,9 +331,12 @@ describe('api helpers', () => {
 
   test('bulk add invalidates cached decisions so the next read includes new entries', async () => {
     const decision = { id: 1, value: '1.2.3.4' };
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(Response.json([]))
-      .mockResolvedValueOnce(Response.json({ results: [], succeeded: 1, failed: 0, added: ['1.2.3.4'], allowlisted: [] }))
+      .mockResolvedValueOnce(
+        Response.json({ results: [], succeeded: 1, failed: 0, added: ['1.2.3.4'], allowlisted: [] }),
+      )
       .mockResolvedValueOnce(Response.json([decision]));
     mockFetch(fetchMock);
 
@@ -302,7 +353,9 @@ describe('api helpers', () => {
     mockFetch(fetchMock);
 
     await expect(fetchDashboardStats()).resolves.toEqual({ totals: {} });
-    await expect(fetchDashboardStats({ simulation: '' }, { signal: AbortSignal.abort() })).resolves.toEqual({ totals: {} });
+    await expect(fetchDashboardStats({ simulation: '' }, { signal: AbortSignal.abort() })).resolves.toEqual({
+      totals: {},
+    });
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/api/dashboard/stats');
     expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain('?');
@@ -312,9 +365,10 @@ describe('api helpers', () => {
   test('deduplicates simultaneous GET helper requests', async () => {
     let resolveFetch: (response: Response) => void = () => {};
     const fetchMock = vi.fn(
-      () => new Promise<Response>((resolve) => {
-        resolveFetch = resolve;
-      }),
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
     );
     mockFetch(fetchMock);
 
@@ -395,9 +449,11 @@ describe('api helpers', () => {
 
   test('allowlist helpers encode the value and scope, and addDecision reports allowlist refusals', async () => {
     const allowlisted = [{ instance_id: 'eu-west', instance_name: 'EU West', reason: '10.0.0.0/8 from office' }];
-    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => String(input).includes('/api/decisions')
-      ? Response.json({ error: '10.1.2.3 is allowlisted', code: 'ALLOWLISTED', allowlisted }, { status: 409 })
-      : Response.json({ ok: true }));
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) =>
+      String(input).includes('/api/decisions')
+        ? Response.json({ error: '10.1.2.3 is allowlisted', code: 'ALLOWLISTED', allowlisted }, { status: 409 })
+        : Response.json({ ok: true }),
+    );
     mockFetch(fetchMock);
 
     await expect(fetchAllowlists('eu west')).resolves.toEqual({ ok: true });
@@ -410,17 +466,21 @@ describe('api helpers', () => {
       code: 'ALLOWLISTED',
       allowlisted,
     });
-    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(expect.arrayContaining([
-      '/api/allowlists?instance=eu+west',
-      '/api/allowlists?instance=all&q=10.0',
-      '/api/allowlists/office%2Fvpn/entries?instance=all&page=2&page_size=50',
-      '/api/allowlists/office/entries?instance=east&page=1&page_size=100&q=vpn',
-      '/api/allowlists/check?value=10.0.0.0%2F24&instance=all',
-    ]));
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual(
+      expect.arrayContaining([
+        '/api/allowlists?instance=eu+west',
+        '/api/allowlists?instance=all&q=10.0',
+        '/api/allowlists/office%2Fvpn/entries?instance=all&page=2&page_size=50',
+        '/api/allowlists/office/entries?instance=east&page=1&page_size=100&q=vpn',
+        '/api/allowlists/check?value=10.0.0.0%2F24&instance=all',
+      ]),
+    );
   });
 
   test('delete and add helpers surface read-only 403 messages without permission metadata', async () => {
-    mockFetch(vi.fn(async () => Response.json({ error: 'Read-only mode is enabled', code: 'READ_ONLY' }, { status: 403 })));
+    mockFetch(
+      vi.fn(async () => Response.json({ error: 'Read-only mode is enabled', code: 'READ_ONLY' }, { status: 403 })),
+    );
 
     await expect(deleteAlert(1)).rejects.toMatchObject({
       message: 'Read-only mode is enabled',
@@ -474,11 +534,33 @@ describe('api helpers', () => {
     await expect(bulkDeleteDecisions([1, 2])).resolves.toEqual({ message: 'Created' });
     await expect(cleanupByIp('1.2.3.4')).resolves.toEqual({ message: 'Created' });
     await expect(addDecision({ ip: '1.2.3.4' })).resolves.toEqual({ message: 'Created' });
-    await expect(createNotificationChannel({ name: 'ntfy', type: 'ntfy', enabled: true, config: {} })).resolves.toEqual({ message: 'Created' });
-    await expect(updateNotificationChannel('1', { name: 'ntfy', type: 'ntfy', enabled: true, config: {} })).resolves.toEqual({ message: 'Created' });
+    await expect(createNotificationChannel({ name: 'ntfy', type: 'ntfy', enabled: true, config: {} })).resolves.toEqual(
+      { message: 'Created' },
+    );
+    await expect(
+      updateNotificationChannel('1', { name: 'ntfy', type: 'ntfy', enabled: true, config: {} }),
+    ).resolves.toEqual({ message: 'Created' });
     await expect(updateLanguagePreference('de')).resolves.toEqual({ message: 'Created' });
-    await expect(createNotificationRule({ name: 'rule', type: 'alert-threshold', enabled: true, severity: 'warning', channel_ids: [], config: { window_minutes: 60, alert_threshold: 10 } })).resolves.toEqual({ message: 'Created' });
-    await expect(updateNotificationRule('1', { name: 'rule', type: 'alert-threshold', enabled: true, severity: 'warning', channel_ids: [], config: { window_minutes: 60, alert_threshold: 10 } })).resolves.toEqual({ message: 'Created' });
+    await expect(
+      createNotificationRule({
+        name: 'rule',
+        type: 'alert-threshold',
+        enabled: true,
+        severity: 'warning',
+        channel_ids: [],
+        config: { window_minutes: 60, alert_threshold: 10 },
+      }),
+    ).resolves.toEqual({ message: 'Created' });
+    await expect(
+      updateNotificationRule('1', {
+        name: 'rule',
+        type: 'alert-threshold',
+        enabled: true,
+        severity: 'warning',
+        channel_ids: [],
+        config: { window_minutes: 60, alert_threshold: 10 },
+      }),
+    ).resolves.toEqual({ message: 'Created' });
   });
 
   test('throws the provided message for non-403 mutation failures', async () => {
@@ -499,7 +581,10 @@ describe('api helpers', () => {
       }),
     );
 
-    await expect(testNotificationChannel('1')).resolves.toMatchObject({ title: 'Test', delivery: { status: 'delivered' } });
+    await expect(testNotificationChannel('1')).resolves.toMatchObject({
+      title: 'Test',
+      delivery: { status: 'delivered' },
+    });
     await expect(deleteNotificationChannel('1')).resolves.toBeUndefined();
     await expect(deleteNotificationRule('1')).resolves.toBeUndefined();
     await expect(deleteNotification('1')).resolves.toBeUndefined();

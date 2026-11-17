@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { CrowdsecInstanceConfig } from '../../instances-config';
+
 import { compareVersions, createCrowdsecUpdateChecker } from '../../crowdsec-update-check';
+import type { CrowdsecInstanceConfig } from '../../instances-config';
 
 function instance(id: string, endpoints: string[]): CrowdsecInstanceConfig {
   return {
@@ -30,14 +31,34 @@ describe('CrowdSec update checker', () => {
     expect(() => compareVersions('nightly', 'v1.8.0')).toThrow();
   });
 
+  test('treats CrowdSec package and build tags as build metadata', () => {
+    expect(compareVersions('v1.8.2-debian-pragmatic-amd64-3d369d64', 'v1.8.2')).toBe(0);
+    expect(compareVersions('v1.7.8-rpm-pragmatic-amd64-63227459', 'v1.7.8')).toBe(0);
+    expect(compareVersions('v1.5.0-debian-pragmatic', 'v1.5.0')).toBe(0);
+    expect(compareVersions('v1.8.2-debian.01', 'v1.8.2')).toBe(0);
+    expect(compareVersions('v1.8.2-5-g3d369d64', 'v1.8.2')).toBe(0);
+    expect(compareVersions('v1.8.1-debian-pragmatic-amd64-3d369d64', 'v1.8.2')).toBeLessThan(0);
+    expect(compareVersions('v1.8.3-rpm-pragmatic-amd64-63227459', 'v1.8.2')).toBeGreaterThan(0);
+  });
+
+  test('keeps prerelease suffixes older than the matching release', () => {
+    expect(compareVersions('v1.8.2-rc1', 'v1.8.2')).toBeLessThan(0);
+    expect(compareVersions('v1.8.2-rc-1', 'v1.8.2')).toBeLessThan(0);
+    expect(compareVersions('v1.8.2-beta.2', 'v1.8.2')).toBeLessThan(0);
+    expect(compareVersions('v1.8.2-rc1-debian-pragmatic-amd64-3d369d64', 'v1.8.2')).toBeLessThan(0);
+    expect(compareVersions('v1.8.2-rc2', 'v1.8.2-rc1')).toBeGreaterThan(0);
+  });
+
   test('checks every endpoint and caches release and metric observations', async () => {
     let now = 1_000_000;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     let releaseVersion = 'v1.8.0';
-    const releaseFetch = vi.fn(async () => Response.json({
-      tag_name: releaseVersion,
-      html_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/' + releaseVersion,
-    }));
+    const releaseFetch = vi.fn(async () =>
+      Response.json({
+        tag_name: releaseVersion,
+        html_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/' + releaseVersion,
+      }),
+    );
     const versions = new Map([
       ['https://metrics.example/a/one', 'v1.7.8'],
       ['https://metrics.example/a/two', 'v1.8.0'],
@@ -45,9 +66,10 @@ describe('CrowdSec update checker', () => {
       ['https://metrics.example/b/two', 'v1.8.0-rc.1'],
       ['https://metrics.example/b/three', 'nightly'],
     ]);
-    const metricsFetch = vi.fn(async (input: string | URL | Request) => new Response(
-      'cs_info{version="' + versions.get(String(input)) + '"} 1\n',
-    ));
+    const metricsFetch = vi.fn(
+      async (input: string | URL | Request) =>
+        new Response('cs_info{version="' + versions.get(String(input)) + '"} 1\n'),
+    );
     const check = createCrowdsecUpdateChecker({
       instances: [instance('a', ['one', 'two']), instance('b', ['one', 'two', 'three'])],
       prometheusTimeoutMs: 1_000,
@@ -90,18 +112,42 @@ describe('CrowdSec update checker', () => {
     const check = createCrowdsecUpdateChecker({
       instances: [instance('a', ['one'])],
       prometheusTimeoutMs: 1_000,
-      releaseFetchImpl: async () => Response.json({
-        tag_name: 'v1.8.1',
-        html_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.1',
-      }),
+      releaseFetchImpl: async () =>
+        Response.json({
+          tag_name: 'v1.8.1',
+          html_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.1',
+        }),
       metricsFetchImpl: async () => new Response('cs_info{version="v1.8.1-90b9157"} 1\n'),
     });
 
-    expect(await check()).toEqual([expect.objectContaining({
-      currentVersion: 'v1.8.1-90b9157',
-      remoteVersion: 'v1.8.1',
-      updateAvailable: false,
-    })]);
+    expect(await check()).toEqual([
+      expect.objectContaining({
+        currentVersion: 'v1.8.1-90b9157',
+        remoteVersion: 'v1.8.1',
+        updateAvailable: false,
+      }),
+    ]);
+  });
+
+  test('does not report an official Debian package build as outdated', async () => {
+    const check = createCrowdsecUpdateChecker({
+      instances: [instance('a', ['one'])],
+      prometheusTimeoutMs: 1_000,
+      releaseFetchImpl: async () =>
+        Response.json({
+          tag_name: 'v1.8.2',
+          html_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.2',
+        }),
+      metricsFetchImpl: async () => new Response('cs_info{version="v1.8.2-debian-pragmatic-amd64-3d369d64"} 1\n'),
+    });
+
+    expect(await check()).toEqual([
+      expect.objectContaining({
+        currentVersion: 'v1.8.2-debian-pragmatic-amd64-3d369d64',
+        remoteVersion: 'v1.8.2',
+        updateAvailable: false,
+      }),
+    ]);
   });
 
   test('marks checks unknown on temporary failures and retries them', async () => {
@@ -109,15 +155,17 @@ describe('CrowdSec update checker', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     let releaseFails = true;
     let metricsFail = true;
-    const releaseFetch = vi.fn(async () => releaseFails
-      ? new Response('', { status: 503 })
-      : Response.json({
-        tag_name: 'v1.8.0',
-        html_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.0',
-      }));
-    const metricsFetch = vi.fn(async () => metricsFail
-      ? new Response('', { status: 503 })
-      : new Response('cs_info{version="v1.7.8"} 1\n'));
+    const releaseFetch = vi.fn(async () =>
+      releaseFails
+        ? new Response('', { status: 503 })
+        : Response.json({
+            tag_name: 'v1.8.0',
+            html_url: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.0',
+          }),
+    );
+    const metricsFetch = vi.fn(async () =>
+      metricsFail ? new Response('', { status: 503 }) : new Response('cs_info{version="v1.7.8"} 1\n'),
+    );
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const check = createCrowdsecUpdateChecker({
       instances: [instance('a', ['one'])],

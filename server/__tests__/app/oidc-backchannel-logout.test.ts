@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { SignJWT, exportJWK, generateKeyPair, type JWK, type JWTPayload } from 'jose';
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { createAuthSessionCookie, createController } from './harness';
 
 const ISSUER = 'https://idp.example.com/application/o/crowdsec/';
@@ -16,37 +18,48 @@ let publicJwk: JWK;
 function stubProvider(metadata: Record<string, unknown> = {}) {
   const originalFetch = globalThis.fetch;
   const jwksRequests = vi.fn();
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input instanceof Request ? input.url : String(input);
-    if (url === `${ISSUER}.well-known/openid-configuration`) {
-      return new Response(JSON.stringify({
-        issuer: ISSUER,
-        authorization_endpoint: `${ISSUER}authorize/`,
-        token_endpoint: `${ISSUER}token/`,
-        jwks_uri: JWKS_URI,
-        ...metadata,
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-    if (url === JWKS_URI) {
-      jwksRequests();
-      return new Response(JSON.stringify({ keys: [publicJwk] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-    return originalFetch(input, init);
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url === `${ISSUER}.well-known/openid-configuration`) {
+        return new Response(
+          JSON.stringify({
+            issuer: ISSUER,
+            authorization_endpoint: `${ISSUER}authorize/`,
+            token_endpoint: `${ISSUER}token/`,
+            jwks_uri: JWKS_URI,
+            ...metadata,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url === JWKS_URI) {
+        jwksRequests();
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return originalFetch(input, init);
+    }),
+  );
   return { jwksRequests };
 }
 
 // An undefined value removes the variable, for example to fall back to a default.
 function createOidcController(env: Record<string, string | undefined> = {}) {
   const result = createController({
-    env: Object.fromEntries(Object.entries({
-      AUTH_ENABLED: 'true',
-      AUTH_OIDC_ISSUER_URL: ISSUER,
-      AUTH_OIDC_CLIENT_ID: CLIENT_ID,
-      AUTH_OIDC_CLIENT_SECRET: CLIENT_SECRET,
-      CONFIG_AUTH_OIDC_BACKCHANNEL_LOGOUT: 'true',
-      ...env,
-    }).filter((entry): entry is [string, string] => entry[1] !== undefined)),
+    env: Object.fromEntries(
+      Object.entries({
+        AUTH_ENABLED: 'true',
+        AUTH_OIDC_ISSUER_URL: ISSUER,
+        AUTH_OIDC_CLIENT_ID: CLIENT_ID,
+        AUTH_OIDC_CLIENT_SECRET: CLIENT_SECRET,
+        CONFIG_AUTH_OIDC_BACKCHANNEL_LOGOUT: 'true',
+        ...env,
+      }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    ),
   });
   const user = result.database.upsertOidcUser({
     username: 'oidc-admin',
@@ -93,11 +106,13 @@ async function signLogoutToken(
 }
 
 function postLogoutToken(controller: ReturnType<typeof createController>['controller'], logoutToken?: string) {
-  return controller.fetch(new Request(BACKCHANNEL_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: logoutToken === undefined ? '' : new URLSearchParams({ logout_token: logoutToken }).toString(),
-  }));
+  return controller.fetch(
+    new Request(BACKCHANNEL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: logoutToken === undefined ? '' : new URLSearchParams({ logout_token: logoutToken }).toString(),
+    }),
+  );
 }
 
 type Controller = ReturnType<typeof createController>['controller'];
@@ -106,34 +121,46 @@ type Controller = ReturnType<typeof createController>['controller'];
 async function signInThroughCallback(controller: Controller, idTokenClaims: JWTPayload = {}): Promise<string> {
   const loginResponse = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/oidc/login'));
   const flowCookies = loginResponse.headers.getSetCookie().map((cookie) => cookie.split(';')[0]);
-  const readFlowCookie = (name: string) => flowCookies.find((cookie) => cookie.startsWith(`${name}=`))!.slice(name.length + 1);
+  const readFlowCookie = (name: string) =>
+    flowCookies.find((cookie) => cookie.startsWith(`${name}=`))!.slice(name.length + 1);
   const nonce = readFlowCookie('crowdsec_web_ui_oidc_nonce');
   const state = readFlowCookie('crowdsec_web_ui_oidc_state');
 
   const providerFetch = globalThis.fetch;
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input instanceof Request ? input.url : String(input);
-    if (url !== `${ISSUER}token/`) return providerFetch(input, init);
-    const idToken = await new SignJWT({ nonce, preferred_username: 'oidc-admin', groups: ['admins'], ...idTokenClaims })
-      .setProtectedHeader({ alg: 'RS256', kid: publicJwk.kid })
-      .setIssuer(ISSUER)
-      .setAudience(CLIENT_ID)
-      .setSubject('oidc-subject')
-      .setIssuedAt()
-      .setExpirationTime('5m')
-      .sign(signingKey);
-    return new Response(JSON.stringify({ access_token: 'access', token_type: 'Bearer', id_token: idToken }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== `${ISSUER}token/`) return providerFetch(input, init);
+      const idToken = await new SignJWT({
+        nonce,
+        preferred_username: 'oidc-admin',
+        groups: ['admins'],
+        ...idTokenClaims,
+      })
+        .setProtectedHeader({ alg: 'RS256', kid: publicJwk.kid })
+        .setIssuer(ISSUER)
+        .setAudience(CLIENT_ID)
+        .setSubject('oidc-subject')
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .sign(signingKey);
+      return new Response(JSON.stringify({ access_token: 'access', token_type: 'Bearer', id_token: idToken }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }),
+  );
   try {
-    const callbackResponse = await controller.fetch(new Request(
-      `https://ui.example.com/crowdsec/api/auth/oidc/callback?code=auth-code&state=${encodeURIComponent(state)}`,
-      { headers: { cookie: flowCookies.join('; ') } },
-    ));
+    const callbackResponse = await controller.fetch(
+      new Request(
+        `https://ui.example.com/crowdsec/api/auth/oidc/callback?code=auth-code&state=${encodeURIComponent(state)}`,
+        { headers: { cookie: flowCookies.join('; ') } },
+      ),
+    );
     expect(callbackResponse.status).toBe(302);
-    return callbackResponse.headers.getSetCookie()
+    return callbackResponse.headers
+      .getSetCookie()
       .map((cookie) => cookie.split(';')[0])
       .find((cookie) => cookie.startsWith('crowdsec_web_ui_session='))!;
   } finally {
@@ -145,8 +172,13 @@ function readSessionPayload(cookie: string): Record<string, unknown> {
   return JSON.parse(Buffer.from(cookie.split('=')[1].split('.')[0], 'base64url').toString('utf8'));
 }
 
-async function isAuthenticated(controller: ReturnType<typeof createController>['controller'], cookie: string): Promise<boolean> {
-  const response = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/me', { headers: { cookie } }));
+async function isAuthenticated(
+  controller: ReturnType<typeof createController>['controller'],
+  cookie: string,
+): Promise<boolean> {
+  const response = await controller.fetch(
+    new Request('https://ui.example.com/crowdsec/api/auth/me', { headers: { cookie } }),
+  );
   return response.status === 200;
 }
 
@@ -154,7 +186,7 @@ describe('OIDC back-channel logout', () => {
   beforeAll(async () => {
     const keyPair = await generateKeyPair('RS256');
     signingKey = keyPair.privateKey;
-    publicJwk = { ...await exportJWK(keyPair.publicKey), kid: 'test-key', alg: 'RS256', use: 'sig' };
+    publicJwk = { ...(await exportJWK(keyPair.publicKey)), kid: 'test-key', alg: 'RS256', use: 'sig' };
   });
 
   beforeEach(() => {
@@ -237,16 +269,31 @@ describe('OIDC back-channel logout', () => {
   test.each([
     ['a missing token', async () => undefined],
     ['a malformed token', async () => 'not-a-jwt'],
-    ['a token from another issuer', async () => signLogoutToken(logoutClaims(), { issuer: 'https://evil.example.com/' })],
+    [
+      'a token from another issuer',
+      async () => signLogoutToken(logoutClaims(), { issuer: 'https://evil.example.com/' }),
+    ],
     ['a token for another client', async () => signLogoutToken(logoutClaims(), { audience: 'other-client' })],
-    ['a token signed with an unknown key', async () => signLogoutToken(logoutClaims(), { key: (await generateKeyPair('RS256')).privateKey })],
-    ['a token signed with the wrong client secret', async () => signLogoutToken(logoutClaims(), { alg: 'HS256', key: new TextEncoder().encode('wrong-secret') })],
-    ['a token without the logout event', async () => signLogoutToken(logoutClaims({ events: { 'https://example.com/other': {} } }))],
+    [
+      'a token signed with an unknown key',
+      async () => signLogoutToken(logoutClaims(), { key: (await generateKeyPair('RS256')).privateKey }),
+    ],
+    [
+      'a token signed with the wrong client secret',
+      async () => signLogoutToken(logoutClaims(), { alg: 'HS256', key: new TextEncoder().encode('wrong-secret') }),
+    ],
+    [
+      'a token without the logout event',
+      async () => signLogoutToken(logoutClaims({ events: { 'https://example.com/other': {} } })),
+    ],
     ['a token with a nonce', async () => signLogoutToken(logoutClaims({ nonce: 'abc' }))],
     ['a token without sub or sid', async () => signLogoutToken(logoutClaims({ sub: undefined, sid: undefined }))],
     ['a token without a token ID', async () => signLogoutToken(logoutClaims({ jti: undefined }))],
     ['a token with an empty token ID', async () => signLogoutToken(logoutClaims({ jti: '' }))],
-    ['a stale token', async () => signLogoutToken(logoutClaims(), { issuedAt: Math.floor(Date.now() / 1000) - 10 * 60 })],
+    [
+      'a stale token',
+      async () => signLogoutToken(logoutClaims(), { issuedAt: Math.floor(Date.now() / 1000) - 10 * 60 }),
+    ],
   ])('rejects %s', async (_label, buildToken) => {
     stubProvider();
     const { controller, createCookie } = createOidcController();
@@ -279,7 +326,10 @@ describe('OIDC back-channel logout', () => {
     const response = await postLogoutToken(controller, await signLogoutToken());
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: 'invalid_request', error_description: 'Back-channel logout is disabled' });
+    expect(await response.json()).toEqual({
+      error: 'invalid_request',
+      error_description: 'Back-channel logout is disabled',
+    });
     expect(await isAuthenticated(controller, cookie)).toBe(true);
   });
 
@@ -291,7 +341,10 @@ describe('OIDC back-channel logout', () => {
     const response = await postLogoutToken(controller, await signLogoutToken());
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: 'invalid_request', error_description: 'Back-channel logout is disabled' });
+    expect(await response.json()).toEqual({
+      error: 'invalid_request',
+      error_description: 'Back-channel logout is disabled',
+    });
     expect(await isAuthenticated(controller, cookie)).toBe(true);
   });
 
@@ -299,13 +352,18 @@ describe('OIDC back-channel logout', () => {
     stubProvider();
     const { controller, createCookie } = createOidcController({ CONFIG_AUTH_OIDC_BACKCHANNEL_LOGOUT: undefined });
     const adminCookie = createCookie('idp-session-1');
-    const putSettings = (body: Record<string, unknown>) => controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-      body: JSON.stringify(body),
-    }));
+    const putSettings = (body: Record<string, unknown>) =>
+      controller.fetch(
+        new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+          body: JSON.stringify(body),
+        }),
+      );
 
-    const initial = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', { headers: { cookie: adminCookie } }));
+    const initial = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', { headers: { cookie: adminCookie } }),
+    );
     expect(await initial.json()).toMatchObject({ oidcBackchannelLogout: false });
     expect((await postLogoutToken(controller, await signLogoutToken())).status).toBe(400);
     expect(await isAuthenticated(controller, adminCookie)).toBe(true);
@@ -321,11 +379,13 @@ describe('OIDC back-channel logout', () => {
     const { controller, createCookie } = createOidcController();
     const adminCookie = createCookie('idp-session-1');
 
-    const change = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-      body: JSON.stringify({ oidcBackchannelLogout: false }),
-    }));
+    const change = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ oidcBackchannelLogout: false }),
+      }),
+    );
     expect(change.status).toBe(409);
     expect(await change.json()).toMatchObject({ code: 'MANAGED_BY_CONFIG' });
     expect((await postLogoutToken(controller, await signLogoutToken())).status).toBe(200);
@@ -340,7 +400,10 @@ describe('OIDC back-channel logout', () => {
   });
 
   test('rejects logout requests when provider discovery fails', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('unavailable', { status: 503 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unavailable', { status: 503 })),
+    );
     const { controller, createCookie } = createOidcController();
     const cookie = createCookie();
 
@@ -417,7 +480,7 @@ describe('OIDC login transaction', () => {
   beforeAll(async () => {
     const keyPair = await generateKeyPair('RS256');
     signingKey = keyPair.privateKey;
-    publicJwk = { ...await exportJWK(keyPair.publicKey), kid: 'test-key', alg: 'RS256', use: 'sig' };
+    publicJwk = { ...(await exportJWK(keyPair.publicKey)), kid: 'test-key', alg: 'RS256', use: 'sig' };
   });
 
   beforeEach(() => {
@@ -434,12 +497,18 @@ describe('OIDC login transaction', () => {
   function stubTokenEndpoint(): string[] {
     const tokenRequests: string[] = [];
     const providerFetch = globalThis.fetch;
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = input instanceof Request ? input.url : String(input);
-      if (url !== `${ISSUER}token/`) return providerFetch(input, init);
-      tokenRequests.push(String(init?.body ?? ''));
-      return new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url !== `${ISSUER}token/`) return providerFetch(input, init);
+        tokenRequests.push(String(init?.body ?? ''));
+        return new Response(JSON.stringify({ error: 'invalid_grant' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }),
+    );
     return tokenRequests;
   }
 
@@ -453,10 +522,12 @@ describe('OIDC login transaction', () => {
 
     const flowCookies = loginResponse.headers.getSetCookie().map((cookie) => cookie.split(';')[0]);
     const tokenRequests = stubTokenEndpoint();
-    await controller.fetch(new Request(
-      `https://ui.example.com/crowdsec/api/auth/oidc/callback?code=auth-code&state=${authorizationUrl.searchParams.get('state')}`,
-      { headers: { cookie: flowCookies.join('; ') } },
-    ));
+    await controller.fetch(
+      new Request(
+        `https://ui.example.com/crowdsec/api/auth/oidc/callback?code=auth-code&state=${authorizationUrl.searchParams.get('state')}`,
+        { headers: { cookie: flowCookies.join('; ') } },
+      ),
+    );
 
     expect(tokenRequests).toHaveLength(1);
     const verifier = new URLSearchParams(tokenRequests[0]).get('code_verifier')!;
@@ -465,35 +536,50 @@ describe('OIDC login transaction', () => {
 
   test.each([
     ['no login transaction', () => []],
-    ['a transaction without its PKCE verifier', (cookies: string[]) => cookies.filter((cookie) => !cookie.startsWith('crowdsec_web_ui_oidc_pkce='))],
-  ])('rejects a callback with %s before redeeming the code', async (_label, selectCookies: (cookies: string[]) => string[]) => {
-    stubProvider();
-    const { controller } = createOidcController();
-    const loginResponse = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/oidc/login'));
-    const state = new URL(loginResponse.headers.get('location')!).searchParams.get('state');
-    const flowCookies = loginResponse.headers.getSetCookie().map((cookie) => cookie.split(';')[0]);
-    const tokenRequests = stubTokenEndpoint();
+    [
+      'a transaction without its PKCE verifier',
+      (cookies: string[]) => cookies.filter((cookie) => !cookie.startsWith('crowdsec_web_ui_oidc_pkce=')),
+    ],
+  ])(
+    'rejects a callback with %s before redeeming the code',
+    async (_label, selectCookies: (cookies: string[]) => string[]) => {
+      stubProvider();
+      const { controller } = createOidcController();
+      const loginResponse = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/oidc/login'));
+      const state = new URL(loginResponse.headers.get('location')!).searchParams.get('state');
+      const flowCookies = loginResponse.headers.getSetCookie().map((cookie) => cookie.split(';')[0]);
+      const tokenRequests = stubTokenEndpoint();
 
-    const response = await controller.fetch(new Request(
-      `https://ui.example.com/crowdsec/api/auth/oidc/callback?code=attacker-code&state=${state}`,
-      { headers: { cookie: selectCookies(flowCookies).join('; ') } },
-    ));
+      const response = await controller.fetch(
+        new Request(`https://ui.example.com/crowdsec/api/auth/oidc/callback?code=attacker-code&state=${state}`, {
+          headers: { cookie: selectCookies(flowCookies).join('; ') },
+        }),
+      );
 
-    expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe('https://ui.example.com/crowdsec/login?oidcError=expired');
-    expect(tokenRequests).toHaveLength(0);
-    expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith('crowdsec_web_ui_session=') && !cookie.startsWith('crowdsec_web_ui_session=;'))).toBe(false);
-  });
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe('https://ui.example.com/crowdsec/login?oidcError=expired');
+      expect(tokenRequests).toHaveLength(0);
+      expect(
+        response.headers
+          .getSetCookie()
+          .some(
+            (cookie) =>
+              cookie.startsWith('crowdsec_web_ui_session=') && !cookie.startsWith('crowdsec_web_ui_session=;'),
+          ),
+      ).toBe(false);
+    },
+  );
 
   test('sends a signed-in browser that returns to a used callback to the dashboard', async () => {
     stubProvider();
     const { controller, createCookie } = createOidcController();
     const tokenRequests = stubTokenEndpoint();
 
-    const response = await controller.fetch(new Request(
-      'https://ui.example.com/crowdsec/api/auth/oidc/callback?code=used-code&state=used-state',
-      { headers: { cookie: createCookie('idp-session-1') } },
-    ));
+    const response = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/oidc/callback?code=used-code&state=used-state', {
+        headers: { cookie: createCookie('idp-session-1') },
+      }),
+    );
 
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe('https://ui.example.com/crowdsec');
@@ -508,14 +594,21 @@ describe('OIDC login transaction', () => {
     const flowCookies = loginResponse.headers.getSetCookie().map((cookie) => cookie.split(';')[0]);
     const tokenRequests = stubTokenEndpoint();
 
-    const response = await controller.fetch(new Request(
-      `https://ui.example.com/crowdsec/api/auth/oidc/callback?code=auth-code&state=${state}`,
-      { headers: { cookie: flowCookies.join('; ') } },
-    ));
+    const response = await controller.fetch(
+      new Request(`https://ui.example.com/crowdsec/api/auth/oidc/callback?code=auth-code&state=${state}`, {
+        headers: { cookie: flowCookies.join('; ') },
+      }),
+    );
 
     expect(tokenRequests).toHaveLength(1);
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe('https://ui.example.com/crowdsec/login?oidcError=failed');
-    expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith('crowdsec_web_ui_session=') && !cookie.startsWith('crowdsec_web_ui_session=;'))).toBe(false);
+    expect(
+      response.headers
+        .getSetCookie()
+        .some(
+          (cookie) => cookie.startsWith('crowdsec_web_ui_session=') && !cookie.startsWith('crowdsec_web_ui_session=;'),
+        ),
+    ).toBe(false);
   });
 });

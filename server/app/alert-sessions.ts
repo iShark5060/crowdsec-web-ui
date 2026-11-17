@@ -142,8 +142,10 @@ function toAlertSessionScan(session: OpenAlertSession): AlertSessionScan {
       kind: kind === NO_SCENARIO_KIND ? null : kind,
       scenario_count: scenarios.size,
       alert_count: [...scenarios.values()].reduce((total, count) => total + count, 0),
-      scenarios: topCounts(scenarios, MAX_SESSION_SCENARIOS_PER_KIND)
-        .map(([scenario, count]) => ({ scenario, count })),
+      scenarios: topCounts(scenarios, MAX_SESSION_SCENARIOS_PER_KIND).map(([scenario, count]) => ({
+        scenario,
+        count,
+      })),
     }))
     .sort((left, right) => right.alert_count - left.alert_count);
 
@@ -156,7 +158,10 @@ function toAlertSessionScan(session: OpenAlertSession): AlertSessionScan {
     alertIds: session.alertIds,
     scenarioGroups,
     scenarioCount: scenarioGroups.reduce((total, group) => total + group.scenario_count, 0),
-    targets: topCounts(session.targets, MAX_SESSION_TARGETS).map(([value, count]) => ({ value, count })),
+    targets: topCounts(session.targets, MAX_SESSION_TARGETS).map(([value, count]) => ({
+      value,
+      count,
+    })),
     targetCount: session.targets.size,
   };
 }

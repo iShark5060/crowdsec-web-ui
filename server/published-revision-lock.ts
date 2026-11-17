@@ -32,7 +32,11 @@ export class PublishedRevisionLock {
           const index = this.waitingWriters.indexOf(writer);
           if (index === -1) return;
           this.waitingWriters.splice(index, 1);
-          reject(new Error(`Cache publication waited more than ${this.timeoutMs}ms for readers/writers to finish`));
+          reject(
+            new Error(
+              `Cache publication waited more than ${this.timeoutMs}ms for readers/writers to finish`,
+            ),
+          );
           this.drain();
         }, this.timeoutMs),
       };

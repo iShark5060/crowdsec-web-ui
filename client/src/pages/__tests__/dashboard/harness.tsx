@@ -1,20 +1,15 @@
 import { afterEach, beforeEach, vi } from 'vitest';
 
-const {
-  chartSpy,
-  mapSpy,
-  fetchConfigMock,
-  fetchDashboardStatsMock,
-  fetchFacetMock,
-  setLastUpdatedMock,
-} = vi.hoisted(() => ({
-  chartSpy: vi.fn(),
-  mapSpy: vi.fn(),
-  fetchConfigMock: vi.fn(),
-  fetchDashboardStatsMock: vi.fn(),
-  fetchFacetMock: vi.fn(),
-  setLastUpdatedMock: vi.fn(),
-}));
+const { chartSpy, mapSpy, fetchConfigMock, fetchDashboardStatsMock, fetchFacetMock, setLastUpdatedMock } = vi.hoisted(
+  () => ({
+    chartSpy: vi.fn(),
+    mapSpy: vi.fn(),
+    fetchConfigMock: vi.fn(),
+    fetchDashboardStatsMock: vi.fn(),
+    fetchFacetMock: vi.fn(),
+    setLastUpdatedMock: vi.fn(),
+  }),
+);
 let refreshSignalMock = 0;
 
 vi.mock('../../../contexts/useRefresh', () => ({
@@ -124,16 +119,17 @@ beforeEach(() => {
   mapSpy.mockClear();
   fetchDashboardStatsMock.mockClear();
   fetchFacetMock.mockReset();
-  fetchFacetMock.mockImplementation(async (
-    _page: string,
-    field: string,
-  ) => ({
+  fetchFacetMock.mockImplementation(async (_page: string, field: string) => ({
     field,
-    values: field === 'country'
-      ? [{ value: 'DE', count: 1 }, { value: 'FR', count: 1 }]
-      : field === 'scenario'
-        ? [{ value: 'crowdsecurity/ssh-bf', count: 1 }]
-        : [],
+    values:
+      field === 'country'
+        ? [
+            { value: 'DE', count: 1 },
+            { value: 'FR', count: 1 },
+          ]
+        : field === 'scenario'
+          ? [{ value: 'crowdsecurity/ssh-bf', count: 1 }]
+          : [],
     offset: 0,
     has_more: false,
   }));
@@ -150,7 +146,9 @@ beforeEach(() => {
     machine_features_enabled: false,
     origin_features_enabled: false,
   });
-  fetchDashboardStatsMock.mockImplementation(async (filters?: Record<string, string>) => buildDashboardStatsResponse(filters));
+  fetchDashboardStatsMock.mockImplementation(async (filters?: Record<string, string>) =>
+    buildDashboardStatsResponse(filters),
+  );
 });
 
 afterEach(() => {
@@ -170,9 +168,19 @@ function createDeferred<T>() {
   return { promise, resolve, reject };
 }
 
-
 function setRefreshSignalMock(value: number): void {
   refreshSignalMock = value;
 }
 
-export { chartSpy, mapSpy, fetchConfigMock, fetchDashboardStatsMock, fetchFacetMock, setLastUpdatedMock, refreshSignalMock, buildDashboardStatsResponse, createDeferred, setRefreshSignalMock };
+export {
+  chartSpy,
+  mapSpy,
+  fetchConfigMock,
+  fetchDashboardStatsMock,
+  fetchFacetMock,
+  setLastUpdatedMock,
+  refreshSignalMock,
+  buildDashboardStatsResponse,
+  createDeferred,
+  setRefreshSignalMock,
+};

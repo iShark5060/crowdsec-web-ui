@@ -8,8 +8,8 @@ import type {
 import { sendSmtpMail } from '../smtp';
 import type { SmtpTlsMode } from '../smtp';
 import { publishMqttNotification, type MqttPublishConfig } from './mqtt-client';
-import { renderTemplate, validateTemplate } from './webhook-template';
 import type { OutboundLookup } from './outbound-guard';
+import { renderTemplate, validateTemplate } from './webhook-template';
 
 export const STORED_SECRET_SENTINEL = '(stored)';
 
@@ -108,7 +108,7 @@ const MAX_NOTIFICATION_REDIRECTS = 3;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {};
 }
 
@@ -173,7 +173,8 @@ function validateHttpUrl(value: string, label: string): string | null {
 function validateMqttTopic(topic: string, label: string): string | null {
   if (!topic.trim()) return `${label} is required`;
   if (topic.includes('#') || topic.includes('+')) return `${label} must not contain MQTT wildcards`;
-  if (topic.startsWith('/') || topic.endsWith('/')) return `${label} must not start or end with a slash`;
+  if (topic.startsWith('/') || topic.endsWith('/'))
+    return `${label} must not start or end with a slash`;
   if (topic.includes('//')) return `${label} must not contain empty topic levels`;
   return null;
 }
@@ -217,7 +218,7 @@ function encodeBasicAuth(username: string, password: string): string {
 }
 
 function encodeHeaderValue(value: string): string {
-  return /[^\x00-\x7F]/.test(value)
+  return Array.from(value).some((char) => (char.codePointAt(0) ?? 0) > 0x7f)
     ? `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`
     : value;
 }
@@ -280,10 +281,7 @@ function normalizeWebhookQuery(value: unknown): WebhookQuery | null {
   };
 }
 
-function normalizeWebhookAuth(
-  value: unknown,
-  existing?: WebhookAuthConfig,
-): WebhookAuthConfig {
+function normalizeWebhookAuth(value: unknown, existing?: WebhookAuthConfig): WebhookAuthConfig {
   const raw = asRecord(value);
   const mode = raw.mode === 'bearer' || raw.mode === 'basic' ? raw.mode : 'none';
 
@@ -291,11 +289,12 @@ function normalizeWebhookAuth(
     const token = rawStringValue(raw.token);
     return {
       mode,
-      token: token === STORED_SECRET_SENTINEL || token === ''
-        ? existing && existing.mode === 'bearer'
-          ? existing.token
-          : ''
-        : token,
+      token:
+        token === STORED_SECRET_SENTINEL || token === ''
+          ? existing && existing.mode === 'bearer'
+            ? existing.token
+            : ''
+          : token,
     };
   }
 
@@ -304,26 +303,26 @@ function normalizeWebhookAuth(
     return {
       mode,
       username: rawStringValue(raw.username),
-      password: password === STORED_SECRET_SENTINEL || password === ''
-        ? existing && existing.mode === 'basic'
-          ? existing.password
-          : ''
-        : password,
+      password:
+        password === STORED_SECRET_SENTINEL || password === ''
+          ? existing && existing.mode === 'basic'
+            ? existing.password
+            : ''
+          : password,
     };
   }
 
   return { mode: 'none' };
 }
 
-function normalizeWebhookBody(
-  value: unknown,
-  existing?: WebhookBodyConfig,
-): WebhookBodyConfig {
+function normalizeWebhookBody(value: unknown, existing?: WebhookBodyConfig): WebhookBodyConfig {
   const raw = asRecord(value);
   if (raw.mode === 'form') {
     const storedFields = existing && existing.mode === 'form' ? existing.fields : [];
     const incomingFields = Array.isArray(raw.fields)
-      ? raw.fields.map(normalizeWebhookHeader).filter((field): field is WebhookHeader => Boolean(field))
+      ? raw.fields
+          .map(normalizeWebhookHeader)
+          .filter((field): field is WebhookHeader => Boolean(field))
       : [];
     const nextFields = incomingFields.map((field, index) => {
       if (!field.sensitive) {
@@ -358,7 +357,9 @@ function normalizeWebhookConfig(
   const legacyAuthorizationHeader = rawStringValue(raw.authorization_header);
 
   const headers = Array.isArray(raw.headers)
-    ? raw.headers.map(normalizeWebhookHeader).filter((field): field is WebhookHeader => Boolean(field))
+    ? raw.headers
+        .map(normalizeWebhookHeader)
+        .filter((field): field is WebhookHeader => Boolean(field))
     : existing.headers;
 
   const mergedHeaders = legacyAuthorizationHeader
@@ -378,10 +379,14 @@ function normalizeWebhookConfig(
       });
 
   return {
-    method: HTTP_METHODS.has(rawStringValue(raw.method)) ? rawStringValue(raw.method) as WebhookConfig['method'] : existing.method,
+    method: HTTP_METHODS.has(rawStringValue(raw.method))
+      ? (rawStringValue(raw.method) as WebhookConfig['method'])
+      : existing.method,
     url: rawStringValue(raw.url, existing.url),
     query: Array.isArray(raw.query)
-      ? raw.query.map(normalizeWebhookQuery).filter((entry): entry is WebhookQuery => Boolean(entry))
+      ? raw.query
+          .map(normalizeWebhookQuery)
+          .filter((entry): entry is WebhookQuery => Boolean(entry))
       : existing.query,
     headers: mergedHeaders,
     auth: normalizeWebhookAuth(raw.auth, existing.auth),
@@ -413,20 +418,22 @@ function maskWebhookConfig(config: WebhookConfig): Record<string, AlertMetaValue
     ...field,
     value: field.sensitive ? maskSecret(field.value) : field.value,
   }));
-  const auth = config.auth.mode === 'bearer'
-    ? { ...config.auth, token: maskSecret(config.auth.token) }
-    : config.auth.mode === 'basic'
-      ? { ...config.auth, password: maskSecret(config.auth.password) }
-      : config.auth;
-  const body = config.body.mode === 'form'
-    ? {
-        mode: 'form' as const,
-        fields: config.body.fields.map((field) => ({
-          ...field,
-          value: field.sensitive ? maskSecret(field.value) : field.value,
-        })),
-      }
-    : config.body;
+  const auth =
+    config.auth.mode === 'bearer'
+      ? { ...config.auth, token: maskSecret(config.auth.token) }
+      : config.auth.mode === 'basic'
+        ? { ...config.auth, password: maskSecret(config.auth.password) }
+        : config.auth;
+  const body =
+    config.body.mode === 'form'
+      ? {
+          mode: 'form' as const,
+          fields: config.body.fields.map((field) => ({
+            ...field,
+            value: field.sensitive ? maskSecret(field.value) : field.value,
+          })),
+        }
+      : config.body;
 
   return {
     ...webhookConfigToRecord(config),
@@ -447,13 +454,19 @@ function getWebhookConfiguredSecrets(config: WebhookConfig): string[] {
   if (config.headers.some((field) => field.sensitive && field.value)) {
     secrets.push('headers');
   }
-  if (config.body.mode === 'form' && config.body.fields.some((field) => field.sensitive && field.value)) {
+  if (
+    config.body.mode === 'form' &&
+    config.body.fields.some((field) => field.sensitive && field.value)
+  ) {
     secrets.push('body.fields');
   }
   return secrets;
 }
 
-function buildWebhookRequestBody(config: WebhookConfig, payload: NotificationProviderPayload): {
+function buildWebhookRequestBody(
+  config: WebhookConfig,
+  payload: NotificationProviderPayload,
+): {
   body: string | undefined;
   debugBody: string | undefined;
   headers: Record<string, string>;
@@ -564,7 +577,9 @@ async function sendWebhookRequest(
   try {
     await context.assertUrlAllowed(config.url, 'Webhook URL');
   } catch (error) {
-    throw createNotificationSendError(error instanceof Error ? error.message : 'Webhook URL is not allowed');
+    throw createNotificationSendError(
+      error instanceof Error ? error.message : 'Webhook URL is not allowed',
+    );
   }
   const requestUrl = new URL(config.url);
   for (const query of config.query) {
@@ -602,7 +617,11 @@ async function sendWebhookRequest(
   }
 }
 
-function normalizeEmailTlsMode(value: unknown, legacySecure: unknown, legacyPort: unknown): SmtpTlsMode {
+function normalizeEmailTlsMode(
+  value: unknown,
+  legacySecure: unknown,
+  legacyPort: unknown,
+): SmtpTlsMode {
   if (value === 'plain' || value === 'starttls' || value === 'tls') {
     return value;
   }
@@ -634,7 +653,9 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
     },
     normalizeConfig(config, existingConfig) {
       const raw = asRecord(config);
-      const existing = existingConfig ? this.normalizeConfig(existingConfig) : this.getDefaultConfig();
+      const existing = existingConfig
+        ? this.normalizeConfig(existingConfig)
+        : this.getDefaultConfig();
       const incomingUrls = rawStringValue(raw.appriseUrls ?? raw.urls);
       const incomingPassword = rawStringValue(raw.apprisePassword ?? raw.password);
       const mode = stringValue(raw.appriseMode ?? raw.mode, stringValue(existing.appriseMode));
@@ -646,12 +667,21 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
         appriseUrls: isStoredSecret(incomingUrls)
           ? rawStringValue(existing.appriseUrls)
           : incomingUrls.trim(),
-        appriseTypeOverride: stringValue(raw.appriseTypeOverride ?? raw.type, stringValue(existing.appriseTypeOverride) || 'auto'),
-        appriseUsername: rawStringValue(raw.appriseUsername ?? raw.username, rawStringValue(existing.appriseUsername)),
+        appriseTypeOverride: stringValue(
+          raw.appriseTypeOverride ?? raw.type,
+          stringValue(existing.appriseTypeOverride) || 'auto',
+        ),
+        appriseUsername: rawStringValue(
+          raw.appriseUsername ?? raw.username,
+          rawStringValue(existing.appriseUsername),
+        ),
         apprisePassword: isStoredSecret(incomingPassword)
           ? rawStringValue(existing.apprisePassword)
           : incomingPassword,
-        titlePrefix: rawStringValue(raw.titlePrefix ?? raw.title_prefix, rawStringValue(existing.titlePrefix)),
+        titlePrefix: rawStringValue(
+          raw.titlePrefix ?? raw.title_prefix,
+          rawStringValue(existing.titlePrefix),
+        ),
       };
     },
     maskConfig(config) {
@@ -692,15 +722,19 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
         Accept: 'application/json',
       };
       if (rawStringValue(config.appriseUsername) && rawStringValue(config.apprisePassword)) {
-        headers.Authorization = encodeBasicAuth(rawStringValue(config.appriseUsername), rawStringValue(config.apprisePassword));
+        headers.Authorization = encodeBasicAuth(
+          rawStringValue(config.appriseUsername),
+          rawStringValue(config.apprisePassword),
+        );
       }
 
       const body: Record<string, string> = {
         title: appendPrefix(rawStringValue(config.titlePrefix), payload.title),
         body: payload.message,
-        type: rawStringValue(config.appriseTypeOverride) === 'auto'
-          ? severityToAppriseType(payload.severity)
-          : rawStringValue(config.appriseTypeOverride),
+        type:
+          rawStringValue(config.appriseTypeOverride) === 'auto'
+            ? severityToAppriseType(payload.severity)
+            : rawStringValue(config.appriseTypeOverride),
         format: 'text',
       };
       if (statelessMode) {
@@ -709,26 +743,39 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
         body.tag = stringValue(config.appriseTags);
       }
 
-      const response = await guardedFetch(context, url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      }, 'Apprise API URL');
+      const response = await guardedFetch(
+        context,
+        url,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        },
+        'Apprise API URL',
+      );
       // Apprise API 1.x answers 204 for an empty configuration key or no valid URLs, so nothing was sent (2.x uses 404/400).
       if (response.status === 204) {
-        throw createNotificationSendError('Apprise API found no notification URLs to send to; check the configuration key or URLs', false, {
-          status: response.status,
-        });
+        throw createNotificationSendError(
+          'Apprise API found no notification URLs to send to; check the configuration key or URLs',
+          false,
+          {
+            status: response.status,
+          },
+        );
       }
       if (!response.ok) {
         const responseSnippet = await readResponseSnippet(response);
         const message = responseSnippet
           ? `Apprise request failed with status ${response.status}: ${responseSnippet}`
           : `Apprise request failed with status ${response.status}`;
-        throw createNotificationSendError(message, response.status >= 500 || response.status === 429, {
-          status: response.status,
-          responseSnippet,
-        });
+        throw createNotificationSendError(
+          message,
+          response.status >= 500 || response.status === 429,
+          {
+            status: response.status,
+            responseSnippet,
+          },
+        );
       }
     },
     getConfiguredSecrets(config) {
@@ -757,21 +804,41 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
     },
     normalizeConfig(config, existingConfig) {
       const raw = asRecord(config);
-      const existing = existingConfig ? this.normalizeConfig(existingConfig) : this.getDefaultConfig();
+      const existing = existingConfig
+        ? this.normalizeConfig(existingConfig)
+        : this.getDefaultConfig();
       const incomingPassword = rawStringValue(raw.smtpPassword ?? raw.password);
       return {
         smtpHost: stringValue(raw.smtpHost ?? raw.host, stringValue(existing.smtpHost)),
-        smtpPort: numberValue(raw.smtpPort ?? raw.port, numberValue(existing.smtpPort, 587), 1, 65535),
-        smtpTlsMode: normalizeEmailTlsMode(raw.smtpTlsMode, raw.secure, raw.smtpPort ?? raw.port ?? existing.smtpPort),
-        allowInsecureTls: booleanValue(raw.allowInsecureTls, booleanValue(existing.allowInsecureTls)),
+        smtpPort: numberValue(
+          raw.smtpPort ?? raw.port,
+          numberValue(existing.smtpPort, 587),
+          1,
+          65535,
+        ),
+        smtpTlsMode: normalizeEmailTlsMode(
+          raw.smtpTlsMode,
+          raw.secure,
+          raw.smtpPort ?? raw.port ?? existing.smtpPort,
+        ),
+        allowInsecureTls: booleanValue(
+          raw.allowInsecureTls,
+          booleanValue(existing.allowInsecureTls),
+        ),
         smtpUser: rawStringValue(raw.smtpUser ?? raw.username, rawStringValue(existing.smtpUser)),
         smtpPassword: isStoredSecret(incomingPassword)
           ? rawStringValue(existing.smtpPassword)
           : incomingPassword,
         smtpFrom: stringValue(raw.smtpFrom ?? raw.from, stringValue(existing.smtpFrom)),
         emailTo: stringValue(raw.emailTo ?? raw.to, stringValue(existing.emailTo)),
-        emailImportanceOverride: stringValue(raw.emailImportanceOverride, stringValue(existing.emailImportanceOverride) || 'auto'),
-        subjectPrefix: rawStringValue(raw.subjectPrefix ?? raw.subject_prefix, rawStringValue(existing.subjectPrefix)),
+        emailImportanceOverride: stringValue(
+          raw.emailImportanceOverride,
+          stringValue(existing.emailImportanceOverride) || 'auto',
+        ),
+        subjectPrefix: rawStringValue(
+          raw.subjectPrefix ?? raw.subject_prefix,
+          rawStringValue(existing.subjectPrefix),
+        ),
       };
     },
     maskConfig(config) {
@@ -785,8 +852,12 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
       if (!stringValue(normalized.smtpHost)) return 'SMTP host is required';
       if (!stringValue(normalized.smtpFrom)) return 'Sender email address is required';
       if (!stringValue(normalized.emailTo)) return 'Recipient email address is required';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stringValue(normalized.smtpFrom))) return 'Invalid sender email address';
-      const recipients = stringValue(normalized.emailTo).split(',').map((entry) => entry.trim()).filter(Boolean);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(stringValue(normalized.smtpFrom)))
+        return 'Invalid sender email address';
+      const recipients = stringValue(normalized.emailTo)
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
       if (recipients.length === 0) return 'At least one email address is required';
       for (const recipient of recipients) {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
@@ -796,7 +867,11 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
       if (!['plain', 'starttls', 'tls'].includes(rawStringValue(normalized.smtpTlsMode))) {
         return 'SMTP TLS mode must be one of: plain, starttls, tls';
       }
-      if (!['auto', 'normal', 'important'].includes(rawStringValue(normalized.emailImportanceOverride) || 'auto')) {
+      if (
+        !['auto', 'normal', 'important'].includes(
+          rawStringValue(normalized.emailImportanceOverride) || 'auto',
+        )
+      ) {
         return 'Email importance override must be one of: auto, normal, important';
       }
       return null;
@@ -807,9 +882,10 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
         .split(',')
         .map((entry) => entry.trim())
         .filter(Boolean);
-      const importance = stringValue(config.emailImportanceOverride) === 'auto'
-        ? severityToImportance(payload.severity)
-        : stringValue(config.emailImportanceOverride) as 'normal' | 'important';
+      const importance =
+        stringValue(config.emailImportanceOverride) === 'auto'
+          ? severityToImportance(payload.severity)
+          : (stringValue(config.emailImportanceOverride) as 'normal' | 'important');
       const subject = appendPrefix(rawStringValue(config.subjectPrefix), payload.title);
       const prefix = importance === 'important' && payload.severity !== 'info' ? '[Important]' : '';
       await context.assertHostAllowed(stringValue(config.smtpHost), 'SMTP host');
@@ -845,9 +921,12 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
     },
     normalizeConfig(config, existingConfig) {
       const raw = asRecord(config);
-      const existing = existingConfig ? this.normalizeConfig(existingConfig) : this.getDefaultConfig();
+      const existing = existingConfig
+        ? this.normalizeConfig(existingConfig)
+        : this.getDefaultConfig();
       const incomingToken = rawStringValue(raw.gotifyToken ?? raw.token);
-      const priority = raw.gotifyPriorityOverride ?? raw.priority ?? existing.gotifyPriorityOverride;
+      const priority =
+        raw.gotifyPriorityOverride ?? raw.priority ?? existing.gotifyPriorityOverride;
       return {
         gotifyUrl: stringValue(raw.gotifyUrl ?? raw.server_url, stringValue(existing.gotifyUrl)),
         gotifyToken: isStoredSecret(incomingToken)
@@ -883,19 +962,25 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
       const url = new URL(`${baseUrl}/message`);
       url.searchParams.set('token', stringValue(config.gotifyToken));
 
-      const priority = rawStringValue(config.gotifyPriorityOverride) === 'auto'
-        ? severityToGotifyPriority(payload.severity)
-        : Number.parseInt(rawStringValue(config.gotifyPriorityOverride), 10);
+      const priority =
+        rawStringValue(config.gotifyPriorityOverride) === 'auto'
+          ? severityToGotifyPriority(payload.severity)
+          : Number.parseInt(rawStringValue(config.gotifyPriorityOverride), 10);
 
-      const response = await guardedFetch(context, url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: payload.title,
-          message: payload.message,
-          priority,
-        }),
-      }, 'Gotify URL');
+      const response = await guardedFetch(
+        context,
+        url.toString(),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: payload.title,
+            message: payload.message,
+            priority,
+          }),
+        },
+        'Gotify URL',
+      );
       if (!response.ok) {
         throw new Error(`Gotify request failed with status ${response.status}`);
       }
@@ -922,7 +1007,9 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
     },
     normalizeConfig(config, existingConfig) {
       const raw = asRecord(config);
-      const existing = existingConfig ? this.normalizeConfig(existingConfig) : this.getDefaultConfig();
+      const existing = existingConfig
+        ? this.normalizeConfig(existingConfig)
+        : this.getDefaultConfig();
       const incomingPassword = rawStringValue(raw.password);
       return {
         brokerUrl: stringValue(raw.brokerUrl, stringValue(existing.brokerUrl)),
@@ -931,8 +1018,18 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
           ? rawStringValue(existing.password)
           : incomingPassword,
         clientId: rawStringValue(raw.clientId, rawStringValue(existing.clientId)),
-        keepaliveSeconds: numberValue(raw.keepaliveSeconds, numberValue(existing.keepaliveSeconds, 60), 1, 3600),
-        connectTimeoutMs: numberValue(raw.connectTimeoutMs, numberValue(existing.connectTimeoutMs, 10000), 1000, 120000),
+        keepaliveSeconds: numberValue(
+          raw.keepaliveSeconds,
+          numberValue(existing.keepaliveSeconds, 60),
+          1,
+          3600,
+        ),
+        connectTimeoutMs: numberValue(
+          raw.connectTimeoutMs,
+          numberValue(existing.connectTimeoutMs, 10000),
+          1000,
+          120000,
+        ),
         qos: numberValue(raw.qos, numberValue(existing.qos, 1), 0, 1) === 0 ? 0 : 1,
         topic: stringValue(raw.topic, stringValue(existing.topic)),
         retainEvents: booleanValue(raw.retainEvents, booleanValue(existing.retainEvents)),
@@ -967,18 +1064,21 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
       const config = this.normalizeConfig(channel.config);
       await context.assertUrlAllowed(stringValue(config.brokerUrl), 'MQTT broker URL');
       const publisher = context.mqttPublishImpl || publishMqttNotification;
-      await publisher({
-        brokerUrl: stringValue(config.brokerUrl),
-        username: rawStringValue(config.username) || undefined,
-        password: rawStringValue(config.password) || undefined,
-        clientId: rawStringValue(config.clientId) || undefined,
-        keepaliveSeconds: numberValue(config.keepaliveSeconds, 60),
-        connectTimeoutMs: numberValue(config.connectTimeoutMs, 10000),
-        qos: numberValue(config.qos, 1) === 0 ? 0 : 1,
-        topic: stringValue(config.topic),
-        retainEvents: booleanValue(config.retainEvents),
-        lookup: context.lookup,
-      }, JSON.stringify(payload));
+      await publisher(
+        {
+          brokerUrl: stringValue(config.brokerUrl),
+          username: rawStringValue(config.username) || undefined,
+          password: rawStringValue(config.password) || undefined,
+          clientId: rawStringValue(config.clientId) || undefined,
+          keepaliveSeconds: numberValue(config.keepaliveSeconds, 60),
+          connectTimeoutMs: numberValue(config.connectTimeoutMs, 10000),
+          qos: numberValue(config.qos, 1) === 0 ? 0 : 1,
+          topic: stringValue(config.topic),
+          retainEvents: booleanValue(config.retainEvents),
+          lookup: context.lookup,
+        },
+        JSON.stringify(payload),
+      );
     },
     getConfiguredSecrets(config) {
       return rawStringValue(config.password) ? ['password'] : [];
@@ -1001,21 +1101,35 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
     },
     normalizeConfig(config, existingConfig) {
       const raw = asRecord(config);
-      const existing = existingConfig ? this.normalizeConfig(existingConfig) : this.getDefaultConfig();
+      const existing = existingConfig
+        ? this.normalizeConfig(existingConfig)
+        : this.getDefaultConfig();
       const incomingToken = rawStringValue(raw.ntfyToken ?? raw.token);
       const incomingPassword = rawStringValue(raw.ntfyPassword ?? raw.password);
       return {
-        ntfyUrl: stringValue(raw.ntfyUrl ?? raw.server_url, stringValue(existing.ntfyUrl) || 'https://ntfy.sh'),
+        ntfyUrl: stringValue(
+          raw.ntfyUrl ?? raw.server_url,
+          stringValue(existing.ntfyUrl) || 'https://ntfy.sh',
+        ),
         ntfyTopic: stringValue(raw.ntfyTopic ?? raw.topic, stringValue(existing.ntfyTopic)),
         ntfyToken: isStoredSecret(incomingToken)
           ? rawStringValue(existing.ntfyToken)
           : incomingToken,
-        ntfyPriorityOverride: stringValue(raw.ntfyPriorityOverride ?? raw.priority, stringValue(existing.ntfyPriorityOverride) || 'auto'),
-        ntfyUsername: rawStringValue(raw.ntfyUsername ?? raw.username, rawStringValue(existing.ntfyUsername)),
+        ntfyPriorityOverride: stringValue(
+          raw.ntfyPriorityOverride ?? raw.priority,
+          stringValue(existing.ntfyPriorityOverride) || 'auto',
+        ),
+        ntfyUsername: rawStringValue(
+          raw.ntfyUsername ?? raw.username,
+          rawStringValue(existing.ntfyUsername),
+        ),
         ntfyPassword: isStoredSecret(incomingPassword)
           ? rawStringValue(existing.ntfyPassword)
           : incomingPassword,
-        titlePrefix: rawStringValue(raw.titlePrefix ?? raw.title_prefix, rawStringValue(existing.titlePrefix)),
+        titlePrefix: rawStringValue(
+          raw.titlePrefix ?? raw.title_prefix,
+          rawStringValue(existing.titlePrefix),
+        ),
         tags: rawStringValue(raw.tags, rawStringValue(existing.tags)),
       };
     },
@@ -1046,9 +1160,10 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
       const baseUrl = stringValue(config.ntfyUrl).replace(/\/+$/, '');
       const headers: Record<string, string> = {
         Title: encodeHeaderValue(appendPrefix(rawStringValue(config.titlePrefix), payload.title)),
-        Priority: rawStringValue(config.ntfyPriorityOverride) === 'auto'
-          ? severityToNtfyPriority(payload.severity)
-          : rawStringValue(config.ntfyPriorityOverride),
+        Priority:
+          rawStringValue(config.ntfyPriorityOverride) === 'auto'
+            ? severityToNtfyPriority(payload.severity)
+            : rawStringValue(config.ntfyPriorityOverride),
       };
       const tags = rawStringValue(config.tags);
       if (tags) {
@@ -1057,14 +1172,22 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
       if (rawStringValue(config.ntfyToken)) {
         headers.Authorization = `Bearer ${rawStringValue(config.ntfyToken)}`;
       } else if (rawStringValue(config.ntfyUsername) && rawStringValue(config.ntfyPassword)) {
-        headers.Authorization = encodeBasicAuth(rawStringValue(config.ntfyUsername), rawStringValue(config.ntfyPassword));
+        headers.Authorization = encodeBasicAuth(
+          rawStringValue(config.ntfyUsername),
+          rawStringValue(config.ntfyPassword),
+        );
       }
 
-      const response = await guardedFetch(context, `${baseUrl}/${encodeURIComponent(stringValue(config.ntfyTopic))}`, {
-        method: 'POST',
-        headers,
-        body: payload.message,
-      }, 'ntfy URL');
+      const response = await guardedFetch(
+        context,
+        `${baseUrl}/${encodeURIComponent(stringValue(config.ntfyTopic))}`,
+        {
+          method: 'POST',
+          headers,
+          body: payload.message,
+        },
+        'ntfy URL',
+      );
       if (!response.ok) {
         throw new Error(`ntfy request failed with status ${response.status}`);
       }
@@ -1104,7 +1227,10 @@ const providers: Record<NotificationChannelType, NotificationProvider> = {
       if (normalized.auth.mode === 'bearer' && !normalized.auth.token) {
         return 'Bearer authentication requires a token';
       }
-      if (normalized.auth.mode === 'basic' && (!normalized.auth.username || !normalized.auth.password)) {
+      if (
+        normalized.auth.mode === 'basic' &&
+        (!normalized.auth.username || !normalized.auth.password)
+      ) {
         return 'Basic authentication requires username and password';
       }
       if (normalized.body.mode !== 'form') {

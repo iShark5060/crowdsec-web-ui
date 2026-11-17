@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+
 import type { AlertRecord, AlertSource } from '../shared/contracts';
 import { resolveAlertHistoryAt } from './utils/alerts';
 
@@ -30,10 +31,12 @@ export type SourceEnrichmentRow = {
   longitude: number | null;
 };
 
-const isMissing = (value: unknown): boolean => value === undefined || value === null || value === '';
+const isMissing = (value: unknown): boolean =>
+  value === undefined || value === null || value === '';
 // LAPI reports unknown coordinates as 0, 0.
 const isUnknownLocation = (latitude: unknown, longitude: unknown): boolean =>
-  (isMissing(latitude) || Number(latitude) === 0) && (isMissing(longitude) || Number(longitude) === 0);
+  (isMissing(latitude) || Number(latitude) === 0) &&
+  (isMissing(longitude) || Number(longitude) === 0);
 
 /**
  * Selects the most recently observed enrichment of each given IP, from the
@@ -55,15 +58,30 @@ export function latestSourceEnrichmentSql(count: number): string {
 }
 
 function pickEnrichment(fields: {
-  cn: unknown; asName: unknown; asNumber: unknown; range: unknown; scope: unknown; latitude: unknown; longitude: unknown;
+  cn: unknown;
+  asName: unknown;
+  asNumber: unknown;
+  range: unknown;
+  scope: unknown;
+  latitude: unknown;
+  longitude: unknown;
 }): AlertSource {
   const source: AlertSource = {};
   if (!isMissing(fields.cn)) source.cn = String(fields.cn);
   if (!isMissing(fields.asName)) source.as_name = String(fields.asName);
   if (!isMissing(fields.asNumber)) source.as_number = String(fields.asNumber);
   // For an IP-scoped alert the range is its enriched network, not the decision scope.
-  if (!isMissing(fields.range) && typeof fields.scope === 'string' && fields.scope.toLowerCase() === 'ip') source.range = String(fields.range);
-  if (!isUnknownLocation(fields.latitude, fields.longitude) && !isMissing(fields.latitude) && !isMissing(fields.longitude)) {
+  if (
+    !isMissing(fields.range) &&
+    typeof fields.scope === 'string' &&
+    fields.scope.toLowerCase() === 'ip'
+  )
+    source.range = String(fields.range);
+  if (
+    !isUnknownLocation(fields.latitude, fields.longitude) &&
+    !isMissing(fields.latitude) &&
+    !isMissing(fields.longitude)
+  ) {
     source.latitude = fields.latitude as number | string;
     source.longitude = fields.longitude as number | string;
   }
@@ -72,21 +90,33 @@ function pickEnrichment(fields: {
 
 export function sourceEnrichmentFromRow(row: SourceEnrichmentRow): AlertSource {
   return pickEnrichment({
-    cn: row.country, asName: row.as_name, asNumber: row.source_as_number, range: row.source_range,
-    scope: row.source_scope, latitude: row.latitude, longitude: row.longitude,
+    cn: row.country,
+    asName: row.as_name,
+    asNumber: row.source_as_number,
+    range: row.source_range,
+    scope: row.source_scope,
+    latitude: row.latitude,
+    longitude: row.longitude,
   });
 }
 
-type EnrichmentQuery = (sql: string, params: string[]) => SourceEnrichmentRow[] | Promise<SourceEnrichmentRow[]>;
+type EnrichmentQuery = (
+  sql: string,
+  params: string[],
+) => SourceEnrichmentRow[] | Promise<SourceEnrichmentRow[]>;
 type DatedEnrichment = { at: number; source: AlertSource };
 
-async function loadLatestDatedEnrichment(ips: string[], query: EnrichmentQuery): Promise<Map<string, DatedEnrichment>> {
+async function loadLatestDatedEnrichment(
+  ips: string[],
+  query: EnrichmentQuery,
+): Promise<Map<string, DatedEnrichment>> {
   const result = new Map<string, DatedEnrichment>();
   for (let offset = 0; offset < ips.length; offset += SOURCE_ENRICHMENT_LOOKUP_CHUNK_SIZE) {
     const chunk = ips.slice(offset, offset + SOURCE_ENRICHMENT_LOOKUP_CHUNK_SIZE);
     for (const row of await query(latestSourceEnrichmentSql(chunk.length), chunk)) {
       const at = Date.parse(row.observed_at);
-      if (Number.isFinite(at)) result.set(row.source_ip, { at, source: sourceEnrichmentFromRow(row) });
+      if (Number.isFinite(at))
+        result.set(row.source_ip, { at, source: sourceEnrichmentFromRow(row) });
     }
   }
   return result;
@@ -94,7 +124,9 @@ async function loadLatestDatedEnrichment(ips: string[], query: EnrichmentQuery):
 
 function getSingleSourceIp(source: AlertSource): string | undefined {
   if (typeof source.scope === 'string' && source.scope.toLowerCase() !== 'ip') return undefined;
-  const value = [source.ip, source.value].find((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0);
+  const value = [source.ip, source.value].find(
+    (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0,
+  );
   return value && isIP(value) !== 0 ? value : undefined;
 }
 
@@ -108,12 +140,19 @@ export function getUnenrichedSourceIp(source: AlertSource | null | undefined): s
  * Fills only missing source fields, so the alert's own data and scope always
  * win, and records when the copied data was observed.
  */
-export function withSourceEnrichment(alert: AlertRecord, enrichment: AlertSource, observedAt: number): AlertRecord {
+export function withSourceEnrichment(
+  alert: AlertRecord,
+  enrichment: AlertSource,
+  observedAt: number,
+): AlertRecord {
   const source: AlertSource = { ...alert.source };
   for (const key of ['cn', 'as_name', 'as_number', 'range']) {
     if (isMissing(source[key]) && !isMissing(enrichment[key])) source[key] = enrichment[key];
   }
-  if (isUnknownLocation(source.latitude, source.longitude) && !isUnknownLocation(enrichment.latitude, enrichment.longitude)) {
+  if (
+    isUnknownLocation(source.latitude, source.longitude) &&
+    !isUnknownLocation(enrichment.latitude, enrichment.longitude)
+  ) {
     source.latitude = enrichment.latitude;
     source.longitude = enrichment.longitude;
   }
@@ -128,7 +167,10 @@ export function withSourceEnrichment(alert: AlertRecord, enrichment: AlertSource
  * enrichment observed later appears for that IP, so the metadata fingerprint
  * taken afterwards stays stable across syncs.
  */
-export async function enrichAlertSourcesFromCache(alerts: AlertRecord[], query: EnrichmentQuery): Promise<AlertRecord[]> {
+export async function enrichAlertSourcesFromCache(
+  alerts: AlertRecord[],
+  query: EnrichmentQuery,
+): Promise<AlertRecord[]> {
   const ips = new Set<string>();
   for (const alert of alerts) {
     const ip = getUnenrichedSourceIp(alert.source);
@@ -150,8 +192,13 @@ export async function enrichAlertSourcesFromCache(alerts: AlertRecord[], query: 
     latest.set(ip, {
       at,
       source: pickEnrichment({
-        cn: source.cn, asName: source.as_name, asNumber: source.as_number, range: source.range,
-        scope: source.scope, latitude: source.latitude, longitude: source.longitude,
+        cn: source.cn,
+        asName: source.as_name,
+        asNumber: source.as_number,
+        range: source.range,
+        scope: source.scope,
+        latitude: source.latitude,
+        longitude: source.longitude,
       }),
     });
   }

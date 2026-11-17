@@ -1,8 +1,10 @@
-import Database from 'better-sqlite3';
-import { afterEach, describe, expect, test } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
+import Database from 'better-sqlite3';
+import { afterEach, describe, expect, test } from 'vitest';
+
 import { CrowdsecDatabase, getSqliteMaintenanceWarning } from '../../database';
 
 const tempDirs: string[] = [];
@@ -61,8 +63,8 @@ describe('SQLite maintenance', () => {
     };
     expect(getSqliteMaintenanceWarning(storage)).toBeNull();
     expect(getSqliteMaintenanceWarning({ ...storage, freeRatio: 0.25 })).toBe(
-      'SQLite can reclaim ~160 MiB. Stop the app and delete cache.db to rebuild it with incremental vacuum: '
-      + 'https://github.com/TheDuffman85/crowdsec-web-ui#sqlite-database-maintenance',
+      'SQLite can reclaim ~160 MiB. Stop the app and delete cache.db to rebuild it with incremental vacuum: ' +
+        'https://github.com/TheDuffman85/crowdsec-web-ui#sqlite-database-maintenance',
     );
     expect(getSqliteMaintenanceWarning({ ...storage, autoVacuum: 2, freeRatio: 0.25 })).toBeNull();
   });

@@ -1,27 +1,41 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { DangerZoneSettings } from '../DangerZoneSettings';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { I18nContext, type I18nContextValue } from '../../lib/i18n';
 import { sessionFetch } from '../../lib/sessionFetch';
 import en from '../../locales/en.json';
+import { DangerZoneSettings } from '../DangerZoneSettings';
 
 vi.mock('../../lib/sessionFetch', () => ({ sessionFetch: vi.fn() }));
-const i18n: I18nContextValue = { language: 'en', preference: 'en', browserLanguage: 'en', setLanguagePreference: () => {}, t: (key) => (en as Record<string, string>)[key] || key };
+const i18n: I18nContextValue = {
+  language: 'en',
+  preference: 'en',
+  browserLanguage: 'en',
+  setLanguagePreference: () => {},
+  t: (key) => (en as Record<string, string>)[key] || key,
+};
 
 function mount(props: Partial<Parameters<typeof DangerZoneSettings>[0]> = {}) {
   const showToast = vi.fn();
-  render(<I18nContext.Provider value={i18n}>
-    <DangerZoneSettings canDeleteCache canDeleteStatistics showStatistics showToast={showToast} {...props} />
-  </I18nContext.Provider>);
+  render(
+    <I18nContext.Provider value={i18n}>
+      <DangerZoneSettings canDeleteCache canDeleteStatistics showStatistics showToast={showToast} {...props} />
+    </I18nContext.Provider>,
+  );
   return showToast;
 }
-afterEach(() => { vi.clearAllMocks(); });
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('Danger zone', () => {
   test('lists deleting the cache before deleting statistics', () => {
     mount();
     expect(screen.getByRole('heading', { name: 'Danger Zone' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Delete cache', 'Delete all statistics']);
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Delete cache',
+      'Delete all statistics',
+    ]);
   });
 
   test('deletes the cache only after confirmation', async () => {
@@ -41,7 +55,8 @@ describe('Danger zone', () => {
   });
 
   test('deletes all statistics after confirmation and keeps the dialog open on failure', async () => {
-    vi.mocked(sessionFetch).mockResolvedValueOnce(Response.json({ error: 'Statistics could not be deleted' }, { status: 500 }))
+    vi.mocked(sessionFetch)
+      .mockResolvedValueOnce(Response.json({ error: 'Statistics could not be deleted' }, { status: 500 }))
       .mockResolvedValueOnce(Response.json({ success: true }));
     const showToast = mount();
     fireEvent.click(screen.getByRole('button', { name: 'Delete all statistics' }));

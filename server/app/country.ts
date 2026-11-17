@@ -1,5 +1,3 @@
-
-
 export function getCountryName(code?: string | null): string | null {
   if (!code) return null;
   try {

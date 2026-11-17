@@ -1,10 +1,10 @@
 import path from 'node:path';
+
 import localReverseGeocoder from 'local-reverse-geocoder';
+
 import { makeGeoNamesSnapshotsImmutable } from './geonames-snapshot.mjs';
 
-const dumpDirectory = path.resolve(
-  process.env.GEONAMES_DUMP_DIR || process.argv[2] || 'geonames',
-);
+const dumpDirectory = path.resolve(process.env.GEONAMES_DUMP_DIR || process.argv[2] || 'geonames');
 
 console.log(`Downloading GeoNames cities5000 data to ${dumpDirectory}...`);
 

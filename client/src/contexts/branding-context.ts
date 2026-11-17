@@ -1,5 +1,6 @@
-import { createContext } from "react";
-import { DEFAULT_BRANDING, type PublicBranding } from "../lib/branding";
+import { createContext } from 'react';
+
+import { DEFAULT_BRANDING, type PublicBranding } from '../lib/branding';
 
 export interface BrandingContextValue extends PublicBranding {
   setBranding: (branding: PublicBranding) => void;

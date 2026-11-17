@@ -1,11 +1,6 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { describe, expect, test, vi } from 'vitest';
-import { parse as parseYaml } from 'yaml';
-import { createRuntimeConfig as createRuntimeConfigImpl, getIntervalName, parseBooleanEnv, parseCsvEnv, parseLookbackToMs, parseOidcScope, parseOidcUnmatchedRole, parseOptionalBooleanEnv, parseRefreshInterval, parseTimeFormat, parseTimeZone } from '../../config';
-import { ConfigurationLoadError } from '../../config-error';
-import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret, tempDirs } from './harness';
+import { describe, expect, test } from 'vitest';
+
+import { createRuntimeConfig, createTempSecret } from './harness';
 
 describe('runtime configuration', () => {
   test('createRuntimeConfig enables read-only mode from environment', () => {
@@ -112,9 +107,11 @@ describe('runtime configuration', () => {
   });
 
   test('createRuntimeConfig rejects invalid TOTP seeds', () => {
-    expect(() => createRuntimeConfig({
-      AUTH_TOTP_SEED: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PX!',
-    })).toThrow(/AUTH_TOTP_SEED/);
+    expect(() =>
+      createRuntimeConfig({
+        AUTH_TOTP_SEED: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PX!',
+      }),
+    ).toThrow(/AUTH_TOTP_SEED/);
     expect(() => createRuntimeConfig({ AUTH_TOTP_SEED: 'ABC234' })).toThrow(/AUTH_TOTP_SEED/);
   });
 
@@ -168,11 +165,13 @@ describe('runtime configuration', () => {
   });
 
   test('createRuntimeConfig rejects direct and file-backed CrowdSec passwords together', () => {
-    expect(() => createRuntimeConfig({
-      CROWDSEC_USER: 'watcher',
-      CROWDSEC_PASSWORD: 'direct-secret',
-      CROWDSEC_PASSWORD_FILE: '/run/secrets/crowdsec-password',
-    })).toThrow(/both CROWDSEC_PASSWORD and CROWDSEC_PASSWORD_FILE are set/i);
+    expect(() =>
+      createRuntimeConfig({
+        CROWDSEC_USER: 'watcher',
+        CROWDSEC_PASSWORD: 'direct-secret',
+        CROWDSEC_PASSWORD_FILE: '/run/secrets/crowdsec-password',
+      }),
+    ).toThrow(/both CROWDSEC_PASSWORD and CROWDSEC_PASSWORD_FILE are set/i);
   });
 
   test('createRuntimeConfig reads NOTIFICATION_SECRET_KEY_FILE', () => {
@@ -184,29 +183,38 @@ describe('runtime configuration', () => {
   });
 
   test('createRuntimeConfig rejects direct and file-backed notification secret keys together', () => {
-    expect(() => createRuntimeConfig({
-      NOTIFICATION_SECRET_KEY: 'direct-secret',
-      NOTIFICATION_SECRET_KEY_FILE: '/run/secrets/notification-secret-key',
-    })).toThrow(/both NOTIFICATION_SECRET_KEY and NOTIFICATION_SECRET_KEY_FILE are set/i);
+    expect(() =>
+      createRuntimeConfig({
+        NOTIFICATION_SECRET_KEY: 'direct-secret',
+        NOTIFICATION_SECRET_KEY_FILE: '/run/secrets/notification-secret-key',
+      }),
+    ).toThrow(/both NOTIFICATION_SECRET_KEY and NOTIFICATION_SECRET_KEY_FILE are set/i);
   });
 
   test('createRuntimeConfig rejects mixed password and mTLS authentication', () => {
-    expect(() => createRuntimeConfig({
-      CROWDSEC_USER: 'watcher',
-      CROWDSEC_PASSWORD: 'secret',
-      CROWDSEC_TLS_CERT_PATH: '/certs/agent.pem',
-      CROWDSEC_TLS_KEY_PATH: '/certs/agent-key.pem',
-    })).toThrow(/choose either CROWDSEC_USER with CROWDSEC_PASSWORD or CROWDSEC_PASSWORD_FILE, or CROWDSEC_TLS_CERT_PATH\/CROWDSEC_TLS_KEY_PATH/i);
+    expect(() =>
+      createRuntimeConfig({
+        CROWDSEC_USER: 'watcher',
+        CROWDSEC_PASSWORD: 'secret',
+        CROWDSEC_TLS_CERT_PATH: '/certs/agent.pem',
+        CROWDSEC_TLS_KEY_PATH: '/certs/agent-key.pem',
+      }),
+    ).toThrow(
+      /choose either CROWDSEC_USER with CROWDSEC_PASSWORD or CROWDSEC_PASSWORD_FILE, or CROWDSEC_TLS_CERT_PATH\/CROWDSEC_TLS_KEY_PATH/i,
+    );
   });
 
   test('createRuntimeConfig rejects partial mTLS authentication', () => {
-    expect(() => createRuntimeConfig({
-      CROWDSEC_TLS_CERT_PATH: '/certs/agent.pem',
-    })).toThrow(/CrowdSec mTLS authentication requires both CROWDSEC_TLS_CERT_PATH and CROWDSEC_TLS_KEY_PATH/i);
+    expect(() =>
+      createRuntimeConfig({
+        CROWDSEC_TLS_CERT_PATH: '/certs/agent.pem',
+      }),
+    ).toThrow(/CrowdSec mTLS authentication requires both CROWDSEC_TLS_CERT_PATH and CROWDSEC_TLS_KEY_PATH/i);
 
-    expect(() => createRuntimeConfig({
-      CROWDSEC_TLS_CA_CERT_PATH: '/certs/ca.pem',
-    })).toThrow(/CrowdSec mTLS authentication requires both CROWDSEC_TLS_CERT_PATH and CROWDSEC_TLS_KEY_PATH/i);
+    expect(() =>
+      createRuntimeConfig({
+        CROWDSEC_TLS_CA_CERT_PATH: '/certs/ca.pem',
+      }),
+    ).toThrow(/CrowdSec mTLS authentication requires both CROWDSEC_TLS_CERT_PATH and CROWDSEC_TLS_KEY_PATH/i);
   });
-
 });

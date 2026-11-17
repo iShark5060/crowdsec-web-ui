@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { createUpdateChecker } from '../../update-check';
 
 describe('update checker', () => {

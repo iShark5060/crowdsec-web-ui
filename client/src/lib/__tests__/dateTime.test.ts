@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { formatDateTimeValue, formatDateValue, formatTimeValue } from '../dateTime';
 
 describe('date and time formatting', () => {
@@ -6,25 +7,31 @@ describe('date and time formatting', () => {
 
   test('applies a fixed timezone and 24-hour clock', () => {
     const settings = { timeZone: 'Europe/Berlin', timeFormat: '24h' as const, dateFormat: 'browser' as const };
-    expect(formatTimeValue(timestamp, settings, {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })).toBe(new Date(timestamp).toLocaleTimeString(undefined, {
-      timeZone: 'Europe/Berlin',
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }));
+    expect(
+      formatTimeValue(timestamp, settings, {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    ).toBe(
+      new Date(timestamp).toLocaleTimeString(undefined, {
+        timeZone: 'Europe/Berlin',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    );
   });
 
   test('supports a 12-hour clock independently of timezone', () => {
     const settings = { timeZone: 'UTC', timeFormat: '12h' as const, dateFormat: 'browser' as const };
-    expect(formatDateTimeValue(timestamp, settings)).toBe(new Date(timestamp).toLocaleString(undefined, {
-      timeZone: 'UTC',
-      hour12: true,
-    }));
+    expect(formatDateTimeValue(timestamp, settings)).toBe(
+      new Date(timestamp).toLocaleString(undefined, {
+        timeZone: 'UTC',
+        hour12: true,
+      }),
+    );
   });
 
   test('formats complete dates as dd/mm/yyyy and keeps the configured 24-hour clock', () => {
@@ -35,7 +42,9 @@ describe('date and time formatting', () => {
 
   test('keeps the browser clock style when only the date format is overridden', () => {
     const settings = { timeZone: 'UTC', timeFormat: 'browser' as const, dateFormat: 'dd/mm/yyyy' as const };
-    expect(formatDateTimeValue(timestamp, settings)).toBe(`01/01/2025, ${new Date(timestamp).toLocaleTimeString(undefined, { timeZone: 'UTC' })}`);
+    expect(formatDateTimeValue(timestamp, settings)).toBe(
+      `01/01/2025, ${new Date(timestamp).toLocaleTimeString(undefined, { timeZone: 'UTC' })}`,
+    );
   });
 
   test('keeps a configured 12-hour clock with dd/mm/yyyy dates', () => {
@@ -59,6 +68,8 @@ describe('date and time formatting', () => {
   });
 
   test('preserves invalid source timestamps', () => {
-    expect(formatDateTimeValue('not-a-date', { timeZone: 'UTC', timeFormat: '24h', dateFormat: 'browser' })).toBe('not-a-date');
+    expect(formatDateTimeValue('not-a-date', { timeZone: 'UTC', timeFormat: '24h', dateFormat: 'browser' })).toBe(
+      'not-a-date',
+    );
   });
 });

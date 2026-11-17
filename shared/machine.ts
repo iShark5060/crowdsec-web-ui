@@ -12,7 +12,9 @@ function normalizeMachineValue(value: string | undefined): string | undefined {
 }
 
 export function resolveMachineName(machine: MachineFields | null | undefined): string | undefined {
-  return normalizeMachineValue(machine?.machine_alias) || normalizeMachineValue(machine?.machine_id);
+  return (
+    normalizeMachineValue(machine?.machine_alias) || normalizeMachineValue(machine?.machine_id)
+  );
 }
 
 export function normalizeMachineId(machineId: string | undefined): string | undefined {

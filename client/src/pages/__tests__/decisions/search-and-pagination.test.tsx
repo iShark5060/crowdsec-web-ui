@@ -1,13 +1,22 @@
-import { createDeferred, flushDecisionSearchDebounce, installControlledIntersectionObserver, setRefreshSignalMock, toPaginatedDecisions } from './harness';
-import { describe, expect, test, vi } from 'vitest';
+import './harness';
+
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StrictMode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, test, vi } from 'vitest';
+
 import * as api from '../../../lib/api';
-import { Decisions } from '../../Decisions';
 import { QUICK_FILTERS_STORAGE_KEY } from '../../../lib/quickFilters';
 import { type DecisionListItem, type PaginatedResponse } from '../../../types';
+import { Decisions } from '../../Decisions';
+import {
+  createDeferred,
+  flushDecisionSearchDebounce,
+  installControlledIntersectionObserver,
+  setRefreshSignalMock,
+  toPaginatedDecisions,
+} from './harness';
 
 async function expandDecisionSearch() {
   const wasCollapsed = screen.queryByPlaceholderText('Filter decisions...') === null;
@@ -23,7 +32,10 @@ async function expandDecisionSearch() {
   expect(collapseButton).toHaveClass('sm:border-l-0');
   expect(collapseButton.previousElementSibling).toContainElement(input);
   expect(input.parentElement).toHaveClass('sm:rounded-r-none');
-  expect(screen.getByRole('button', { name: 'Search syntax help' }).compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Search syntax help' }).compareDocumentPosition(input) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
   expect(input.parentElement?.querySelector('.lucide-search')).toBeNull();
   return input;
 }
@@ -98,7 +110,9 @@ describe('Decisions page search and pagination', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Search syntax help' }));
     await userEvent.click(screen.getByRole('button', { name: /status:active AND action:ban/i }));
 
-    await waitFor(() => expect(screen.getByPlaceholderText('Filter decisions...')).toHaveValue('status:active AND action:ban'));
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Filter decisions...')).toHaveValue('status:active AND action:ban'),
+    );
   });
 
   test('keeps the status facet synchronized with expired-decision visibility', async () => {
@@ -130,12 +144,14 @@ describe('Decisions page search and pagination', () => {
     expect(within(expirationSection!).queryByRole('button', { name: 'Clear Expiration' })).not.toBeInTheDocument();
 
     await user.click(expired);
-    await waitFor(() => expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
-      include_expired: 'true',
-    }));
-    await waitFor(() => expect(
-      screen.getByRole('checkbox', { name: /Toggle .*Expired.* in Expiration/ }),
-    ).toBeChecked());
+    await waitFor(() =>
+      expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
+        include_expired: 'true',
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: /Toggle .*Expired.* in Expiration/ })).toBeChecked(),
+    );
     await waitFor(() => expect(within(filtersButton).getByText('1')).toBeInTheDocument());
     expect(within(expirationHeader).getByText('1')).toBeInTheDocument();
     expect(within(expirationSection!).getByRole('button', { name: 'Clear Expiration' })).toBeInTheDocument();
@@ -174,9 +190,9 @@ describe('Decisions page search and pagination', () => {
       target: { value: '2026-03-24T10:30' },
     });
 
-    await waitFor(() => expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBe(
-      'action=ban AND date>=2026-03-24T10:00',
-    ));
+    await waitFor(() =>
+      expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBe('action=ban AND date>=2026-03-24T10:00'),
+    );
   });
 
   test('disables quick filters for unsafe Boolean logic and re-enables them after it is simplified', async () => {
@@ -199,9 +215,12 @@ describe('Decisions page search and pagination', () => {
   });
 
   test('offers quick filters for every visible decision column', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      decisions: ['id', 'instance', 'region', 'target', 'city', 'machine', 'origin', 'alert'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        decisions: ['id', 'instance', 'region', 'target', 'city', 'machine', 'origin', 'alert'],
+      }),
+    );
     render(
       <MemoryRouter initialEntries={['/decisions']}>
         <Decisions />
@@ -214,7 +233,8 @@ describe('Decisions page search and pagination', () => {
     for (const name of expectedSections) {
       expect(within(drawer).getByRole('button', { name })).toBeInTheDocument();
     }
-    const sectionNames = within(drawer).getAllByRole('button')
+    const sectionNames = within(drawer)
+      .getAllByRole('button')
       .map((button) => button.textContent?.trim())
       .filter((name): name is string => Boolean(name && expectedSections.includes(name)));
     expect(sectionNames).toEqual(expectedSections);
@@ -239,23 +259,30 @@ describe('Decisions page search and pagination', () => {
     await userEvent.click(mode);
     expect(within(drawer).queryByRole('checkbox', { name: /All/ })).not.toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('checkbox', { name: 'Toggle Live in Mode' }));
-    await waitFor(() => expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
-      q: 'sim=simulated',
-    }));
+    await waitFor(() =>
+      expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
+        q: 'sim=simulated',
+      }),
+    );
     expect(within(screen.getByRole('button', { name: 'Filters' })).getByText('1')).toBeInTheDocument();
 
     await userEvent.click(within(drawer).getByRole('checkbox', { name: 'Toggle Live in Mode' }));
     await waitFor(() => expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBeUndefined());
     await userEvent.click(within(drawer).getByRole('checkbox', { name: 'Toggle Simulation in Mode' }));
-    await waitFor(() => expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
-      q: 'sim=live',
-    }));
+    await waitFor(() =>
+      expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toMatchObject({
+        q: 'sim=live',
+      }),
+    );
   });
 
   test('lists the target quick filter below visible filters when the target column is hidden', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      decisions: ['time', 'source'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        decisions: ['time', 'source'],
+      }),
+    );
     render(
       <MemoryRouter initialEntries={['/decisions']}>
         <Decisions />
@@ -272,13 +299,16 @@ describe('Decisions page search and pagination', () => {
   });
 
   test('applies persisted common filters and keeps alert-only filters disabled and clearable', async () => {
-    window.localStorage.setItem(QUICK_FILTERS_STORAGE_KEY, JSON.stringify({
-      selections: {
-        country: { included: ['DE'], excluded: [] },
-        decision: { included: ['active'], excluded: [] },
-      },
-      dateRange: { start: '', end: '' },
-    }));
+    window.localStorage.setItem(
+      QUICK_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        selections: {
+          country: { included: ['DE'], excluded: [] },
+          decision: { included: ['active'], excluded: [] },
+        },
+        dateRange: { start: '', end: '' },
+      }),
+    );
     const fetchDecisionsPaginatedMock = vi.mocked(api.fetchDecisionsPaginated);
     fetchDecisionsPaginatedMock.mockClear();
 
@@ -294,28 +324,38 @@ describe('Decisions page search and pagination', () => {
     expect(screen.getByRole('button', { name: 'Decisions' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Clear Decisions' }));
 
-    await waitFor(() => expect(
-      JSON.parse(window.localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections,
-    ).toEqual({
-      country: { included: ['DE'], excluded: [] },
-    }));
+    await waitFor(() =>
+      expect(JSON.parse(window.localStorage.getItem(QUICK_FILTERS_STORAGE_KEY) || '{}').selections).toEqual({
+        country: { included: ['DE'], excluded: [] },
+      }),
+    );
     expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]?.q).toBe('country=DE');
   });
 
   test('applies a decision-only saved query', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      if (!init?.method) return Response.json({
-        saved: [{ id: 'one', name: 'Bans', query: 'action=ban', created_at: '', updated_at: '' }],
-        recent: [],
-        shared: false,
-      });
-      return Response.json({ recent: [] });
-    }));
-    render(<MemoryRouter initialEntries={['/decisions']}><Decisions /></MemoryRouter>);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (!init?.method)
+          return Response.json({
+            saved: [{ id: 'one', name: 'Bans', query: 'action=ban', created_at: '', updated_at: '' }],
+            recent: [],
+            shared: false,
+          });
+        return Response.json({ recent: [] });
+      }),
+    );
+    render(
+      <MemoryRouter initialEntries={['/decisions']}>
+        <Decisions />
+      </MemoryRouter>,
+    );
     await screen.findByText('1.2.3.4');
     await userEvent.click(screen.getByRole('button', { name: 'Saved filters' }));
     const entry = await screen.findByText('Bans');
-    await userEvent.click(within(entry.closest('div.rounded-md') as HTMLElement).getByRole('button', { name: 'Apply' }));
+    await userEvent.click(
+      within(entry.closest('div.rounded-md') as HTMLElement).getByRole('button', { name: 'Apply' }),
+    );
     await waitFor(() => expect(vi.mocked(api.fetchDecisionsPaginated).mock.calls.at(-1)?.[2]?.q).toBe('action=ban'));
   });
 
@@ -514,10 +554,11 @@ describe('Decisions page search and pagination', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(screen.getByText('Showing 50 of 313 decisions (314 total before filters)')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('Showing 50 of 313 decisions (314 total before filters)')).toBeInTheDocument(),
+    );
     expect(screen.queryByText('10.0.0.313')).not.toBeInTheDocument();
   });
-
 
   test('loads the first decision page once when StrictMode replays mount effects', async () => {
     const decisions = [
@@ -539,9 +580,9 @@ describe('Decisions page search and pagination', () => {
         },
       },
     ];
-    const fetchDecisionsPaginatedMock = vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (page, pageSize) =>
-      toPaginatedDecisions(decisions, page, pageSize, decisions.length),
-    );
+    const fetchDecisionsPaginatedMock = vi
+      .mocked(api.fetchDecisionsPaginated)
+      .mockImplementation(async (page, pageSize) => toPaginatedDecisions(decisions, page, pageSize, decisions.length));
     fetchDecisionsPaginatedMock.mockClear();
 
     render(
@@ -575,9 +616,11 @@ describe('Decisions page search and pagination', () => {
         alert_id: index + 1,
       },
     }));
-    const fetchDecisionsPaginatedMock = vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (page, pageSize) =>
-      toPaginatedDecisions(pagedDecisions, page, pageSize, pagedDecisions.length),
-    );
+    const fetchDecisionsPaginatedMock = vi
+      .mocked(api.fetchDecisionsPaginated)
+      .mockImplementation(async (page, pageSize) =>
+        toPaginatedDecisions(pagedDecisions, page, pageSize, pagedDecisions.length),
+      );
 
     const { rerender } = render(
       <MemoryRouter initialEntries={['/decisions']}>
@@ -603,8 +646,14 @@ describe('Decisions page search and pagination', () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(fetchDecisionsPaginatedMock.mock.calls.length).toBeGreaterThanOrEqual(callCountBeforeRefresh + 2));
-    expect(fetchDecisionsPaginatedMock.mock.calls.slice(callCountBeforeRefresh, callCountBeforeRefresh + 2).map(([page]) => page)).toEqual([1, 2]);
+    await waitFor(() =>
+      expect(fetchDecisionsPaginatedMock.mock.calls.length).toBeGreaterThanOrEqual(callCountBeforeRefresh + 2),
+    );
+    expect(
+      fetchDecisionsPaginatedMock.mock.calls
+        .slice(callCountBeforeRefresh, callCountBeforeRefresh + 2)
+        .map(([page]) => page),
+    ).toEqual([1, 2]);
     expect(screen.getByText('Showing 100 of 120 decisions')).toBeInTheDocument();
     expect(screen.getByText('10.1.0.100')).toBeInTheDocument();
     expect(screen.queryByText('10.1.0.101')).not.toBeInTheDocument();

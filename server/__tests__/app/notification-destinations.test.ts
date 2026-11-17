@@ -1,15 +1,7 @@
-import { describe, expect, test, vi } from 'vitest';
-import path from 'path';
-import { CrowdsecDatabase } from '../../database';
+import { describe, expect, test } from 'vitest';
+
 import type { MqttPublishConfig } from '../../notifications/mqtt-client';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleManualWebUiAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, destroyTempDir, sampleAlert } from './harness';
 
 describe('createApp notification destinations', () => {
   test('stores notification channel secrets encrypted at rest', async () => {
@@ -36,7 +28,7 @@ describe('createApp notification destinations', () => {
       }),
     );
     expect(createChannel.status).toBe(201);
-    const channelPayload = await createChannel.json() as { id: string; config: { smtpPassword: string } };
+    const channelPayload = (await createChannel.json()) as { id: string; config: { smtpPassword: string } };
     expect(channelPayload.config.smtpPassword).toBe('(stored)');
 
     const stored = database.getNotificationChannelById(channelPayload.id);
@@ -123,7 +115,9 @@ describe('createApp notification destinations', () => {
     expect(createChannel.status).toBe(201);
     const channelPayload = database.listNotificationChannels()[0] as { id?: string };
 
-    const testChannel = await controller.fetch(new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }));
+    const testChannel = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }),
+    );
     expect(testChannel.status).toBe(400);
     expect((await testChannel.json()) as { error: string }).toEqual({
       error: 'Webhook URL points to a restricted address (127.0.0.1)',
@@ -167,7 +161,9 @@ describe('createApp notification destinations', () => {
     expect(createChannel.status).toBe(201);
     const channelPayload = database.listNotificationChannels()[0] as { id?: string };
 
-    const testChannel = await controller.fetch(new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }));
+    const testChannel = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }),
+    );
     expect(testChannel.status).toBe(200);
     expect(await testChannel.json()).toMatchObject({
       success: true,
@@ -210,7 +206,9 @@ describe('createApp notification destinations', () => {
     expect(createChannel.status).toBe(201);
     const channelPayload = database.listNotificationChannels()[0] as { id?: string };
 
-    const testChannel = await controller.fetch(new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }));
+    const testChannel = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }),
+    );
     expect(testChannel.status).toBe(400);
     expect((await testChannel.json()) as { error: string }).toEqual({
       error: 'Webhook request failed with status 500: internal token leaked',
@@ -268,7 +266,7 @@ describe('createApp notification destinations', () => {
       }),
     );
     expect(createChannel.status).toBe(201);
-    const channelPayload = await createChannel.json() as { id: string };
+    const channelPayload = (await createChannel.json()) as { id: string };
 
     const createRule = await controller.fetch(
       new Request('http://localhost/crowdsec/api/notification-rules', {
@@ -294,31 +292,38 @@ describe('createApp notification destinations', () => {
     expect(alerts.status).toBe(200);
 
     expect(mqttPublishes).toHaveLength(1);
-    expect(mqttPublishes[0]?.config).toEqual(expect.objectContaining({
-      brokerUrl: 'mqtt://broker.example.com:1883',
-      topic: 'crowdsec/notifications',
-      qos: 1,
-      retainEvents: true,
-    }));
-    expect(JSON.parse(mqttPublishes[0]?.payload || '{}')).toEqual(expect.objectContaining({
-      title: 'MQTT threshold: threshold exceeded',
-      severity: 'critical',
-      channel_name: 'Primary MQTT',
-      rule_name: 'MQTT threshold',
-    }));
+    expect(mqttPublishes[0]?.config).toEqual(
+      expect.objectContaining({
+        brokerUrl: 'mqtt://broker.example.com:1883',
+        topic: 'crowdsec/notifications',
+        qos: 1,
+        retainEvents: true,
+      }),
+    );
+    expect(JSON.parse(mqttPublishes[0]?.payload || '{}')).toEqual(
+      expect.objectContaining({
+        title: 'MQTT threshold: threshold exceeded',
+        severity: 'critical',
+        channel_name: 'Primary MQTT',
+        rule_name: 'MQTT threshold',
+      }),
+    );
 
-    const testChannel = await controller.fetch(new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }));
+    const testChannel = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/notification-channels/${channelPayload.id}/test`, { method: 'POST' }),
+    );
     expect(testChannel.status).toBe(200);
     expect(mqttPublishes).toHaveLength(2);
-    expect(JSON.parse(mqttPublishes[1]?.payload || '{}')).toEqual(expect.objectContaining({
-      rule_name: 'Test notification',
-      rule_type: 'test',
-      severity: 'info',
-    }));
+    expect(JSON.parse(mqttPublishes[1]?.payload || '{}')).toEqual(
+      expect.objectContaining({
+        rule_name: 'Test notification',
+        rule_type: 'test',
+        severity: 'info',
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
     destroyTempDir();
   });
-
 });

@@ -1,7 +1,9 @@
-import path from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { afterEach, describe, expect, test } from 'vitest';
+
 import {
   createLoadTestRuntimeEnv,
   ensureLoadTestUser,
@@ -36,17 +38,19 @@ function createTestRuntimeConfig(env: NodeJS.ProcessEnv) {
 
 describe('load-test authentication', () => {
   test('defaults authentication to enabled and preserves OIDC environment settings', () => {
-    const config = createTestRuntimeConfig(createLoadTestRuntimeEnv({
-      CONFIG_AUTH_OIDC_ISSUER_URL: 'https://idp.example.com/application/o/crowdsec/',
-      CONFIG_AUTH_OIDC_CLIENT_ID: 'load-test-client',
-      CONFIG_AUTH_OIDC_CLIENT_SECRET: 'load-test-secret',
-      CONFIG_AUTH_OIDC_SCOPE: 'openid profile email roles',
-      CONFIG_AUTH_OIDC_GROUPS_CLAIM: 'roles',
-      CONFIG_AUTH_OIDC_ADMIN_GROUPS_0: 'admins',
-      CONFIG_AUTH_OIDC_ADMIN_GROUPS_1: 'secops',
-      CONFIG_AUTH_OIDC_READ_ONLY_GROUPS_0: 'viewers',
-      CONFIG_AUTH_OIDC_UNMATCHED_ROLE: 'read-only',
-    }));
+    const config = createTestRuntimeConfig(
+      createLoadTestRuntimeEnv({
+        CONFIG_AUTH_OIDC_ISSUER_URL: 'https://idp.example.com/application/o/crowdsec/',
+        CONFIG_AUTH_OIDC_CLIENT_ID: 'load-test-client',
+        CONFIG_AUTH_OIDC_CLIENT_SECRET: 'load-test-secret',
+        CONFIG_AUTH_OIDC_SCOPE: 'openid profile email roles',
+        CONFIG_AUTH_OIDC_GROUPS_CLAIM: 'roles',
+        CONFIG_AUTH_OIDC_ADMIN_GROUPS_0: 'admins',
+        CONFIG_AUTH_OIDC_ADMIN_GROUPS_1: 'secops',
+        CONFIG_AUTH_OIDC_READ_ONLY_GROUPS_0: 'viewers',
+        CONFIG_AUTH_OIDC_UNMATCHED_ROLE: 'read-only',
+      }),
+    );
 
     expect(config.dashboardAuth).toMatchObject({
       enabled: true,

@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { HorizontalScrollArea } from '../ui/HorizontalScrollArea';
 
 let notifyResize: () => void = () => undefined;
@@ -35,14 +36,17 @@ function expectFades(start: boolean, end: boolean) {
 
 describe('HorizontalScrollArea', () => {
   beforeEach(() => {
-    vi.stubGlobal('ResizeObserver', class {
-      constructor(callback: () => void) {
-        notifyResize = callback;
-      }
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notifyResize = callback;
+        }
 
-      observe() {}
-      disconnect() {}
-    });
+        observe() {}
+        disconnect() {}
+      },
+    );
   });
 
   afterEach(() => {

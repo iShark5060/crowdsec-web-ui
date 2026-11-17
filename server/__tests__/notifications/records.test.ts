@@ -1,5 +1,5 @@
-import { describe, expect, test, vi } from 'vitest';
-import type { LapiStatus } from '../../../shared/contracts';
+import { describe, expect, test } from 'vitest';
+
 import { createAlert, createDecision, createService, insertAlert, insertDecision } from './harness';
 
 describe('notification per-record incidents', () => {
@@ -17,11 +17,14 @@ describe('notification per-record incidents', () => {
       },
     });
 
-    insertDecision(database, createDecision('decision-1', '2026-03-28T11:55:00.000Z', {
-      value: '10.20.30.40',
-      origin: 'manual',
-      alert_id: 123,
-    }));
+    insertDecision(
+      database,
+      createDecision('decision-1', '2026-03-28T11:55:00.000Z', {
+        value: '10.20.30.40',
+        origin: 'manual',
+        alert_id: 123,
+      }),
+    );
 
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
     await service.evaluateRules(new Date('2026-03-28T12:05:00.000Z'));
@@ -54,9 +57,11 @@ describe('notification per-record incidents', () => {
     ]);
 
     await service.evaluateRules(new Date('2026-03-28T13:01:00.000Z'));
-    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(expect.objectContaining({
-      resolved_at: '2026-03-28T13:01:00.000Z',
-    }));
+    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(
+      expect.objectContaining({
+        resolved_at: '2026-03-28T13:01:00.000Z',
+      }),
+    );
 
     database.close();
   });
@@ -75,17 +80,23 @@ describe('notification per-record incidents', () => {
       },
     });
 
-    insertDecision(database, createDecision('decision-a', '2026-03-28T11:55:00.000Z', {
-      value: '1.2.3.4',
-      stop_at: '2026-03-28T13:00:00.000Z',
-    }));
+    insertDecision(
+      database,
+      createDecision('decision-a', '2026-03-28T11:55:00.000Z', {
+        value: '1.2.3.4',
+        stop_at: '2026-03-28T13:00:00.000Z',
+      }),
+    );
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
     database.deleteDecision('decision-a');
-    insertDecision(database, createDecision('decision-b', '2026-03-28T11:56:00.000Z', {
-      value: '1.2.3.4',
-      stop_at: '2026-03-28T13:01:00.000Z',
-    }));
+    insertDecision(
+      database,
+      createDecision('decision-b', '2026-03-28T11:56:00.000Z', {
+        value: '1.2.3.4',
+        stop_at: '2026-03-28T13:01:00.000Z',
+      }),
+    );
     await service.evaluateRules(new Date('2026-03-28T12:05:00.000Z'));
 
     expect(service.listNotifications().data).toHaveLength(1);
@@ -107,14 +118,20 @@ describe('notification per-record incidents', () => {
       },
     });
 
-    insertDecision(database, createDecision('decision-a', '2026-03-28T11:55:00.000Z', {
-      value: '3.4.5.6',
-      stop_at: '2026-03-28T13:00:00.000Z',
-    }));
-    insertDecision(database, createDecision('decision-b', '2026-03-28T11:56:00.000Z', {
-      value: '3.4.5.6',
-      stop_at: '2026-03-28T13:01:00.000Z',
-    }));
+    insertDecision(
+      database,
+      createDecision('decision-a', '2026-03-28T11:55:00.000Z', {
+        value: '3.4.5.6',
+        stop_at: '2026-03-28T13:00:00.000Z',
+      }),
+    );
+    insertDecision(
+      database,
+      createDecision('decision-b', '2026-03-28T11:56:00.000Z', {
+        value: '3.4.5.6',
+        stop_at: '2026-03-28T13:01:00.000Z',
+      }),
+    );
 
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
@@ -137,19 +154,24 @@ describe('notification per-record incidents', () => {
       },
     });
 
-    insertDecision(database, createDecision('decision-a', '2026-03-28T11:55:00.000Z', {
-      value: '2.3.4.5',
-      stop_at: '2026-03-28T13:00:00.000Z',
-    }));
+    insertDecision(
+      database,
+      createDecision('decision-a', '2026-03-28T11:55:00.000Z', {
+        value: '2.3.4.5',
+        stop_at: '2026-03-28T13:00:00.000Z',
+      }),
+    );
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
     database.deleteDecision('decision-a');
     await service.evaluateRules(new Date('2026-03-28T12:05:00.000Z'));
 
-    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(expect.objectContaining({
-      incident_key: 'ip-ban:2.3.4.5:crowdsec:crowdsecurity%2Fssh-bf:ssh',
-      resolved_at: '2026-03-28T12:05:00.000Z',
-    }));
+    expect(database.listNotificationIncidentsByRule(rule.id)[0]).toEqual(
+      expect.objectContaining({
+        incident_key: 'ip-ban:2.3.4.5:crowdsec:crowdsecurity%2Fssh-bf:ssh',
+        resolved_at: '2026-03-28T12:05:00.000Z',
+      }),
+    );
 
     database.close();
   });
@@ -174,23 +196,55 @@ describe('notification per-record incidents', () => {
       },
     });
 
-    insertDecision(database, createDecision('exact', '2026-03-28T11:50:00.000Z', { value: '203.0.113.10', country: 'US' }));
-    insertDecision(database, createDecision('cidr-v4', '2026-03-28T11:51:00.000Z', { value: '10.0.0.42', country: 'DE' }));
-    insertDecision(database, createDecision('cidr-v6', '2026-03-28T11:52:00.000Z', { value: '2001:db8::42', simulated: true, country: 'US' }));
-    insertDecision(database, createDecision('captcha', '2026-03-28T11:53:00.000Z', { value: '10.0.0.43', type: 'captcha', country: 'US' }));
-    insertDecision(database, createDecision('outside-cidr', '2026-03-28T11:54:00.000Z', { value: '10.0.1.42', country: 'US' }));
-    insertDecision(database, createDecision('wrong-scenario', '2026-03-28T11:55:00.000Z', { value: '10.0.0.44', scenario: 'crowdsecurity/http-probing', country: 'US' }));
-    insertDecision(database, createDecision('wrong-target', '2026-03-28T11:56:00.000Z', { value: '10.0.0.45', target: 'http', country: 'US' }));
-    insertDecision(database, createDecision('wrong-country', '2026-03-28T11:57:00.000Z', { value: '10.0.0.47', country: 'FR' }));
-    insertDecision(database, createDecision('old-ban', '2026-03-28T11:20:00.000Z', { value: '10.0.0.46', country: 'US' }));
+    insertDecision(
+      database,
+      createDecision('exact', '2026-03-28T11:50:00.000Z', { value: '203.0.113.10', country: 'US' }),
+    );
+    insertDecision(
+      database,
+      createDecision('cidr-v4', '2026-03-28T11:51:00.000Z', { value: '10.0.0.42', country: 'DE' }),
+    );
+    insertDecision(
+      database,
+      createDecision('cidr-v6', '2026-03-28T11:52:00.000Z', { value: '2001:db8::42', simulated: true, country: 'US' }),
+    );
+    insertDecision(
+      database,
+      createDecision('captcha', '2026-03-28T11:53:00.000Z', { value: '10.0.0.43', type: 'captcha', country: 'US' }),
+    );
+    insertDecision(
+      database,
+      createDecision('outside-cidr', '2026-03-28T11:54:00.000Z', { value: '10.0.1.42', country: 'US' }),
+    );
+    insertDecision(
+      database,
+      createDecision('wrong-scenario', '2026-03-28T11:55:00.000Z', {
+        value: '10.0.0.44',
+        scenario: 'crowdsecurity/http-probing',
+        country: 'US',
+      }),
+    );
+    insertDecision(
+      database,
+      createDecision('wrong-target', '2026-03-28T11:56:00.000Z', { value: '10.0.0.45', target: 'http', country: 'US' }),
+    );
+    insertDecision(
+      database,
+      createDecision('wrong-country', '2026-03-28T11:57:00.000Z', { value: '10.0.0.47', country: 'FR' }),
+    );
+    insertDecision(
+      database,
+      createDecision('old-ban', '2026-03-28T11:20:00.000Z', { value: '10.0.0.46', country: 'US' }),
+    );
 
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
-    expect(service.listNotifications().data.map((notification) => notification.metadata.decision_id).sort()).toEqual([
-      'cidr-v4',
-      'cidr-v6',
-      'exact',
-    ]);
+    expect(
+      service
+        .listNotifications()
+        .data.map((notification) => notification.metadata.decision_id)
+        .sort(),
+    ).toEqual(['cidr-v4', 'cidr-v6', 'exact']);
 
     database.close();
   });
@@ -222,16 +276,24 @@ describe('notification per-record incidents', () => {
     });
 
     insertDecision(database, createDecision('allowed', '2026-03-28T11:50:00.000Z', { country: 'US' }));
-    insertDecision(database, createDecision('excluded-de', '2026-03-28T11:51:00.000Z', { country: 'DE', value: '1.2.3.5' }));
-    insertDecision(database, createDecision('excluded-fr', '2026-03-28T11:52:00.000Z', { country: 'FR', value: '1.2.3.6' }));
+    insertDecision(
+      database,
+      createDecision('excluded-de', '2026-03-28T11:51:00.000Z', { country: 'DE', value: '1.2.3.5' }),
+    );
+    insertDecision(
+      database,
+      createDecision('excluded-fr', '2026-03-28T11:52:00.000Z', { country: 'FR', value: '1.2.3.6' }),
+    );
     insertDecision(database, createDecision('unknown', '2026-03-28T11:53:00.000Z', { value: '1.2.3.7' }));
 
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
-    expect(service.listNotifications().data.map((notification) => notification.metadata.decision_id).sort()).toEqual([
-      'allowed',
-      'unknown',
-    ]);
+    expect(
+      service
+        .listNotifications()
+        .data.map((notification) => notification.metadata.decision_id)
+        .sort(),
+    ).toEqual(['allowed', 'unknown']);
 
     database.close();
   });
@@ -239,17 +301,19 @@ describe('notification per-record incidents', () => {
   test('IP ban country filters reject values that are not two-letter ISO codes', async () => {
     const { database, service } = createService();
 
-    await expect(service.createRule({
-      name: 'Invalid countries',
-      type: 'ip-ban',
-      enabled: true,
-      severity: 'warning',
-      channel_ids: [],
-      config: {
-        window_minutes: 30,
-        filters: { countries: ['USA'] },
-      },
-    })).rejects.toThrow('Invalid country filter value: USA');
+    await expect(
+      service.createRule({
+        name: 'Invalid countries',
+        type: 'ip-ban',
+        enabled: true,
+        severity: 'warning',
+        channel_ids: [],
+        config: {
+          window_minutes: 30,
+          filters: { countries: ['USA'] },
+        },
+      }),
+    ).rejects.toThrow('Invalid country filter value: USA');
 
     database.close();
   });
@@ -273,52 +337,66 @@ describe('notification per-record incidents', () => {
       },
     });
 
-    insertAlert(database, createAlert(10, '2026-03-28T11:58:00.000Z', {
-      source: { ip: '10.0.0.10' },
-      events_count: 4,
-      machine_alias: 'gateway',
-    }));
-    insertAlert(database, createAlert(11, '2026-03-28T11:59:00.000Z', {
-      source: { ip: '192.0.2.10' },
-    }));
-    insertDecision(database, createDecision('decision-10', '2026-03-28T11:59:00.000Z', {
-      value: '10.0.0.20',
-    }));
-    insertDecision(database, createDecision('decision-simulated', '2026-03-28T11:59:30.000Z', {
-      value: '10.0.0.21',
-      simulated: true,
-    }));
+    insertAlert(
+      database,
+      createAlert(10, '2026-03-28T11:58:00.000Z', {
+        source: { ip: '10.0.0.10' },
+        events_count: 4,
+        machine_alias: 'gateway',
+      }),
+    );
+    insertAlert(
+      database,
+      createAlert(11, '2026-03-28T11:59:00.000Z', {
+        source: { ip: '192.0.2.10' },
+      }),
+    );
+    insertDecision(
+      database,
+      createDecision('decision-10', '2026-03-28T11:59:00.000Z', {
+        value: '10.0.0.20',
+      }),
+    );
+    insertDecision(
+      database,
+      createDecision('decision-simulated', '2026-03-28T11:59:30.000Z', {
+        value: '10.0.0.21',
+        simulated: true,
+      }),
+    );
 
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
     await service.evaluateRules(new Date('2026-03-28T12:01:00.000Z'));
 
     const notifications = service.listNotifications().data;
     expect(notifications).toHaveLength(2);
-    expect(notifications).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        rule_type: 'new-alert-decision',
-        title: 'New security activity: new alert',
-        message: expect.stringContaining('Alert #10'),
-        metadata: expect.objectContaining({
-          event_type: 'alert',
-          alert_id: '10',
-          source: '10.0.0.10',
-          machine: 'gateway',
-          events_count: 4,
+    expect(notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rule_type: 'new-alert-decision',
+          title: 'New security activity: new alert',
+          message: expect.stringContaining('Alert #10'),
+          metadata: expect.objectContaining({
+            event_type: 'alert',
+            alert_id: '10',
+            source: '10.0.0.10',
+            machine: 'gateway',
+            events_count: 4,
+          }),
         }),
-      }),
-      expect.objectContaining({
-        rule_type: 'new-alert-decision',
-        title: 'New security activity: new decision',
-        message: expect.stringContaining('Decision #decision-10'),
-        metadata: expect.objectContaining({
-          event_type: 'decision',
-          decision_id: 'decision-10',
-          value: '10.0.0.20',
-          type: 'ban',
+        expect.objectContaining({
+          rule_type: 'new-alert-decision',
+          title: 'New security activity: new decision',
+          message: expect.stringContaining('Decision #decision-10'),
+          metadata: expect.objectContaining({
+            event_type: 'decision',
+            decision_id: 'decision-10',
+            value: '10.0.0.20',
+            type: 'ban',
+          }),
         }),
-      }),
-    ]));
+      ]),
+    );
 
     for (const eventType of ['alert', 'decision'] as const) {
       await service.createRule({
@@ -360,9 +438,11 @@ describe('notification per-record incidents', () => {
         filters: { scenario: 'SsH', exclude_scenario: true },
       },
     });
-    expect(rule.config).toEqual(expect.objectContaining({
-      filters: expect.objectContaining({ scenario: 'SsH', exclude_scenario: true }),
-    }));
+    expect(rule.config).toEqual(
+      expect.objectContaining({
+        filters: expect.objectContaining({ scenario: 'SsH', exclude_scenario: true }),
+      }),
+    );
 
     insertAlert(database, createAlert(1, '2026-03-28T11:58:00.000Z'));
     insertAlert(database, createAlert(2, '2026-03-28T11:58:00.000Z', { scenario: 'crowdsecurity/http-bf' }));
@@ -374,11 +454,13 @@ describe('notification per-record incidents', () => {
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
     const notifications = service.listNotifications().data;
     expect(notifications).toHaveLength(4);
-    expect(notifications.map((item) => item.metadata.event_type === 'alert'
-      ? `alert:${item.metadata.alert_id}`
-      : `decision:${item.metadata.decision_id}`)).toEqual(
-      expect.arrayContaining(['alert:2', 'alert:3', 'decision:http', 'decision:none']),
-    );
+    expect(
+      notifications.map((item) =>
+        item.metadata.event_type === 'alert'
+          ? `alert:${item.metadata.alert_id}`
+          : `decision:${item.metadata.decision_id}`,
+      ),
+    ).toEqual(expect.arrayContaining(['alert:2', 'alert:3', 'decision:http', 'decision:none']));
 
     database.close();
   });
@@ -402,26 +484,34 @@ describe('notification per-record incidents', () => {
       },
     });
 
-    insertAlert(database, createAlert(7, '2026-03-28T11:58:00.000Z', {
-      instance_id: 'primary',
-      uuid: 'primary-alert-7',
-    }));
-    insertAlert(database, createAlert(7, '2026-03-28T11:59:00.000Z', {
-      instance_id: 'edge',
-      uuid: 'edge-alert-7',
-    }));
+    insertAlert(
+      database,
+      createAlert(7, '2026-03-28T11:58:00.000Z', {
+        instance_id: 'primary',
+        uuid: 'primary-alert-7',
+      }),
+    );
+    insertAlert(
+      database,
+      createAlert(7, '2026-03-28T11:59:00.000Z', {
+        instance_id: 'edge',
+        uuid: 'edge-alert-7',
+      }),
+    );
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
-    expect(service.listNotifications().data).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        title: '[Primary] New alerts: new alert',
-        metadata: expect.objectContaining({ instance_id: 'primary', instance_name: 'Primary', alert_id: '7' }),
-      }),
-      expect.objectContaining({
-        title: '[Edge] New alerts: new alert',
-        metadata: expect.objectContaining({ instance_id: 'edge', instance_name: 'Edge', alert_id: '7' }),
-      }),
-    ]));
+    expect(service.listNotifications().data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: '[Primary] New alerts: new alert',
+          metadata: expect.objectContaining({ instance_id: 'primary', instance_name: 'Primary', alert_id: '7' }),
+        }),
+        expect.objectContaining({
+          title: '[Edge] New alerts: new alert',
+          metadata: expect.objectContaining({ instance_id: 'edge', instance_name: 'Edge', alert_id: '7' }),
+        }),
+      ]),
+    );
     expect(service.listNotifications().data).toHaveLength(2);
 
     database.close();
@@ -430,21 +520,22 @@ describe('notification per-record incidents', () => {
   test('IP ban rules reject invalid IP and range filter values', async () => {
     const { database, service } = createService();
 
-    await expect(service.createRule({
-      name: 'Invalid bans',
-      type: 'ip-ban',
-      enabled: true,
-      severity: 'warning',
-      channel_ids: [],
-      config: {
-        window_minutes: 60,
-        filters: {
-          values: ['not-an-ip'],
+    await expect(
+      service.createRule({
+        name: 'Invalid bans',
+        type: 'ip-ban',
+        enabled: true,
+        severity: 'warning',
+        channel_ids: [],
+        config: {
+          window_minutes: 60,
+          filters: {
+            values: ['not-an-ip'],
+          },
         },
-      },
-    })).rejects.toThrow('Invalid IP/range filter value: not-an-ip');
+      }),
+    ).rejects.toThrow('Invalid IP/range filter value: not-an-ip');
 
     database.close();
   });
-
 });

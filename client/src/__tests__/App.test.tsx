@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import App from '../App';
 import { updateLanguagePreference } from '../lib/api';
 
@@ -48,7 +49,10 @@ describe('App lazy routes', () => {
         removeEventListener: vi.fn(),
       })),
     );
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ update_available: false })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ update_available: false })),
+    );
     window.history.pushState({}, '', '/');
   });
 

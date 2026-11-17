@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import type { StatsAlert, StatsDecision } from '../../types';
 import {
   filterLastNDays,

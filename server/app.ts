@@ -1,14 +1,12 @@
-import { StatisticsService } from './statistics-service';
-import { registerStatisticsRoutes } from './app/statistics-routes';
-import { PublishedRevisionLock } from './published-revision-lock';
 import fs from 'fs';
-import path from 'path';
 import crypto from 'node:crypto';
-import { isIP } from 'node:net';
-import { Hono } from 'hono';
-import { compress } from 'hono/compress';
-import { bodyLimit } from 'hono/body-limit';
+import path from 'path';
+
 import { serveStatic } from '@hono/node-server/serve-static';
+import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { compress } from 'hono/compress';
+
 import type {
   AlertRecord,
   BulkDeleteResult,
@@ -16,7 +14,6 @@ import type {
   FacetResponse,
   LapiStatus,
   SyncStatus,
-  UpdateCheckResponse,
 } from '../shared/contracts';
 import { resolveMachineName } from '../shared/machine';
 import { collectDistinctOrigins, normalizeOrigin } from '../shared/origin';
@@ -24,111 +21,17 @@ import {
   compileAlertSearch,
   compileDecisionSearch,
   getSearchFacetSelection,
-  matchesIpSearchValue,
   removeSearchField,
   serializeSearchNode,
-  type SearchNode,
-  type SearchParseError,
 } from '../shared/search';
-import { createRuntimeConfig, getIntervalName, parseLookbackToMs, parseRefreshInterval, type RuntimeConfig } from './config';
-import { getDateTimeKey, getTimeZoneOffsetMs, getZonedHourlyBucketKeys } from './utils/date-time';
-import {
-  CrowdsecDatabase,
-  getSqliteMaintenanceWarning,
-  type AlertInsertParams,
-  type DecisionInsertParams,
-} from './database';
-import {
-  ALERT_RECORD_COLUMNS,
-  DECISION_RECORD_COLUMNS,
-  alertFromRow,
-  alertMetadataFingerprint,
-  decisionFromRow,
-  type NormalizedAlertRow,
-  type NormalizedDecisionRow,
-} from './normalized-record';
-import { LapiClient } from './lapi';
 import { createDashboardAuth } from './app-auth';
-import { createAuditLogger } from './audit-log';
-import { createNotificationService } from './notifications';
-import type { MqttPublishConfig } from './notifications/mqtt-client';
-import { createNotificationOutboundGuard } from './notifications/outbound-guard';
-import { createNotificationSecretStore } from './notifications/secret-store';
-import { createUpdateChecker, type UpdateCheckOverrides, type UpdateChecker } from './update-check';
-import { createCrowdsecUpdateChecker, type CrowdsecUpdateChecker } from './crowdsec-update-check';
-import { getServerTranslator, normalizeLanguagePreference, saveLanguagePreference } from './i18n';
 import {
-  addDashboardAttackLocation,
-  dashboardAttackLocationData,
-  type DashboardAttackLocationAccumulator,
-} from './dashboard-locations';
-import { createAttackLocationResolver, type AttackLocationResolver } from './attack-location-geocoder';
-import { getAlertSourceValue, getAlertTargets, getAlertTargetSummary, resolveAlertHistoryAt, resolveAlertReason, resolveAlertScenario, toSlimAlert, withAlertTargetSummary } from './utils/alerts';
-import { parseGoDuration, toDuration } from './utils/duration';
-import { fetchCrowdsecMetrics, fetchCrowdsecMetricsSamples, summarizeCrowdsecMetrics } from './metrics';
-import { DatabaseQueryWorker, QueryWorkerTimeoutError } from './query-worker-client';
-import { registerApiRoutes } from './app/api-routes';
-import { registerSavedFilterRoutes } from './app/saved-filters';
+  createAllowlistService,
+  registerAllowlistRoutes,
+  type AllowlistService,
+} from './app/allowlists';
+import { manualDecisionScenariosOf, registerApiRoutes } from './app/api-routes';
 import { registerBrandingRoutes } from './app/branding-routes';
-import { createAllowlistService, registerAllowlistRoutes, type AllowlistService } from './app/allowlists';
-import { applyBrandingToIndexHtml, getPublicBranding, serializeBrandingForScript } from './branding';
-import { createQueryService } from './app/query-service';
-import { createDeletionService } from './app/deletion-service';
-import { createSyncService } from './app/sync-service';
-import {
-  DatabaseSyncWorker,
-  type AlertDecisionComparison,
-  type AlertDecisionComparisonResult,
-  type SyncAlertMutation,
-} from './sync-worker-client';
-import type {
-  DashboardStatsCache,
-  DashboardStatsFilters,
-} from './app/types';
-import {
-  loadManualDecisionScenarios,
-  loadMetricsSidebarVisible,
-  loadAllowlistsSidebarVisible,
-  loadStatisticsSidebarVisible,
-  loadPersistedConfig,
-  resolveNotificationSecretKey,
-  saveManualDecisionScenarios,
-  saveMetricsSidebarVisible,
-  saveAllowlistsSidebarVisible,
-  saveStatisticsSidebarVisible,
-  savePersistedConfig,
-} from './app/preferences';
-import {
-  applySimulationModeToAlert,
-  emptyAlertDecisionSummary,
-  isAlertSimulated,
-  lookbackHours,
-  markDuplicateDecisions,
-  normalizeAlertSimulated,
-  normalizeDecisionSimulated,
-  toDecisionListItem,
-} from './app/simulation';
-import {
-  getAlertListFilters,
-  getAlertListFiltersFromValues,
-  getDashboardStatsFilters,
-  getDecisionListFilters,
-  getDecisionListFiltersFromValues,
-  getFacetRequest,
-  getPageRequest,
-  getEffectiveRequestTimeZone,
-  getEffectiveRequestTimeZoneValue,
-  matchesAlertListFilters,
-  matchesDecisionListFilters,
-  parseRecordExtras,
-  readExtraString,
-  readExtraStringArray,
-  isDecisionListItemExpired,
-  toPaginatedResponse,
-  toSearchErrorResponse,
-  withoutAlertFacetFilter,
-  withoutDecisionFacetFilter,
-} from './app/request-parsing';
 import {
   addDashboardAlert,
   addDashboardAlertBuckets,
@@ -153,6 +56,43 @@ import {
   selectDashboardDecisionPrimary,
   topDashboardEntries,
 } from './app/dashboard-stats';
+import { createDeletionService } from './app/deletion-service';
+import {
+  loadManualDecisionScenarios,
+  loadMetricsSidebarVisible,
+  loadAllowlistsSidebarVisible,
+  loadStatisticsSidebarVisible,
+  loadPersistedConfig,
+  resolveNotificationSecretKey,
+  saveManualDecisionScenarios,
+  saveMetricsSidebarVisible,
+  saveAllowlistsSidebarVisible,
+  saveStatisticsSidebarVisible,
+  savePersistedConfig,
+} from './app/preferences';
+import { createQueryService } from './app/query-service';
+import {
+  getAlertListFilters,
+  getAlertListFiltersFromValues,
+  getDashboardStatsFilters,
+  getDecisionListFilters,
+  getDecisionListFiltersFromValues,
+  getFacetRequest,
+  getPageRequest,
+  getEffectiveRequestTimeZone,
+  getEffectiveRequestTimeZoneValue,
+  matchesAlertListFilters,
+  matchesDecisionListFilters,
+  parseRecordExtras,
+  readExtraString,
+  readExtraStringArray,
+  isDecisionListItemExpired,
+  toPaginatedResponse,
+  toSearchErrorResponse,
+  withoutAlertFacetFilter,
+  withoutDecisionFacetFilter,
+} from './app/request-parsing';
+import { registerSavedFilterRoutes } from './app/saved-filters';
 import {
   addIpCondition,
   addLike,
@@ -176,17 +116,78 @@ import {
   parseSqlSearchDateValue,
   targetFieldCondition,
 } from './app/search-sql';
+import {
+  applySimulationModeToAlert,
+  emptyAlertDecisionSummary,
+  isAlertSimulated,
+  lookbackHours,
+  markDuplicateDecisions,
+  normalizeAlertSimulated,
+  normalizeDecisionSimulated,
+  toDecisionListItem,
+} from './app/simulation';
+import { registerStatisticsRoutes } from './app/statistics-routes';
+import { createSyncService } from './app/sync-service';
+import type { DashboardStatsCache, DashboardStatsFilters } from './app/types';
+import {
+  createAttackLocationResolver,
+  type AttackLocationResolver,
+} from './attack-location-geocoder';
+import { createAuditLogger } from './audit-log';
+import {
+  applyBrandingToIndexHtml,
+  getPublicBranding,
+  serializeBrandingForScript,
+} from './branding';
+import {
+  createRuntimeConfig,
+  getIntervalName,
+  parseLookbackToMs,
+  parseRefreshInterval,
+  type RuntimeConfig,
+} from './config';
+import { createCrowdsecUpdateChecker, type CrowdsecUpdateChecker } from './crowdsec-update-check';
+import { addDashboardAttackLocation, dashboardAttackLocationData } from './dashboard-locations';
+import { CrowdsecDatabase, getSqliteMaintenanceWarning } from './database';
+import { getServerTranslator, normalizeLanguagePreference, saveLanguagePreference } from './i18n';
+import { LapiClient } from './lapi';
+import {
+  fetchCrowdsecMetrics,
+  fetchCrowdsecMetricsSamples,
+  summarizeCrowdsecMetrics,
+} from './metrics';
+import {
+  ALERT_RECORD_COLUMNS,
+  DECISION_RECORD_COLUMNS,
+  alertFromRow,
+  alertMetadataFingerprint,
+  decisionFromRow,
+} from './normalized-record';
+import { createNotificationService } from './notifications';
+import type { MqttPublishConfig } from './notifications/mqtt-client';
+import { createNotificationOutboundGuard } from './notifications/outbound-guard';
+import { createNotificationSecretStore } from './notifications/secret-store';
+import { PublishedRevisionLock } from './published-revision-lock';
+import { DatabaseQueryWorker, QueryWorkerTimeoutError } from './query-worker-client';
+import { StatisticsService } from './statistics-service';
+import { DatabaseSyncWorker } from './sync-worker-client';
+import { createUpdateChecker, type UpdateCheckOverrides, type UpdateChecker } from './update-check';
+import {
+  getAlertSourceValue,
+  getAlertTargets,
+  getAlertTargetSummary,
+  resolveAlertHistoryAt,
+  resolveAlertReason,
+  resolveAlertScenario,
+  toSlimAlert,
+  withAlertTargetSummary,
+} from './utils/alerts';
+import { getDateTimeKey, getTimeZoneOffsetMs, getZonedHourlyBucketKeys } from './utils/date-time';
+import { parseGoDuration, toDuration } from './utils/duration';
 
 type HonoContext = any;
 type HonoNext = any;
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
-type AnyError = Error & {
-  code?: string;
-  response?: { data?: unknown; status: number };
-  request?: unknown;
-  helpLink?: string;
-  helpText?: string;
-};
 
 const COMMON_FACET_FIELDS = [
   'id',
@@ -202,10 +203,14 @@ const COMMON_FACET_FIELDS = [
   'origin',
 ] as const;
 const ALERT_FACET_FIELDS = [...COMMON_FACET_FIELDS, 'kind', 'decision'] as const;
-const DECISION_FACET_FIELDS = [...COMMON_FACET_FIELDS, 'kind', 'alert', 'action', 'status'] as const;
-const FACET_DEFAULT_LIMIT = 10;
+const DECISION_FACET_FIELDS = [
+  ...COMMON_FACET_FIELDS,
+  'kind',
+  'alert',
+  'action',
+  'status',
+] as const;
 const FACET_MAX_LIMIT = 50;
-const FACET_MAX_OFFSET = 500;
 const FACET_CACHE_MAX_ENTRIES = 256;
 
 export interface CreateAppOptions {
@@ -239,7 +244,19 @@ export interface CreateAppOptions {
     | 'setMeta'
     | 'runExclusive'
     | 'close'
-  > & Partial<Pick<DatabaseSyncWorker, 'compareAlertDecisions' | 'runTransaction' | 'runIncrementalVacuum' | 'replaceAllowlists' | 'configureStatistics' | 'statisticsBatch' | 'acknowledgeStatistics'>>;
+  > &
+    Partial<
+      Pick<
+        DatabaseSyncWorker,
+        | 'compareAlertDecisions'
+        | 'runTransaction'
+        | 'runIncrementalVacuum'
+        | 'replaceAllowlists'
+        | 'configureStatistics'
+        | 'statisticsBatch'
+        | 'acknowledgeStatistics'
+      >
+    >;
   attackLocationResolver?: AttackLocationResolver;
 }
 
@@ -256,7 +273,9 @@ export interface AppController {
   getSyncStatus: () => SyncStatus;
   getLapiStatus: () => LapiStatus;
   getCacheLastUpdate: () => string | null;
-  subscribeCacheUpdates: (listener: (updatedAt: string, instanceIds: string[]) => void) => () => void;
+  subscribeCacheUpdates: (
+    listener: (updatedAt: string, instanceIds: string[]) => void,
+  ) => () => void;
 }
 
 const RECONCILE_WINDOW_STATE_META_KEY = 'alert_reconcile_window_state';
@@ -265,11 +284,6 @@ interface CacheState {
   isInitialized: boolean;
   isComplete: boolean;
   lastUpdate: string | null;
-}
-
-interface UpdateCache {
-  lastCheck: number;
-  data: UpdateCheckResponse | null;
 }
 
 interface SyncHistorySummary {
@@ -313,11 +327,13 @@ const API_BODY_LIMIT_BYTES = 1024 * 1024;
 // flash the light background while the app bundle loads. Mirrors
 // readStoredMode() in client/src/lib/theme.ts: a missing or unknown value means
 // "system". Runs as an inline script under the page's CSP nonce.
-export const THEME_BOOTSTRAP_SCRIPT = "(function(){try{var m=localStorage.getItem('theme');var d=m==='dark'||(m!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();";
-const delay = (ms: number): Promise<void> => new Promise((resolve) => {
-  if (ms === 0) setImmediate(resolve);
-  else setTimeout(resolve, ms);
-});
+export const THEME_BOOTSTRAP_SCRIPT =
+  "(function(){try{var m=localStorage.getItem('theme');var d=m==='dark'||(m!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();";
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    if (ms === 0) setImmediate(resolve);
+    else setTimeout(resolve, ms);
+  });
 const DASHBOARD_LOOP_YIELD_INTERVAL = 250;
 const DASHBOARD_INDEX_BATCH_SIZE = 250;
 // Keep worker-message overhead reasonable while bounding each transaction so
@@ -353,7 +369,10 @@ function getAlertFallbackOrigins(alert: Pick<AlertRecord, 'decisions' | 'source'
 }
 
 function countAlertDecisions(alerts: AlertRecord[]): number {
-  return alerts.reduce((total, alert) => total + (Array.isArray(alert.decisions) ? alert.decisions.length : 0), 0);
+  return alerts.reduce(
+    (total, alert) => total + (Array.isArray(alert.decisions) ? alert.decisions.length : 0),
+    0,
+  );
 }
 
 function formatElapsedTime(ms: number): string {
@@ -403,21 +422,28 @@ function readSingleQueryValue(value: string | string[] | undefined): string | un
 
 export function createApp(options: CreateAppOptions = {}): AppController {
   const config = options.config || createRuntimeConfig();
-  const database = options.database || new CrowdsecDatabase({
-    dataDir: config.dbDir,
-    cacheDir: config.dbCacheDir,
-    walEnabled: config.sqliteWalEnabled,
-    incrementalVacuumEnabled: config.sqliteIncrementalVacuumEnabled,
-    journalSizeLimitBytes: config.sqliteJournalSizeLimitBytes,
-  });
+  const database =
+    options.database ||
+    new CrowdsecDatabase({
+      dataDir: config.dbDir,
+      cacheDir: config.dbCacheDir,
+      walEnabled: config.sqliteWalEnabled,
+      incrementalVacuumEnabled: config.sqliteIncrementalVacuumEnabled,
+      journalSizeLimitBytes: config.sqliteJournalSizeLimitBytes,
+    });
   if (config.sqliteIncrementalVacuumEnabled && !database.wasFresh) {
     const warning = getSqliteMaintenanceWarning(database.getStorageStats());
     if (warning) console.warn(warning);
   }
-  if (config.instances.length > 1 && database.getMeta('multi_instance_cache_schema_ready')?.value !== 'true') {
+  if (
+    config.instances.length > 1 &&
+    database.getMeta('multi_instance_cache_schema_ready')?.value !== 'true'
+  ) {
     const pendingDeletions = database.getPendingAlertDeletions();
     if (pendingDeletions.length > 0) {
-      throw new Error(`Cannot enable multi-instance mode while ${pendingDeletions.length} durable alert deletion job(s) remain unresolved.`);
+      throw new Error(
+        `Cannot enable multi-instance mode while ${pendingDeletions.length} durable alert deletion job(s) remain unresolved.`,
+      );
     }
     database.clearSyncData();
     database.setMeta(RECONCILE_WINDOW_STATE_META_KEY, '[]');
@@ -429,7 +455,9 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     const key = `crowdsec_instance_url:${instance.id}`;
     const previousUrl = database.getMeta(key)?.value;
     if (previousUrl && previousUrl !== instance.lapiUrl) {
-      console.warn(`CrowdSec instance "${instance.id}" changed URL from ${previousUrl} to ${instance.lapiUrl}. Verify that the immutable ID still represents the same LAPI.`);
+      console.warn(
+        `CrowdSec instance "${instance.id}" changed URL from ${previousUrl} to ${instance.lapiUrl}. Verify that the immutable ID still represents the same LAPI.`,
+      );
     }
     database.setMeta(key, instance.lapiUrl);
   }
@@ -437,68 +465,91 @@ export function createApp(options: CreateAppOptions = {}): AppController {
   if (options.lapiClient) configuredLapiClients.set(primaryInstance.id, options.lapiClient);
   for (const instance of config.instances) {
     if (configuredLapiClients.has(instance.id)) continue;
-    configuredLapiClients.set(instance.id, new LapiClient({
-      crowdsecUrl: instance.lapiUrl,
-      auth: instance.lapiAuth,
-      tls: instance.lapiTls,
-      simulationsEnabled: config.simulationsEnabled,
-      lookbackPeriod: instance.sync.lookbackPeriod || config.lookbackPeriod,
-      requestTimeoutMs: instance.sync.requestTimeoutMs || config.lapiRequestTimeoutMs,
-      version: config.version,
-    }));
+    configuredLapiClients.set(
+      instance.id,
+      new LapiClient({
+        crowdsecUrl: instance.lapiUrl,
+        auth: instance.lapiAuth,
+        tls: instance.lapiTls,
+        simulationsEnabled: config.simulationsEnabled,
+        lookbackPeriod: instance.sync.lookbackPeriod || config.lookbackPeriod,
+        requestTimeoutMs: instance.sync.requestTimeoutMs || config.lapiRequestTimeoutMs,
+        version: config.version,
+      }),
+    );
   }
   const lapiClients = configuredLapiClients;
-  const lapiClient = lapiClients.get(primaryInstance.id) || new LapiClient({
-    crowdsecUrl: primaryInstance.lapiUrl,
-    auth: primaryInstance.lapiAuth,
-    tls: primaryInstance.lapiTls,
-    simulationsEnabled: config.simulationsEnabled,
-    lookbackPeriod: config.lookbackPeriod,
-    requestTimeoutMs: config.lapiRequestTimeoutMs,
-    version: config.version,
-  });
-  const checkForUpdates = options.updateChecker || createUpdateChecker({
-    dockerImageRef: config.dockerImageRef,
-    branch: config.branch,
-    commitHash: config.commitHash,
-    version: config.version,
-    enabled: config.updateCheckEnabled,
-  });
-  const checkCrowdsecUpdates = options.crowdsecUpdateChecker || createCrowdsecUpdateChecker({
-    instances: config.instances,
-    prometheusTimeoutMs: config.prometheusRequestTimeoutMs,
-    metricsFetchImpl: options.metricsFetchImpl,
-  });
-  const notificationSecretKey = resolveNotificationSecretKey(database, config.notificationSecretKey);
+  const lapiClient =
+    lapiClients.get(primaryInstance.id) ||
+    new LapiClient({
+      crowdsecUrl: primaryInstance.lapiUrl,
+      auth: primaryInstance.lapiAuth,
+      tls: primaryInstance.lapiTls,
+      simulationsEnabled: config.simulationsEnabled,
+      lookbackPeriod: config.lookbackPeriod,
+      requestTimeoutMs: config.lapiRequestTimeoutMs,
+      version: config.version,
+    });
+  const checkForUpdates =
+    options.updateChecker ||
+    createUpdateChecker({
+      dockerImageRef: config.dockerImageRef,
+      branch: config.branch,
+      commitHash: config.commitHash,
+      version: config.version,
+      enabled: config.updateCheckEnabled,
+    });
+  const checkCrowdsecUpdates =
+    options.crowdsecUpdateChecker ||
+    createCrowdsecUpdateChecker({
+      instances: config.instances,
+      prometheusTimeoutMs: config.prometheusRequestTimeoutMs,
+      metricsFetchImpl: options.metricsFetchImpl,
+    });
+  const notificationSecretKey = resolveNotificationSecretKey(
+    database,
+    config.notificationSecretKey,
+  );
   const notificationSecretStore = createNotificationSecretStore(notificationSecretKey);
   const notificationOutboundGuard = createNotificationOutboundGuard({
     allowPrivateAddresses: config.notificationAllowPrivateAddresses,
   });
-  const queryWorker = options.queryWorker || new DatabaseQueryWorker({
-    dbPath: database.cachePath,
-    timeoutMs: config.dbQueryTimeoutMs,
-  });
-  const analyticsQueryWorker = options.analyticsQueryWorker
-    || (options.queryWorker ? queryWorker : new DatabaseQueryWorker({
+  const queryWorker =
+    options.queryWorker ||
+    new DatabaseQueryWorker({
       dbPath: database.cachePath,
-      timeoutMs: config.dbAnalyticsQueryTimeoutMs,
-      queueTimeoutMs: 30_000,
+      timeoutMs: config.dbQueryTimeoutMs,
+    });
+  const analyticsQueryWorker =
+    options.analyticsQueryWorker ||
+    (options.queryWorker
+      ? queryWorker
+      : new DatabaseQueryWorker({
+          dbPath: database.cachePath,
+          timeoutMs: config.dbAnalyticsQueryTimeoutMs,
+          queueTimeoutMs: 30_000,
+          maxWorkers: 1,
+        }));
+  const facetQueryWorker =
+    options.facetQueryWorker ||
+    new DatabaseQueryWorker({
+      dbPath: database.cachePath,
+      timeoutMs: 5_000,
       maxWorkers: 1,
-    }));
-  const facetQueryWorker = options.facetQueryWorker || new DatabaseQueryWorker({
-    dbPath: database.cachePath,
-    timeoutMs: 5_000,
-    maxWorkers: 1,
-  });
-  const syncWorker = options.syncWorker || new DatabaseSyncWorker({
-    dbPath: database.cachePath,
-    walEnabled: config.sqliteWalEnabled,
-    incrementalVacuumEnabled: config.sqliteIncrementalVacuumEnabled,
-    journalSizeLimitBytes: config.sqliteJournalSizeLimitBytes,
-  });
-  const attackLocationResolver = options.attackLocationResolver || createAttackLocationResolver({
-    dumpDirectory: config.geonamesDumpDir,
-  });
+    });
+  const syncWorker =
+    options.syncWorker ||
+    new DatabaseSyncWorker({
+      dbPath: database.cachePath,
+      walEnabled: config.sqliteWalEnabled,
+      incrementalVacuumEnabled: config.sqliteIncrementalVacuumEnabled,
+      journalSizeLimitBytes: config.sqliteJournalSizeLimitBytes,
+    });
+  const attackLocationResolver =
+    options.attackLocationResolver ||
+    createAttackLocationResolver({
+      dumpDirectory: config.geonamesDumpDir,
+    });
   const notificationService = createNotificationService({
     database,
     queryWorker,
@@ -508,13 +559,16 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     updateChecker: checkForUpdates,
     crowdsecUpdateChecker: checkCrowdsecUpdates,
     getLapiStatus: () => lapiClient.getStatus(),
-    ...(config.instances.length > 1 ? {
-      getLapiStatuses: () => config.instances.map((instance) => ({
-        instanceId: instance.id,
-        instanceName: instance.name,
-        status: lapiClients.get(instance.id)!.getStatus(),
-      })),
-    } : {}),
+    ...(config.instances.length > 1
+      ? {
+          getLapiStatuses: () =>
+            config.instances.map((instance) => ({
+              instanceId: instance.id,
+              instanceName: instance.name,
+              status: lapiClients.get(instance.id)!.getStatus(),
+            })),
+        }
+      : {}),
     outboundGuard: notificationOutboundGuard,
     hostname: config.hostname,
     secretStore: notificationSecretStore,
@@ -564,12 +618,27 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     state: 'idle',
     errors: [],
   };
-  const instanceSyncStatuses = new Map(config.instances.map((instance) => [instance.id, instance.id === primaryInstance.id
-    ? syncStatus
-    : ({ isSyncing: false, progress: 0, message: '', startedAt: null, completedAt: null, state: 'idle', errors: [] } satisfies SyncStatus)]));
+  const instanceSyncStatuses = new Map(
+    config.instances.map((instance) => [
+      instance.id,
+      instance.id === primaryInstance.id
+        ? syncStatus
+        : ({
+            isSyncing: false,
+            progress: 0,
+            message: '',
+            startedAt: null,
+            completedAt: null,
+            state: 'idle',
+            errors: [],
+          } satisfies SyncStatus),
+    ]),
+  );
 
   function aggregateLapiStatus(): 'healthy' | 'partial' | 'offline' {
-    const connected = config.instances.filter((instance) => lapiClients.get(instance.id)?.getStatus().isConnected).length;
+    const connected = config.instances.filter(
+      (instance) => lapiClients.get(instance.id)?.getStatus().isConnected,
+    ).length;
     if (connected === config.instances.length) return 'healthy';
     return connected > 0 ? 'partial' : 'offline';
   }
@@ -578,7 +647,9 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     return config.instances.find((instance) => instance.id === instanceId)?.name || instanceId;
   }
 
-  function withInstanceName<T extends { instance_id?: string; instance_name?: string }>(record: T): T {
+  function withInstanceName<T extends { instance_id?: string; instance_name?: string }>(
+    record: T,
+  ): T {
     const instanceId = record.instance_id || primaryInstance.id;
     return { ...record, instance_id: instanceId, instance_name: instanceName(instanceId) };
   }
@@ -589,14 +660,23 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     lastUpdate: options.initialCacheState?.lastUpdate ?? null,
   };
   const statistics = new StatisticsService({
-    config, database, sync: syncWorker, ready: () => cache.isInitialized,
-    complete: () => cache.isComplete && ![...instanceSyncStatuses.values()].some((status) => status.state === 'partial' || status.state === 'failed'),
+    config,
+    database,
+    sync: syncWorker,
+    ready: () => cache.isInitialized,
+    complete: () =>
+      cache.isComplete &&
+      ![...instanceSyncStatuses.values()].some(
+        (status) => status.state === 'partial' || status.state === 'failed',
+      ),
     busy: () => [...instanceSyncStatuses.values()].some((status) => status.isSyncing),
   });
-  const instanceLastUpdates = new Map(config.instances.map((instance) => [
-    instance.id,
-    instance.id === primaryInstance.id ? cache.lastUpdate : null,
-  ]));
+  const instanceLastUpdates = new Map(
+    config.instances.map((instance) => [
+      instance.id,
+      instance.id === primaryInstance.id ? cache.lastUpdate : null,
+    ]),
+  );
   // Keep the LAPI cursor separate from the timestamp exposed to clients. The
   // cursor marks the authoritative end of the fetched window, while this value
   // only advances after all post-import maintenance is complete and the new
@@ -639,8 +719,12 @@ export function createApp(options: CreateAppOptions = {}): AppController {
 
   const persistedConfig = loadPersistedConfig(database);
   // Values set by the application config win over values saved in Settings.
-  const savedRefreshIntervalMs = config.refreshIntervalManaged ? undefined : persistedConfig.refresh_interval_ms;
-  const savedManualRefreshEnabled = config.manualRefreshEnabledManaged ? undefined : persistedConfig.manual_refresh_enabled;
+  const savedRefreshIntervalMs = config.refreshIntervalManaged
+    ? undefined
+    : persistedConfig.refresh_interval_ms;
+  const savedManualRefreshEnabled = config.manualRefreshEnabledManaged
+    ? undefined
+    : persistedConfig.manual_refresh_enabled;
   let refreshIntervalMs = savedRefreshIntervalMs ?? config.refreshIntervalMs;
   let manualRefreshEnabled = savedManualRefreshEnabled ?? config.manualRefreshEnabled;
   // The config endpoint stays available while a fresh cache builds its large
@@ -656,26 +740,30 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     ? config.statisticsSidebarVisible
     : loadStatisticsSidebarVisible(database);
   let manualDecisionScenarios = loadManualDecisionScenarios(database);
-  const reconcileConfigFingerprint = crypto.createHash('sha256').update(JSON.stringify({
-    lookbackMs: config.lookbackMs,
-    reconcileWindowMs: config.reconcileWindowMs,
-    alertFilterMode: config.alertFilterMode,
-    alertIncludeOrigins: config.alertIncludeOrigins,
-    alertExcludeOrigins: config.alertExcludeOrigins,
-    alertIncludeCapi: config.alertIncludeCapi,
-    alertIncludeOriginEmpty: config.alertIncludeOriginEmpty,
-    alertExcludeOriginEmpty: config.alertExcludeOriginEmpty,
-    legacyAlertOrigins: config.legacyAlertOrigins,
-    legacyAlertExtraScenarios: config.legacyAlertExtraScenarios,
-    simulationsEnabled: config.simulationsEnabled,
-  })).digest('hex');
+  const reconcileConfigFingerprint = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify({
+        lookbackMs: config.lookbackMs,
+        reconcileWindowMs: config.reconcileWindowMs,
+        alertFilterMode: config.alertFilterMode,
+        alertIncludeOrigins: config.alertIncludeOrigins,
+        alertExcludeOrigins: config.alertExcludeOrigins,
+        alertIncludeCapi: config.alertIncludeCapi,
+        alertIncludeOriginEmpty: config.alertIncludeOriginEmpty,
+        alertExcludeOriginEmpty: config.alertExcludeOriginEmpty,
+        legacyAlertOrigins: config.legacyAlertOrigins,
+        legacyAlertExtraScenarios: config.legacyAlertExtraScenarios,
+        simulationsEnabled: config.simulationsEnabled,
+      }),
+    )
+    .digest('hex');
   // Every instance reconciles its own LAPI windows. LAPI filters alerts by
   // started_at, so long-running buckets are created after the delta cursor
   // has already passed their start and only a window reconcile finds them.
-  const reconcileWindowStates = new Map(config.instances.map((instance) => [
-    instance.id,
-    loadReconcileWindowState(instance.id),
-  ]));
+  const reconcileWindowStates = new Map(
+    config.instances.map((instance) => [instance.id, loadReconcileWindowState(instance.id)]),
+  );
   let initializationPromise: Promise<SyncHistorySummary | null> | null = null;
   const initialHistorySyncs = new Set(config.instances.map((instance) => instance.id));
   let lastRequestTime = Date.now();
@@ -700,16 +788,18 @@ export function createApp(options: CreateAppOptions = {}): AppController {
   const maxConcurrentInstanceNetworkSyncs = 2;
 
   function aggregateHistoricalSyncStatus(): SyncStatus {
-    if (config.instances.length === 1) return { ...syncStatus, allowlists: allowlistService?.getSyncProgress(primaryInstance.id) };
+    if (config.instances.length === 1)
+      return { ...syncStatus, allowlists: allowlistService?.getSyncProgress(primaryInstance.id) };
 
     const instances = config.instances.map((instance) => {
       const status = instanceSyncStatuses.get(instance.id) || syncStatus;
       const waiting = historicalInstanceSyncPending.has(instance.id) && !status.isSyncing;
-      const primaryCacheReady = instance.id === primaryInstance.id
-        && !historicalInstanceSyncPending.has(instance.id)
-        && !status.isSyncing
-        && cache.isInitialized
-        && status.state === 'idle';
+      const primaryCacheReady =
+        instance.id === primaryInstance.id &&
+        !historicalInstanceSyncPending.has(instance.id) &&
+        !status.isSyncing &&
+        cache.isInitialized &&
+        status.state === 'idle';
       return {
         instance_id: instance.id,
         instance_name: instance.name,
@@ -719,15 +809,19 @@ export function createApp(options: CreateAppOptions = {}): AppController {
         message: waiting ? '' : status.message,
         startedAt: waiting ? null : status.startedAt,
         completedAt: waiting ? null : primaryCacheReady ? cache.lastUpdate : status.completedAt,
-        state: waiting ? 'idle' as const : primaryCacheReady ? 'complete' as const : status.state,
+        state: waiting
+          ? ('idle' as const)
+          : primaryCacheReady
+            ? ('complete' as const)
+            : status.state,
         errors: [...(status.errors || [])],
         allowlists: allowlistService?.getSyncProgress(instance.id),
       };
     });
     const isSyncing = syncStatus.isSyncing || historicalInstanceSyncPending.size > 0;
-    const errors = instances.flatMap((instance) => (instance.errors || []).map(
-      (error) => `${instance.instance_name}: ${error}`,
-    ));
+    const errors = instances.flatMap((instance) =>
+      (instance.errors || []).map((error) => `${instance.instance_name}: ${error}`),
+    );
     const settledStates = instances.map((instance) => instance.state);
     const completedAtValues = instances
       .map((instance) => instance.completedAt)
@@ -747,7 +841,9 @@ export function createApp(options: CreateAppOptions = {}): AppController {
 
     return {
       isSyncing,
-      progress: Math.round(instances.reduce((total, instance) => total + instance.progress, 0) / instances.length),
+      progress: Math.round(
+        instances.reduce((total, instance) => total + instance.progress, 0) / instances.length,
+      ),
       message: isSyncing ? '' : syncStatus.message,
       startedAt: startedAtValues.sort()[0] || null,
       completedAt: isSyncing ? null : completedAtValues.sort().at(-1) || null,
@@ -788,10 +884,13 @@ export function createApp(options: CreateAppOptions = {}): AppController {
       requestTimeoutMs: instance.sync.requestTimeoutMs ?? config.lapiRequestTimeoutMs,
       reconcileWindowMs: instance.sync.reconcileWindowMs ?? config.reconcileWindowMs,
       reconcileRecentAgeMs: instance.sync.reconcileRecentAgeMs ?? config.reconcileRecentAgeMs,
-      reconcileRecentIntervalMs: instance.sync.reconcileRecentIntervalMs ?? config.reconcileRecentIntervalMs,
-      reconcileActiveIntervalMs: instance.sync.reconcileActiveIntervalMs ?? config.reconcileActiveIntervalMs,
+      reconcileRecentIntervalMs:
+        instance.sync.reconcileRecentIntervalMs ?? config.reconcileRecentIntervalMs,
+      reconcileActiveIntervalMs:
+        instance.sync.reconcileActiveIntervalMs ?? config.reconcileActiveIntervalMs,
       reconcileOldIntervalMs: instance.sync.reconcileOldIntervalMs ?? config.reconcileOldIntervalMs,
-      reconcileWindowsPerRefresh: instance.sync.reconcileWindowsPerRefresh ?? config.reconcileWindowsPerRefresh,
+      reconcileWindowsPerRefresh:
+        instance.sync.reconcileWindowsPerRefresh ?? config.reconcileWindowsPerRefresh,
     };
   }
 
@@ -820,7 +919,10 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     return current;
   }
 
-  function setReconcileWindowState(nextState: ReconcileWindowState, instanceId = primaryInstance.id): void {
+  function setReconcileWindowState(
+    nextState: ReconcileWindowState,
+    instanceId = primaryInstance.id,
+  ): void {
     reconcileWindowStates.set(instanceId, nextState);
   }
 
@@ -830,11 +932,11 @@ export function createApp(options: CreateAppOptions = {}): AppController {
       if (!value) return emptyReconcileWindowState();
       const parsed = JSON.parse(value) as Partial<ReconcileWindowState>;
       if (
-        parsed.version !== 1
-        || parsed.configFingerprint !== reconcileConfigFingerprint
-        || typeof parsed.headLastSuccess !== 'number'
-        || !parsed.windows
-        || typeof parsed.windows !== 'object'
+        parsed.version !== 1 ||
+        parsed.configFingerprint !== reconcileConfigFingerprint ||
+        typeof parsed.headLastSuccess !== 'number' ||
+        !parsed.windows ||
+        typeof parsed.windows !== 'object'
       ) {
         return emptyReconcileWindowState();
       }
@@ -905,13 +1007,25 @@ export function createApp(options: CreateAppOptions = {}): AppController {
 
   const queryServiceState = {
     facetResponseCache,
-    get facetCacheVersion() { return facetCacheVersion; },
-    set facetCacheVersion(value: number) { facetCacheVersion = value; },
+    get facetCacheVersion() {
+      return facetCacheVersion;
+    },
+    set facetCacheVersion(value: number) {
+      facetCacheVersion = value;
+    },
     dashboardStatsCaches,
-    get dashboardStatsCacheVersion() { return dashboardStatsCacheVersion; },
-    set dashboardStatsCacheVersion(value: number) { dashboardStatsCacheVersion = value; },
-    get dashboardStatsResponseVersion() { return dashboardStatsResponseVersion; },
-    set dashboardStatsResponseVersion(value: number) { dashboardStatsResponseVersion = value; },
+    get dashboardStatsCacheVersion() {
+      return dashboardStatsCacheVersion;
+    },
+    set dashboardStatsCacheVersion(value: number) {
+      dashboardStatsCacheVersion = value;
+    },
+    get dashboardStatsResponseVersion() {
+      return dashboardStatsResponseVersion;
+    },
+    set dashboardStatsResponseVersion(value: number) {
+      dashboardStatsResponseVersion = value;
+    },
     dashboardStatsScopeVersions,
     dashboardStatsReadyPublishedKeys,
     dashboardStatsResponseCache,
@@ -919,10 +1033,18 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     staleDashboardStatsResponseCache,
     dashboardStatsIndexPromises,
     dashboardStatsResponsePromises,
-    get cacheRefreshCompletedAt() { return cacheRefreshCompletedAt; },
-    get lastDashboardStatsFilters() { return lastDashboardStatsFilters; },
-    get lastDashboardStatsRequestedAt() { return lastDashboardStatsRequestedAt; },
-    get refreshIntervalMs() { return refreshIntervalMs; },
+    get cacheRefreshCompletedAt() {
+      return cacheRefreshCompletedAt;
+    },
+    get lastDashboardStatsFilters() {
+      return lastDashboardStatsFilters;
+    },
+    get lastDashboardStatsRequestedAt() {
+      return lastDashboardStatsRequestedAt;
+    },
+    get refreshIntervalMs() {
+      return refreshIntervalMs;
+    },
   };
   const {
     hydrateAlertWithDecisions,
@@ -1052,19 +1174,38 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     FACET_MAX_LIMIT,
   });
 
+  // Assigned once after the closures below capture the binding.
+  // oxlint-disable-next-line prefer-const
   let syncService: any;
   // Created after the sync service, whose refreshes also refresh cached allowlists.
+  // oxlint-disable-next-line prefer-const
   let allowlistService: AllowlistService;
 
   const deletionServiceState = {
-    get pendingAlertDeletionTimeout() { return pendingAlertDeletionTimeout; },
-    set pendingAlertDeletionTimeout(value: ReturnType<typeof setTimeout> | null) { pendingAlertDeletionTimeout = value; },
-    get pendingAlertDeletionPromise() { return pendingAlertDeletionPromise; },
-    set pendingAlertDeletionPromise(value: Promise<void> | null) { pendingAlertDeletionPromise = value; },
-    get pendingAlertDeletionRerunRequested() { return pendingAlertDeletionRerunRequested; },
-    set pendingAlertDeletionRerunRequested(value: boolean) { pendingAlertDeletionRerunRequested = value; },
-    get pendingAlertDeletionStopped() { return pendingAlertDeletionStopped; },
-    set pendingAlertDeletionStopped(value: boolean) { pendingAlertDeletionStopped = value; },
+    get pendingAlertDeletionTimeout() {
+      return pendingAlertDeletionTimeout;
+    },
+    set pendingAlertDeletionTimeout(value: ReturnType<typeof setTimeout> | null) {
+      pendingAlertDeletionTimeout = value;
+    },
+    get pendingAlertDeletionPromise() {
+      return pendingAlertDeletionPromise;
+    },
+    set pendingAlertDeletionPromise(value: Promise<void> | null) {
+      pendingAlertDeletionPromise = value;
+    },
+    get pendingAlertDeletionRerunRequested() {
+      return pendingAlertDeletionRerunRequested;
+    },
+    set pendingAlertDeletionRerunRequested(value: boolean) {
+      pendingAlertDeletionRerunRequested = value;
+    },
+    get pendingAlertDeletionStopped() {
+      return pendingAlertDeletionStopped;
+    },
+    set pendingAlertDeletionStopped(value: boolean) {
+      pendingAlertDeletionStopped = value;
+    },
   };
   const {
     normalizeDeleteIds,
@@ -1105,35 +1246,89 @@ export function createApp(options: CreateAppOptions = {}): AppController {
   });
 
   const syncServiceState = {
-    get stopped() { return stopped; },
+    get stopped() {
+      return stopped;
+    },
     getReconcileWindowState,
     setReconcileWindowState,
-    get initializationPromise() { return initializationPromise; },
-    set initializationPromise(value: Promise<SyncHistorySummary | null> | null) { initializationPromise = value; },
-    get cacheRefreshCompletedAt() { return cacheRefreshCompletedAt; },
-    set cacheRefreshCompletedAt(value: string | null) { cacheRefreshCompletedAt = value; },
-    get cacheRefreshPromise() { return cacheRefreshPromise; },
-    set cacheRefreshPromise(value: Promise<void> | null) { cacheRefreshPromise = value; },
-    get bootstrapRetryTimeout() { return bootstrapRetryTimeout; },
-    set bootstrapRetryTimeout(value: ReturnType<typeof setTimeout> | null) { bootstrapRetryTimeout = value; },
-    get bootstrapPromise() { return bootstrapPromise; },
-    set bootstrapPromise(value: Promise<boolean> | null) { bootstrapPromise = value; },
-    get bootstrapSource() { return bootstrapSource; },
-    set bootstrapSource(value: string | null) { bootstrapSource = value; },
-    get bootstrapWaitLogged() { return bootstrapWaitLogged; },
-    set bootstrapWaitLogged(value: boolean) { bootstrapWaitLogged = value; },
-    get lastRequestTime() { return lastRequestTime; },
-    set lastRequestTime(value: number) { lastRequestTime = value; },
-    get schedulerTimeout() { return schedulerTimeout; },
-    set schedulerTimeout(value: ReturnType<typeof setTimeout> | null) { schedulerTimeout = value; },
-    get nextRefreshAt() { return nextRefreshAt; },
-    set nextRefreshAt(value: string | null) { nextRefreshAt = value; },
-    get isSchedulerRunning() { return isSchedulerRunning; },
-    set isSchedulerRunning(value: boolean) { isSchedulerRunning = value; },
-    get activeInstanceNetworkSyncs() { return activeInstanceNetworkSyncs; },
-    set activeInstanceNetworkSyncs(value: number) { activeInstanceNetworkSyncs = value; },
-    get refreshIntervalMs() { return refreshIntervalMs; },
-    set refreshIntervalMs(value: number) { refreshIntervalMs = value; },
+    get initializationPromise() {
+      return initializationPromise;
+    },
+    set initializationPromise(value: Promise<SyncHistorySummary | null> | null) {
+      initializationPromise = value;
+    },
+    get cacheRefreshCompletedAt() {
+      return cacheRefreshCompletedAt;
+    },
+    set cacheRefreshCompletedAt(value: string | null) {
+      cacheRefreshCompletedAt = value;
+    },
+    get cacheRefreshPromise() {
+      return cacheRefreshPromise;
+    },
+    set cacheRefreshPromise(value: Promise<void> | null) {
+      cacheRefreshPromise = value;
+    },
+    get bootstrapRetryTimeout() {
+      return bootstrapRetryTimeout;
+    },
+    set bootstrapRetryTimeout(value: ReturnType<typeof setTimeout> | null) {
+      bootstrapRetryTimeout = value;
+    },
+    get bootstrapPromise() {
+      return bootstrapPromise;
+    },
+    set bootstrapPromise(value: Promise<boolean> | null) {
+      bootstrapPromise = value;
+    },
+    get bootstrapSource() {
+      return bootstrapSource;
+    },
+    set bootstrapSource(value: string | null) {
+      bootstrapSource = value;
+    },
+    get bootstrapWaitLogged() {
+      return bootstrapWaitLogged;
+    },
+    set bootstrapWaitLogged(value: boolean) {
+      bootstrapWaitLogged = value;
+    },
+    get lastRequestTime() {
+      return lastRequestTime;
+    },
+    set lastRequestTime(value: number) {
+      lastRequestTime = value;
+    },
+    get schedulerTimeout() {
+      return schedulerTimeout;
+    },
+    set schedulerTimeout(value: ReturnType<typeof setTimeout> | null) {
+      schedulerTimeout = value;
+    },
+    get nextRefreshAt() {
+      return nextRefreshAt;
+    },
+    set nextRefreshAt(value: string | null) {
+      nextRefreshAt = value;
+    },
+    get isSchedulerRunning() {
+      return isSchedulerRunning;
+    },
+    set isSchedulerRunning(value: boolean) {
+      isSchedulerRunning = value;
+    },
+    get activeInstanceNetworkSyncs() {
+      return activeInstanceNetworkSyncs;
+    },
+    set activeInstanceNetworkSyncs(value: number) {
+      activeInstanceNetworkSyncs = value;
+    },
+    get refreshIntervalMs() {
+      return refreshIntervalMs;
+    },
+    set refreshIntervalMs(value: number) {
+      refreshIntervalMs = value;
+    },
   };
   syncService = createSyncService({
     state: syncServiceState,
@@ -1212,7 +1407,6 @@ export function createApp(options: CreateAppOptions = {}): AppController {
   });
   const {
     runNotificationEvaluation,
-    syncHistory,
     syncAlertWindow,
     planDueReconcileWindows,
     recordReconcileWindowSuccess,
@@ -1253,19 +1447,28 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     }
     const pathname = new URL(context.req.url).pathname;
     const apiPrefix = `${config.basePath}/api/`;
-    if ((pathname.startsWith(apiPrefix) || pathname === `${config.basePath}/api`) && !context.res.headers.has('Cache-Control')) {
+    if (
+      (pathname.startsWith(apiPrefix) || pathname === `${config.basePath}/api`) &&
+      !context.res.headers.has('Cache-Control')
+    ) {
       context.header('Cache-Control', 'private, no-store');
       context.header('Pragma', 'no-cache');
       context.header('Expires', '0');
     }
   });
 
-  app.use(`${config.basePath}/api/*`, bodyLimit({
-    maxSize: API_BODY_LIMIT_BYTES,
-    onError: (context) => context.json({ error: 'Request body is too large' }, 413),
-  }));
+  app.use(
+    `${config.basePath}/api/*`,
+    bodyLimit({
+      maxSize: API_BODY_LIMIT_BYTES,
+      onError: (context) => context.json({ error: 'Request body is too large' }, 413),
+    }),
+  );
   app.use(`${config.basePath}/api/*`, async (context, next) => {
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(context.req.method) && !isRequestOriginAllowed(context)) {
+    if (
+      !['GET', 'HEAD', 'OPTIONS'].includes(context.req.method) &&
+      !isRequestOriginAllowed(context)
+    ) {
       return context.json({ error: 'Cross-origin request rejected' }, 403);
     }
     await next();
@@ -1319,33 +1522,77 @@ export function createApp(options: CreateAppOptions = {}): AppController {
   };
 
   const apiRouteState = {
-    get refreshIntervalMs() { return refreshIntervalMs; },
-    set refreshIntervalMs(value: number) { refreshIntervalMs = value; },
-    get manualRefreshEnabled() { return manualRefreshEnabled; },
-    set manualRefreshEnabled(value: boolean) { manualRefreshEnabled = value; },
-    get metricsSidebarVisible() { return metricsSidebarVisible; },
-    set metricsSidebarVisible(value: boolean) { metricsSidebarVisible = value; },
-    get allowlistsSidebarVisible() { return allowlistsSidebarVisible; },
-    set allowlistsSidebarVisible(value: boolean) { allowlistsSidebarVisible = value; },
-    get statisticsSidebarVisible() { return statisticsSidebarVisible; },
-    set statisticsSidebarVisible(value: boolean) { statisticsSidebarVisible = value; },
-    get manualDecisionScenarios() { return manualDecisionScenarios; },
-    set manualDecisionScenarios(value: string[]) { manualDecisionScenarios = value; },
-    get cacheRefreshCompletedAt() { return cacheRefreshCompletedAt; },
-    set cacheRefreshCompletedAt(value: string | null) { cacheRefreshCompletedAt = value; },
+    get refreshIntervalMs() {
+      return refreshIntervalMs;
+    },
+    set refreshIntervalMs(value: number) {
+      refreshIntervalMs = value;
+    },
+    get manualRefreshEnabled() {
+      return manualRefreshEnabled;
+    },
+    set manualRefreshEnabled(value: boolean) {
+      manualRefreshEnabled = value;
+    },
+    get metricsSidebarVisible() {
+      return metricsSidebarVisible;
+    },
+    set metricsSidebarVisible(value: boolean) {
+      metricsSidebarVisible = value;
+    },
+    get allowlistsSidebarVisible() {
+      return allowlistsSidebarVisible;
+    },
+    set allowlistsSidebarVisible(value: boolean) {
+      allowlistsSidebarVisible = value;
+    },
+    get statisticsSidebarVisible() {
+      return statisticsSidebarVisible;
+    },
+    set statisticsSidebarVisible(value: boolean) {
+      statisticsSidebarVisible = value;
+    },
+    get manualDecisionScenarios() {
+      return manualDecisionScenarios;
+    },
+    set manualDecisionScenarios(value: string[]) {
+      manualDecisionScenarios = value;
+    },
+    get cacheRefreshCompletedAt() {
+      return cacheRefreshCompletedAt;
+    },
+    set cacheRefreshCompletedAt(value: string | null) {
+      cacheRefreshCompletedAt = value;
+    },
     cache,
     initialHistorySyncs,
     instanceLastUpdates,
     staleDashboardStatsResponseCache,
-    get lastDashboardStatsFilters() { return lastDashboardStatsFilters; },
-    set lastDashboardStatsFilters(value: DashboardStatsFilters | null) { lastDashboardStatsFilters = value; },
-    get lastDashboardStatsRequestedAt() { return lastDashboardStatsRequestedAt; },
-    set lastDashboardStatsRequestedAt(value: number) { lastDashboardStatsRequestedAt = value; },
+    get lastDashboardStatsFilters() {
+      return lastDashboardStatsFilters;
+    },
+    set lastDashboardStatsFilters(value: DashboardStatsFilters | null) {
+      lastDashboardStatsFilters = value;
+    },
+    get lastDashboardStatsRequestedAt() {
+      return lastDashboardStatsRequestedAt;
+    },
+    set lastDashboardStatsRequestedAt(value: number) {
+      lastDashboardStatsRequestedAt = value;
+    },
     historicalInstanceSyncPending,
-    get nextRefreshAt() { return nextRefreshAt; },
-    get cacheRefreshPromise() { return cacheRefreshPromise; },
-    get initializationPromise() { return initializationPromise; },
-    get bootstrapPromise() { return bootstrapPromise; },
+    get nextRefreshAt() {
+      return nextRefreshAt;
+    },
+    get cacheRefreshPromise() {
+      return cacheRefreshPromise;
+    },
+    get initializationPromise() {
+      return initializationPromise;
+    },
+    get bootstrapPromise() {
+      return bootstrapPromise;
+    },
   };
   allowlistService = createAllowlistService({
     config,
@@ -1368,7 +1615,20 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     allowlistService,
     isValidIpOrRange,
   });
-  registerStatisticsRoutes({ app, config, statistics, ensureAuth, ensureCanManageSettings });
+  registerStatisticsRoutes({
+    app,
+    config,
+    statistics,
+    ensureAuth,
+    ensureCanManageSettings,
+    manualDecisionScenarios: () =>
+      Object.fromEntries(
+        config.instances.map((instance) => [
+          instance.id,
+          manualDecisionScenariosOf(config, instance, manualDecisionScenarios),
+        ]),
+      ),
+  });
   registerApiRoutes({
     statistics,
     app,
@@ -1492,7 +1752,8 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     `${config.basePath}/assets/*`,
     serveStatic({
       root: distRoot,
-      rewriteRequestPath: (requestPath) => (config.basePath ? requestPath.replace(config.basePath, '') : requestPath),
+      rewriteRequestPath: (requestPath) =>
+        config.basePath ? requestPath.replace(config.basePath, '') : requestPath,
     }),
   );
 
@@ -1512,7 +1773,8 @@ export function createApp(options: CreateAppOptions = {}): AppController {
       `${config.basePath}${file}`,
       serveStatic({
         root: distRoot,
-        rewriteRequestPath: (requestPath) => (config.basePath ? requestPath.replace(config.basePath, '') : requestPath),
+        rewriteRequestPath: (requestPath) =>
+          config.basePath ? requestPath.replace(config.basePath, '') : requestPath,
       }),
     );
   });
@@ -1527,9 +1789,17 @@ export function createApp(options: CreateAppOptions = {}): AppController {
       icons: branding.logoUrl
         ? [{ src: branding.logoUrl, sizes: 'any' }]
         : [
-          { src: `${config.basePath}/android-chrome-192x192.png`, sizes: '192x192', type: 'image/png' },
-          { src: `${config.basePath}/android-chrome-512x512.png`, sizes: '512x512', type: 'image/png' },
-        ],
+            {
+              src: `${config.basePath}/android-chrome-192x192.png`,
+              sizes: '192x192',
+              type: 'image/png',
+            },
+            {
+              src: `${config.basePath}/android-chrome-512x512.png`,
+              sizes: '512x512',
+              type: 'image/png',
+            },
+          ],
       theme_color: '#ffffff',
       background_color: '#ffffff',
       display: 'standalone',
@@ -1590,7 +1860,7 @@ export function createApp(options: CreateAppOptions = {}): AppController {
       status.message = `Syncing ${instance.name}`;
       try {
         const refreshMs = instance.sync.refreshIntervalMs ?? refreshIntervalMs;
-        if (!client.hasToken() && !await client.login(`instance ${instance.name}`)) {
+        if (!client.hasToken() && !(await client.login(`instance ${instance.name}`))) {
           throw new Error(client.getStatus().lastError || 'Authentication failed');
         }
         const now = Date.now();
@@ -1605,21 +1875,35 @@ export function createApp(options: CreateAppOptions = {}): AppController {
         const start = Math.min(normalStart, headWindow?.start ?? normalStart);
         const reconcileStateBeforeRefresh = structuredClone(getReconcileWindowState(instanceId));
         const committedRefresh = await runConsistentDatabaseRefresh(async () => {
-          const deltaSummary = await syncAlertWindow(start, now, now, (window: string, alerts: number, decisions: number) => {
-            status.progress = 60;
-            status.message = getServerTranslator(database)('components.syncOverlay.statusProcessingWindow', {
-              window,
-              alerts,
-              decisions,
-            });
-          }, runtime);
+          const deltaSummary = await syncAlertWindow(
+            start,
+            now,
+            now,
+            (window: string, alerts: number, decisions: number) => {
+              status.progress = 60;
+              status.message = getServerTranslator(database)(
+                'components.syncOverlay.statusProcessingWindow',
+                {
+                  window,
+                  alerts,
+                  decisions,
+                },
+              );
+            },
+            runtime,
+          );
           if (deltaSummary.errors.length > 0) {
             throw deltaSummary.lastError || new Error(deltaSummary.errors.join('; '));
           }
           // The expanded delta already reconciled the moving head window.
           if (headWindow) recordReconcileWindowSuccess(headWindow, now, instanceId);
           const excludedKeys = headWindow ? new Set([headWindow.key]) : new Set<string>();
-          const reconcileSummary = await runPlannedReconcileWindows(reconcilePlan, now, excludedKeys, runtime);
+          const reconcileSummary = await runPlannedReconcileWindows(
+            reconcilePlan,
+            now,
+            excludedKeys,
+            runtime,
+          );
           await syncWorker.refreshDecisionDuplicateFlags(new Date().toISOString());
           await finishReconcilePlan(reconcilePlan, instanceId);
           return { deltaSummary, reconcileSummary };
@@ -1631,8 +1915,9 @@ export function createApp(options: CreateAppOptions = {}): AppController {
         try {
           const { deltaSummary, reconcileSummary } = committedRefresh.result;
           const changed = deltaSummary.changed || reconcileSummary.changed;
-          const reconcileError = reconcileSummary.lastError
-            || (reconcileSummary.errors[0] ? new Error(reconcileSummary.errors[0]) : null);
+          const reconcileError =
+            reconcileSummary.lastError ||
+            (reconcileSummary.errors[0] ? new Error(reconcileSummary.errors[0]) : null);
           if (reconcileError) client.updateStatus(false, reconcileError);
           else client.updateStatus(true);
           status.state = 'complete';
@@ -1657,10 +1942,11 @@ export function createApp(options: CreateAppOptions = {}): AppController {
             cacheRefreshCompletedAt = revision;
             publishedRevision = revision;
           }
-          const completedReconcileWindows = reconcileSummary.successfulWindows + (headWindow ? 1 : 0);
+          const completedReconcileWindows =
+            reconcileSummary.successfulWindows + (headWindow ? 1 : 0);
           console.log(
-            `[${instance.name}] Delta update complete: ${deltaSummary.alerts} alerts and ${deltaSummary.decisions} decisions synced; `
-            + `${completedReconcileWindows} reconciliation window${completedReconcileWindows === 1 ? '' : 's'} completed`,
+            `[${instance.name}] Delta update complete: ${deltaSummary.alerts} alerts and ${deltaSummary.decisions} decisions synced; ` +
+              `${completedReconcileWindows} reconciliation window${completedReconcileWindows === 1 ? '' : 's'} completed`,
           );
         } finally {
           committedRefresh.releasePublishedRevision();
@@ -1682,21 +1968,31 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     return promise;
   }
 
-  function resolveOperationInstances(scope: 'all' | 'instance' | undefined, instanceId: string | undefined) {
+  function resolveOperationInstances(
+    scope: 'all' | 'instance' | undefined,
+    instanceId: string | undefined,
+  ) {
     if (!scope) return [primaryInstance];
     if (scope === 'all') return config.instances;
     const instance = config.instances.find((candidate) => candidate.id === instanceId);
-    return instance ? [instance] : { error: 'A valid instance_id is required when scope is instance' };
+    return instance
+      ? [instance]
+      : { error: 'A valid instance_id is required when scope is instance' };
   }
 
-  async function deleteEntriesByIpOnInstance(instanceId: string, ip: string): Promise<BulkDeleteResult> {
+  async function deleteEntriesByIpOnInstance(
+    instanceId: string,
+    ip: string,
+  ): Promise<BulkDeleteResult> {
     const instance = config.instances.find((candidate) => candidate.id === instanceId);
     const client = lapiClients.get(instanceId);
     if (!instance || !client) throw new Error(`Unknown CrowdSec instance ${instanceId}`);
-    if (!client.hasToken() && !await client.login(`cleanup ${instance.name}`)) {
+    if (!client.hasToken() && !(await client.login(`cleanup ${instance.name}`))) {
       throw new Error(client.getStatus().lastError || 'Authentication failed');
     }
-    const alerts = (await client.fetchAlerts(instance.sync.lookbackPeriod || config.lookbackPeriod)) as AlertRecord[];
+    const alerts = (await client.fetchAlerts(
+      instance.sync.lookbackPeriod || config.lookbackPeriod,
+    )) as AlertRecord[];
     const matching = alerts.filter((alert) => getAlertSourceValue(alert.source) === ip);
     const result = await deleteAlertsByRefs(
       matching.map((alert) => ({ instance_id: instanceId, id: String(alert.id) })),
@@ -1771,13 +2067,14 @@ export function createApp(options: CreateAppOptions = {}): AppController {
     if (config.instances.length > 1 && !cache.isInitialized) {
       for (const instance of config.instances) historicalInstanceSyncPending.add(instance.id);
     }
-    void ensureBootstrapReady('startup').then(() => {
-      if (stopped) return;
-      for (const instance of config.instances.slice(1)) scheduleInstanceRefresh(instance.id);
-      void statistics.run();
-    }).catch((error: unknown) => {
-      if (!stopped) console.error('Background bootstrap failed:', error);
-    });
+    void ensureBootstrapReady('startup')
+      .then(() => {
+        if (stopped) return;
+        for (const instance of config.instances.slice(1)) scheduleInstanceRefresh(instance.id);
+        void statistics.run();
+      })
+      .catch((error: unknown) => {
+        if (!stopped) console.error('Background bootstrap failed:', error);
+      });
   }
-
 }

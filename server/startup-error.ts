@@ -14,7 +14,9 @@ export function formatStartupError(error: unknown): string {
       `  Configuration file: ${error.configFile}`,
     ];
     if (error.overrideNames.length > 0) {
-      lines.push(`  CONFIG_ override${error.overrideNames.length === 1 ? '' : 's'}: ${error.overrideNames.join(', ')}`);
+      lines.push(
+        `  CONFIG_ override${error.overrideNames.length === 1 ? '' : 's'}: ${error.overrideNames.join(', ')}`,
+      );
     }
     lines.push('Correct the configuration and restart CrowdSec Web UI.');
     return lines.join('\n');

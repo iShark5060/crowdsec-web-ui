@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { I18nContext, type I18nContextValue } from '../../lib/i18n';
+import { Provide } from '../../test/Provide';
 import { WorldMapCard } from '../WorldMapCard';
 
 const { choroplethMountSpy, choroplethUnmountSpy, transformWrapperPropsSpy } = vi.hoisted(() => ({
@@ -53,15 +55,19 @@ vi.mock('@nivo/geo', async () => {
           ))}
           {Tooltip && firstFeature ? (
             <Tooltip
-              feature={firstFeatureData ? {
-                id: firstFeature.id,
-                label: firstFeature.properties?.NAME,
-                data: { id: firstFeature.id, ...firstFeatureData },
-              } : {
-                id: firstFeature.id,
-                label: firstFeature.properties?.NAME,
-                properties: firstFeature.properties,
-              }}
+              feature={
+                firstFeatureData
+                  ? {
+                      id: firstFeature.id,
+                      label: firstFeature.properties?.NAME,
+                      data: { id: firstFeature.id, ...firstFeatureData },
+                    }
+                  : {
+                      id: firstFeature.id,
+                      label: firstFeature.properties?.NAME,
+                      properties: firstFeature.properties,
+                    }
+              }
             />
           ) : null}
         </svg>
@@ -74,36 +80,35 @@ vi.mock('react-zoom-pan-pinch', async () => {
   const React = await import('react');
 
   return {
-    TransformWrapper: React.forwardRef(({
-      children,
-      ...props
-    }: {
-      children: React.ReactNode | ((controls: {
-        zoomIn: () => void;
-        zoomOut: () => void;
-        centerView: () => void;
-      }) => React.ReactNode);
-      smooth?: boolean;
-      wheel?: { step?: number };
-    }, ref: React.Ref<{ centerView: () => void }>) => {
-      const controls = {
-        zoomIn: vi.fn(),
-        zoomOut: vi.fn(),
-        centerView: vi.fn(),
-      };
+    TransformWrapper: React.forwardRef(
+      (
+        {
+          children,
+          ...props
+        }: {
+          children:
+            | React.ReactNode
+            | ((controls: { zoomIn: () => void; zoomOut: () => void; centerView: () => void }) => React.ReactNode);
+          smooth?: boolean;
+          wheel?: { step?: number };
+        },
+        ref: React.Ref<{ centerView: () => void }>,
+      ) => {
+        const controls = {
+          zoomIn: vi.fn(),
+          zoomOut: vi.fn(),
+          centerView: vi.fn(),
+        };
 
-      transformWrapperPropsSpy(props);
+        transformWrapperPropsSpy(props);
 
-      React.useImperativeHandle(ref, () => ({
-        centerView: controls.centerView,
-      }));
+        React.useImperativeHandle(ref, () => ({
+          centerView: controls.centerView,
+        }));
 
-      return (
-        <div>
-          {typeof children === 'function' ? children(controls) : children}
-        </div>
-      );
-    }),
+        return <div>{typeof children === 'function' ? children(controls) : children}</div>;
+      },
+    ),
     TransformComponent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   };
 });
@@ -125,35 +130,44 @@ describe('WorldMapCard', () => {
       canvasContext as unknown as CanvasRenderingContext2D,
     );
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        features: [
-          { id: 'DE', properties: { NAME: 'Germany', ISO_A2: 'DE' } },
-          { id: 'US', properties: { NAME: 'United States', ISO_A2: 'US' } },
-        ],
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          features: [
+            { id: 'DE', properties: { NAME: 'Germany', ISO_A2: 'DE' } },
+            { id: 'US', properties: { NAME: 'United States', ISO_A2: 'US' } },
+          ],
+        }),
       }),
-    }));
+    );
 
-    vi.stubGlobal('ResizeObserver', class {
-      private callback: ResizeObserverCallback;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        private callback: ResizeObserverCallback;
 
-      constructor(callback: ResizeObserverCallback) {
-        this.callback = callback;
-      }
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
 
-      observe(): void {
-        this.callback([
-          {
-            contentRect: { width: 800, height: 450 },
-          } as ResizeObserverEntry,
-        ], this as unknown as ResizeObserver);
-      }
+        observe(): void {
+          this.callback(
+            [
+              {
+                contentRect: { width: 800, height: 450 },
+              } as ResizeObserverEntry,
+            ],
+            this as unknown as ResizeObserver,
+          );
+        }
 
-      disconnect(): void {}
-      unobserve(): void {}
-    });
+        disconnect(): void {}
+        unobserve(): void {}
+      },
+    );
   });
 
   afterEach(() => {
@@ -164,11 +178,7 @@ describe('WorldMapCard', () => {
   test('shares map loading across development StrictMode effect replays', async () => {
     render(
       <StrictMode>
-        <WorldMapCard
-          data={[]}
-          onCountrySelect={vi.fn()}
-          selectedCountry={null}
-        />
+        <WorldMapCard data={[]} onCountrySelect={vi.fn()} selectedCountry={null} />
       </StrictMode>,
     );
 
@@ -228,12 +238,7 @@ describe('WorldMapCard', () => {
     }));
 
     render(
-      <WorldMapCard
-        data={[]}
-        attackLocations={attackLocations}
-        onCountrySelect={vi.fn()}
-        selectedCountry={null}
-      />,
+      <WorldMapCard data={[]} attackLocations={attackLocations} onCountrySelect={vi.fn()} selectedCountry={null} />,
     );
 
     const overlay = await screen.findByTestId('world-map-attack-markers');
@@ -289,13 +294,7 @@ describe('WorldMapCard', () => {
     transformProps.onTransform?.({}, { scale: 4, positionX: 0, positionY: 0 });
 
     await waitFor(() => {
-      expect(canvasContext.arc).toHaveBeenCalledWith(
-        -400 + markerX * 4,
-        -225 + markerY * 4,
-        2.5,
-        0,
-        Math.PI * 2,
-      );
+      expect(canvasContext.arc).toHaveBeenCalledWith(-400 + markerX * 4, -225 + markerY * 4, 2.5, 0, Math.PI * 2);
     });
     expect(dotsCanvas.width).toBe(638);
     expect(dotsCanvas.height).toBe(387);
@@ -366,29 +365,25 @@ describe('WorldMapCard', () => {
     );
 
     transformProps.onTransform?.({}, { scale: 2, positionX: 0, positionY: 0 });
-    expect(canvasContext.arc).toHaveBeenLastCalledWith(
-      -400 + markerX * 2,
-      -225 + markerY * 2,
-      2.5,
-      0,
-      Math.PI * 2,
-    );
+    expect(canvasContext.arc).toHaveBeenLastCalledWith(-400 + markerX * 2, -225 + markerY * 2, 2.5, 0, Math.PI * 2);
   });
 
   test('adds location attack details to the country tooltip while hovering a marker', async () => {
     render(
       <WorldMapCard
         data={[{ label: 'Germany', countryCode: 'DE', count: 5, liveCount: 3, simulatedCount: 2 }]}
-        attackLocations={[{
-          latitude: 52.52,
-          longitude: 13.405,
-          count: 5,
-          liveCount: 3,
-          simulatedCount: 2,
-          city: 'Berlin',
-          region: 'Berlin',
-          countryCode: 'DE',
-        }]}
+        attackLocations={[
+          {
+            latitude: 52.52,
+            longitude: 13.405,
+            count: 5,
+            liveCount: 3,
+            simulatedCount: 2,
+            city: 'Berlin',
+            region: 'Berlin',
+            countryCode: 'DE',
+          },
+        ]}
         onCountrySelect={vi.fn()}
         selectedCountry={null}
         simulationsEnabled={true}
@@ -474,17 +469,19 @@ describe('WorldMapCard', () => {
   });
 
   test('enables attack markers by default and persists the browser toggle', async () => {
-    const { unmount } = render(
-      <WorldMapCard data={[]} onCountrySelect={vi.fn()} selectedCountry={null} />,
-    );
+    const { unmount } = render(<WorldMapCard data={[]} onCountrySelect={vi.fn()} selectedCountry={null} />);
 
     const toggle = screen.getByRole('switch', { name: 'Attack markers' });
     expect(toggle).toHaveAttribute('aria-checked', 'true');
-    await waitFor(() => expect(window.localStorage.getItem('crowdsec-web-ui:dashboard:map-animation-enabled')).toBe('true'));
+    await waitFor(() =>
+      expect(window.localStorage.getItem('crowdsec-web-ui:dashboard:map-animation-enabled')).toBe('true'),
+    );
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-checked', 'false');
-    await waitFor(() => expect(window.localStorage.getItem('crowdsec-web-ui:dashboard:map-animation-enabled')).toBe('false'));
+    await waitFor(() =>
+      expect(window.localStorage.getItem('crowdsec-web-ui:dashboard:map-animation-enabled')).toBe('false'),
+    );
 
     unmount();
     render(<WorldMapCard data={[]} onCountrySelect={vi.fn()} selectedCountry={null} />);
@@ -492,16 +489,19 @@ describe('WorldMapCard', () => {
   });
 
   test('defaults attack markers off for reduced motion but honors an explicit opt-in', async () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
-      matches: true,
-      media: '(prefers-reduced-motion: reduce)',
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    );
 
     const { unmount } = render(
       <WorldMapCard
@@ -520,7 +520,9 @@ describe('WorldMapCard', () => {
     const overlay = await screen.findByTestId('world-map-attack-markers');
     expect(overlay.querySelectorAll('canvas')).toHaveLength(2);
     expect(overlay.querySelector('animate, animateTransform')).toBeNull();
-    await waitFor(() => expect(window.localStorage.getItem('crowdsec-web-ui:dashboard:map-animation-enabled')).toBe('true'));
+    await waitFor(() =>
+      expect(window.localStorage.getItem('crowdsec-web-ui:dashboard:map-animation-enabled')).toBe('true'),
+    );
 
     unmount();
     render(
@@ -584,14 +586,7 @@ describe('WorldMapCard', () => {
   });
 
   test('outlines the selected country even when map data is empty', async () => {
-    render(
-      <WorldMapCard
-        data={[]}
-        onCountrySelect={vi.fn()}
-        selectedCountry="DE"
-        simulationsEnabled={true}
-      />,
-    );
+    render(<WorldMapCard data={[]} onCountrySelect={vi.fn()} selectedCountry="DE" simulationsEnabled={true} />);
 
     await waitFor(() => expect(screen.getByTestId('choropleth')).toBeInTheDocument());
 
@@ -613,26 +608,27 @@ describe('WorldMapCard', () => {
       preference: 'zh',
       browserLanguage: 'en',
       setLanguagePreference: () => undefined,
-      t: (key) => ({
-        'components.worldMap.alerts': '告警',
-        'components.worldMap.simulationAlerts': '模拟告警',
-        'components.worldMap.title': '世界地图',
-        'components.worldMap.zoomIn': '放大',
-        'components.worldMap.zoomOut': '缩小',
-        'components.worldMap.resetView': '重置视图',
-        'common.loadingMap': '正在加载地图...',
-      }[key] ?? key),
+      t: (key) =>
+        ({
+          'components.worldMap.alerts': '告警',
+          'components.worldMap.simulationAlerts': '模拟告警',
+          'components.worldMap.title': '世界地图',
+          'components.worldMap.zoomIn': '放大',
+          'components.worldMap.zoomOut': '缩小',
+          'components.worldMap.resetView': '重置视图',
+          'common.loadingMap': '正在加载地图...',
+        })[key] ?? key,
     };
 
     render(
-      <I18nContext.Provider value={i18nValue}>
+      <Provide context={I18nContext} value={i18nValue}>
         <WorldMapCard
           data={[{ label: 'Germany', countryCode: 'DE', count: 2, liveCount: 2, simulatedCount: 0 }]}
           onCountrySelect={vi.fn()}
           selectedCountry={null}
           simulationsEnabled={true}
         />
-      </I18nContext.Provider>,
+      </Provide>,
     );
 
     await waitFor(() => expect(screen.getByText('德国')).toBeInTheDocument());
@@ -656,17 +652,19 @@ describe('WorldMapCard', () => {
   test('shows active decisions in the tooltip', async () => {
     render(
       <WorldMapCard
-        data={[{
-          label: 'Germany',
-          countryCode: 'DE',
-          count: 2,
-          liveCount: 2,
-          simulatedCount: 0,
-          liveDecisionCount: 3,
-          simulatedDecisionCount: 0,
-          activeLiveDecisionCount: 2,
-          activeSimulatedDecisionCount: 0,
-        }]}
+        data={[
+          {
+            label: 'Germany',
+            countryCode: 'DE',
+            count: 2,
+            liveCount: 2,
+            simulatedCount: 0,
+            liveDecisionCount: 3,
+            simulatedDecisionCount: 0,
+            activeLiveDecisionCount: 2,
+            activeSimulatedDecisionCount: 0,
+          },
+        ]}
         onCountrySelect={vi.fn()}
         selectedCountry={null}
         simulationsEnabled={true}
@@ -728,14 +726,7 @@ describe('WorldMapCard', () => {
   });
 
   test('hides counts for a grey country without stats', async () => {
-    render(
-      <WorldMapCard
-        data={[]}
-        onCountrySelect={vi.fn()}
-        selectedCountry={null}
-        simulationsEnabled={true}
-      />,
-    );
+    render(<WorldMapCard data={[]} onCountrySelect={vi.fn()} selectedCountry={null} simulationsEnabled={true} />);
 
     await waitFor(() => expect(screen.getByText('Germany')).toBeInTheDocument());
     expect(screen.queryByText(/Alerts:/)).not.toBeInTheDocument();
@@ -743,14 +734,7 @@ describe('WorldMapCard', () => {
   });
 
   test('uses the geographic feature id for a country without stats', async () => {
-    render(
-      <WorldMapCard
-        data={[]}
-        onCountrySelect={vi.fn()}
-        selectedCountry="DE"
-        simulationsEnabled={true}
-      />,
-    );
+    render(<WorldMapCard data={[]} onCountrySelect={vi.fn()} selectedCountry="DE" simulationsEnabled={true} />);
 
     await waitFor(() => expect(screen.getByText('Germany')).toBeInTheDocument());
     expect(screen.getByText(/Alerts: 0/)).toBeInTheDocument();

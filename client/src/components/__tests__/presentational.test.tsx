@@ -1,11 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
+
+import { DateTimeContext, createDateTimeContextValue } from '../../lib/dateTime';
+import { I18nContext, type I18nContextValue } from '../../lib/i18n';
+import { Provide } from '../../test/Provide';
 import { SyncOverlay } from '../SyncOverlay';
 import { TimeDisplay } from '../TimeDisplay';
 import { Badge } from '../ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { I18nContext, type I18nContextValue } from '../../lib/i18n';
-import { DateTimeContext, createDateTimeContextValue } from '../../lib/dateTime';
 
 describe('presentational components', () => {
   test('renders badges and card wrappers', () => {
@@ -178,9 +180,19 @@ describe('presentational components', () => {
         syncStatus={{
           ...instance,
           instances: [
-            { ...instance, instance_id: 'primary', instance_name: 'Primary', allowlists: { state: 'complete', allowlists: 5, entries: 1234 } },
+            {
+              ...instance,
+              instance_id: 'primary',
+              instance_name: 'Primary',
+              allowlists: { state: 'complete', allowlists: 5, entries: 1234 },
+            },
             { ...instance, instance_id: 'secondary', instance_name: 'Secondary', allowlists: { state: 'syncing' } },
-            { ...instance, instance_id: 'edge', instance_name: 'Edge', allowlists: { state: 'failed', error: 'Request timeout' } },
+            {
+              ...instance,
+              instance_id: 'edge',
+              instance_name: 'Edge',
+              allowlists: { state: 'failed', error: 'Request timeout' },
+            },
             { ...instance, instance_id: 'old', instance_name: 'Old', allowlists: { state: 'unsupported' } },
             { ...instance, instance_id: 'new', instance_name: 'New', allowlists: { state: 'pending' } },
           ],
@@ -188,7 +200,9 @@ describe('presentational components', () => {
       />,
     );
 
-    expect(screen.getByText(`Allowlists: 5 allowlists with ${(1234).toLocaleString()} entries cached`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`Allowlists: 5 allowlists with ${(1234).toLocaleString()} entries cached`),
+    ).toBeInTheDocument();
     expect(screen.getByText('Allowlists: caching...')).toBeInTheDocument();
     expect(screen.getByText('Allowlists could not be read: Request timeout')).toBeInTheDocument();
     expect(screen.getByText('Allowlists: not supported by this LAPI')).toBeInTheDocument();
@@ -204,15 +218,16 @@ describe('presentational components', () => {
       preference: 'de',
       browserLanguage: 'de',
       setLanguagePreference: () => undefined,
-      t: (key) => ({
-        'components.syncOverlay.description': 'Bitte warten',
-        'components.syncOverlay.statusStarting': 'Historische Daten werden gestartet...',
-        'components.syncOverlay.title': 'Historische Daten werden synchronisiert',
-      })[key] ?? key,
+      t: (key) =>
+        ({
+          'components.syncOverlay.description': 'Bitte warten',
+          'components.syncOverlay.statusStarting': 'Historische Daten werden gestartet...',
+          'components.syncOverlay.title': 'Historische Daten werden synchronisiert',
+        })[key] ?? key,
     };
 
     render(
-      <I18nContext.Provider value={i18nValue}>
+      <Provide context={I18nContext} value={i18nValue}>
         <SyncOverlay
           syncStatus={{
             isSyncing: true,
@@ -222,7 +237,7 @@ describe('presentational components', () => {
             completedAt: null,
           }}
         />
-      </I18nContext.Provider>,
+      </Provide>,
     );
 
     expect(screen.getByText('Historische Daten werden gestartet...')).toBeInTheDocument();
@@ -234,15 +249,16 @@ describe('presentational components', () => {
       preference: 'de',
       browserLanguage: 'de',
       setLanguagePreference: () => undefined,
-      t: (key, values) => ({
-        'components.syncOverlay.description': 'Bitte warten',
-        'components.syncOverlay.statusProcessingWindow': `${values?.alerts} Alarme und ${values?.decisions} Entscheidungen aus ${values?.window} werden verarbeitet...`,
-        'components.syncOverlay.title': 'Historische Daten werden synchronisiert',
-      })[key] ?? key,
+      t: (key, values) =>
+        ({
+          'components.syncOverlay.description': 'Bitte warten',
+          'components.syncOverlay.statusProcessingWindow': `${values?.alerts} Alarme und ${values?.decisions} Entscheidungen aus ${values?.window} werden verarbeitet...`,
+          'components.syncOverlay.title': 'Historische Daten werden synchronisiert',
+        })[key] ?? key,
     };
 
     render(
-      <I18nContext.Provider value={i18nValue}>
+      <Provide context={I18nContext} value={i18nValue}>
         <SyncOverlay
           syncStatus={{
             isSyncing: true,
@@ -252,10 +268,12 @@ describe('presentational components', () => {
             completedAt: null,
           }}
         />
-      </I18nContext.Provider>,
+      </Provide>,
     );
 
-    expect(screen.getByText('22 Alarme und 18278 Entscheidungen aus 12h0m0s -> 0h0m0s ago werden verarbeitet...')).toBeInTheDocument();
+    expect(
+      screen.getByText('22 Alarme und 18278 Entscheidungen aus 12h0m0s -> 0h0m0s ago werden verarbeitet...'),
+    ).toBeInTheDocument();
     expect(screen.getByText('90%')).toBeInTheDocument();
   });
 
@@ -279,16 +297,12 @@ describe('presentational components', () => {
       preference: 'en',
       browserLanguage: 'en',
       setLanguagePreference: () => undefined,
-      t: (key, values) => [
-        key,
-        values?.window,
-        values?.alerts,
-        values?.decisions,
-      ].filter((value) => value !== undefined).join(':'),
+      t: (key, values) =>
+        [key, values?.window, values?.alerts, values?.decisions].filter((value) => value !== undefined).join(':'),
     };
 
     render(
-      <I18nContext.Provider value={i18nValue}>
+      <Provide context={I18nContext} value={i18nValue}>
         <SyncOverlay
           syncStatus={{
             isSyncing: true,
@@ -298,7 +312,7 @@ describe('presentational components', () => {
             completedAt: null,
           }}
         />
-      </I18nContext.Provider>,
+      </Provide>,
     );
 
     expect(screen.getByText(expected)).toBeInTheDocument();

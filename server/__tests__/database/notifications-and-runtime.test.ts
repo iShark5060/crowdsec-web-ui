@@ -1,12 +1,13 @@
+import { spawnSync } from 'child_process';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import path from 'path';
+
 import Database from 'better-sqlite3';
 import { describe, expect, test } from 'vitest';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs';
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { tmpdir } from 'os';
+
 import { CrowdsecDatabase } from '../../database';
-import { decisionFromRow } from '../../normalized-record';
-import { createLegacyDatabase, createTestDatabase, createTestDatabasePath, tempDirs } from './harness';
+import { createTestDatabase, createTestDatabasePath, tempDirs } from './harness';
 
 describe('CrowdsecDatabase notifications and runtime', () => {
   test('stores notification channels, rules, notifications, and cve cache', () => {
@@ -50,21 +51,23 @@ describe('CrowdsecDatabase notifications and runtime', () => {
       $dedupe_key: 'rule-1:bucket',
     });
     expect(inserted).toBe(true);
-    expect(db.insertNotification({
-      $id: 'notif-2',
-      $created_at: '2025-01-01T02:00:00.000Z',
-      $updated_at: '2025-01-01T02:00:00.000Z',
-      $rule_id: 'rule-1',
-      $rule_name: 'Alert threshold',
-      $rule_type: 'alert-threshold',
-      $severity: 'warning',
-      $title: 'Threshold exceeded',
-      $message: '10 alerts matched.',
-      $read_at: null,
-      $metadata_json: JSON.stringify({ matched_alerts: 10 }),
-      $deliveries_json: JSON.stringify([]),
-      $dedupe_key: 'rule-1:bucket',
-    })).toBe(true);
+    expect(
+      db.insertNotification({
+        $id: 'notif-2',
+        $created_at: '2025-01-01T02:00:00.000Z',
+        $updated_at: '2025-01-01T02:00:00.000Z',
+        $rule_id: 'rule-1',
+        $rule_name: 'Alert threshold',
+        $rule_type: 'alert-threshold',
+        $severity: 'warning',
+        $title: 'Threshold exceeded',
+        $message: '10 alerts matched.',
+        $read_at: null,
+        $metadata_json: JSON.stringify({ matched_alerts: 10 }),
+        $deliveries_json: JSON.stringify([]),
+        $dedupe_key: 'rule-1:bucket',
+      }),
+    ).toBe(true);
 
     db.upsertNotificationIncident({
       $rule_id: 'rule-1',
@@ -103,10 +106,12 @@ describe('CrowdsecDatabase notifications and runtime', () => {
     expect(db.deleteNotifications(['notif-2'])).toBe(1);
     expect(db.countNotifications()).toBe(0);
     expect(db.resolveNotificationIncident('rule-1', 'threshold:active', '2025-01-01T04:00:00.000Z')).toBe(true);
-    expect(db.listNotificationIncidentsByRule('rule-1')[0]).toEqual(expect.objectContaining({
-      resolved_at: '2025-01-01T04:00:00.000Z',
-      last_seen_at: '2025-01-01T04:00:00.000Z',
-    }));
+    expect(db.listNotificationIncidentsByRule('rule-1')[0]).toEqual(
+      expect.objectContaining({
+        resolved_at: '2025-01-01T04:00:00.000Z',
+        last_seen_at: '2025-01-01T04:00:00.000Z',
+      }),
+    );
 
     db.deleteNotificationRule('rule-1');
     db.deleteNotificationChannel('channel-1');
@@ -165,21 +170,27 @@ describe('CrowdsecDatabase notifications and runtime', () => {
     db.markNotificationRead('notification-offset', '2024-12-31T20:00:03-04:00');
     db.resolveNotificationIncident('rule-offset', 'incident-offset', '2025-01-01T00:00:04Z');
 
-    expect(db.getNotificationChannelById('channel-offset')).toEqual(expect.objectContaining({
-      created_at: '2025-01-01T00:00:00.000Z',
-      updated_at: '2025-01-01T00:00:01.000Z',
-    }));
-    expect(db.getNotificationRuleById('rule-offset')).toEqual(expect.objectContaining({
-      created_at: '2025-01-01T00:00:00.000Z',
-      updated_at: '2025-01-01T00:00:01.000Z',
-    }));
-    expect(db.listNotifications()[0]).toEqual(expect.objectContaining({
-      created_at: '2025-01-01T00:00:00.000Z',
-      updated_at: '2025-01-01T00:00:03.000Z',
-      read_at: '2025-01-01T00:00:03.000Z',
-      metadata_json: JSON.stringify({ created_at: '2025-01-01T00:00:00.000Z' }),
-      deliveries_json: JSON.stringify([{ attempted_at: '2025-01-01T00:00:02.000Z' }]),
-    }));
+    expect(db.getNotificationChannelById('channel-offset')).toEqual(
+      expect.objectContaining({
+        created_at: '2025-01-01T00:00:00.000Z',
+        updated_at: '2025-01-01T00:00:01.000Z',
+      }),
+    );
+    expect(db.getNotificationRuleById('rule-offset')).toEqual(
+      expect.objectContaining({
+        created_at: '2025-01-01T00:00:00.000Z',
+        updated_at: '2025-01-01T00:00:01.000Z',
+      }),
+    );
+    expect(db.listNotifications()[0]).toEqual(
+      expect.objectContaining({
+        created_at: '2025-01-01T00:00:00.000Z',
+        updated_at: '2025-01-01T00:00:03.000Z',
+        read_at: '2025-01-01T00:00:03.000Z',
+        metadata_json: JSON.stringify({ created_at: '2025-01-01T00:00:00.000Z' }),
+        deliveries_json: JSON.stringify([{ attempted_at: '2025-01-01T00:00:02.000Z' }]),
+      }),
+    );
     expect(db.listNotificationIncidentsByRule('rule-offset')).toEqual([
       expect.objectContaining({
         first_seen_at: '2025-01-01T00:00:00.000Z',
@@ -187,10 +198,12 @@ describe('CrowdsecDatabase notifications and runtime', () => {
         resolved_at: '2025-01-01T00:00:04.000Z',
       }),
     ]);
-    expect(db.getCveCacheEntry('CVE-2025-9999')).toEqual(expect.objectContaining({
-      published_at: '2025-01-01T00:00:00.000Z',
-      fetched_at: '2025-01-01T00:00:01.000Z',
-    }));
+    expect(db.getCveCacheEntry('CVE-2025-9999')).toEqual(
+      expect.objectContaining({
+        published_at: '2025-01-01T00:00:00.000Z',
+        fetched_at: '2025-01-01T00:00:01.000Z',
+      }),
+    );
 
     db.close();
   });

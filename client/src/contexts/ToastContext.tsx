@@ -1,15 +1,11 @@
-import {
-  useCallback,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { ToastContext, type Toast, type ToastType } from "./toast-context";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+
+import { ToastContext, type Toast, type ToastType } from './toast-context';
 
 let fallbackToastIdCounter = 0;
 
 function createToastId(): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
 
@@ -28,13 +24,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addToast = useCallback(
-    (message: string, type: ToastType = "info", durationMs?: number | null) => {
+    (message: string, type: ToastType = 'info', durationMs?: number | null) => {
       const id = createToastId();
       const nextToasts = [...toastsRef.current, { id, message, type }];
       toastsRef.current = nextToasts;
       setToasts(nextToasts);
 
-      const duration = durationMs === undefined ? (type === "danger" ? 15000 : 5000) : durationMs;
+      const duration = durationMs === undefined ? (type === 'danger' ? 15000 : 5000) : durationMs;
       if (duration !== null) {
         window.setTimeout(() => removeToast(id), duration);
       }
@@ -44,9 +40,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [removeToast],
   );
 
-  return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
-      {children}
-    </ToastContext.Provider>
-  );
+  const value = useMemo(() => ({ toasts, addToast, removeToast }), [toasts, addToast, removeToast]);
+
+  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;
 }

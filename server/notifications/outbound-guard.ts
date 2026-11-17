@@ -1,6 +1,7 @@
-import dns from 'node:dns/promises';
 import type { LookupAddress } from 'node:dns';
+import dns from 'node:dns/promises';
 import net from 'node:net';
+
 import { Agent, fetch as undiciFetch } from 'undici';
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -26,14 +27,19 @@ class RestrictedDestinationError extends Error {
   readonly retriable = false;
 }
 
-export function createNotificationOutboundGuard(options: NotificationOutboundGuardOptions): NotificationOutboundGuard {
+export function createNotificationOutboundGuard(
+  options: NotificationOutboundGuardOptions,
+): NotificationOutboundGuard {
   const lookup: OutboundLookup = (hostname, lookupOptions, callback) => {
     resolveAllowedAddresses(hostname, options.allowPrivateAddresses).then(
       (records) => {
-        const family = lookupOptions.family === 4 || lookupOptions.family === 6 ? lookupOptions.family : 0;
+        const family =
+          lookupOptions.family === 4 || lookupOptions.family === 6 ? lookupOptions.family : 0;
         const matching = family ? records.filter((record) => record.family === family) : records;
         if (matching.length === 0) {
-          const error = new Error(`Unable to resolve destination host: ${hostname}`) as NodeJS.ErrnoException;
+          const error = new Error(
+            `Unable to resolve destination host: ${hostname}`,
+          ) as NodeJS.ErrnoException;
           error.code = 'ENOTFOUND';
           callback(error, []);
           return;
@@ -59,12 +65,14 @@ export function createNotificationOutboundGuard(options: NotificationOutboundGua
   };
 
   const guardedFetch: FetchLike = async (input, init) => {
-    const { tls, ...rest } = (init ?? {}) as RequestInit & { tls?: { rejectUnauthorized?: boolean } };
+    const { tls, ...rest } = (init ?? {}) as RequestInit & {
+      tls?: { rejectUnauthorized?: boolean };
+    };
     try {
-      return await undiciFetch(
-        input as Parameters<typeof undiciFetch>[0],
-        { ...(rest as Parameters<typeof undiciFetch>[1]), dispatcher: getAgent(tls?.rejectUnauthorized !== false) },
-      ) as unknown as Response;
+      return (await undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+        ...(rest as Parameters<typeof undiciFetch>[1]),
+        dispatcher: getAgent(tls?.rejectUnauthorized !== false),
+      })) as unknown as Response;
     } catch (error) {
       // undici wraps connection failures in a generic "fetch failed"; surface the guard's reason.
       const cause = error instanceof Error ? error.cause : undefined;
@@ -110,7 +118,10 @@ export function createNotificationOutboundGuard(options: NotificationOutboundGua
   };
 }
 
-async function resolveAllowedAddresses(host: string, allowPrivateAddresses: boolean): Promise<LookupAddress[]> {
+async function resolveAllowedAddresses(
+  host: string,
+  allowPrivateAddresses: boolean,
+): Promise<LookupAddress[]> {
   const records = net.isIP(host)
     ? [{ address: host, family: net.isIP(host) }]
     : await dns.lookup(host, { all: true, verbatim: true });
@@ -120,7 +131,9 @@ async function resolveAllowedAddresses(host: string, allowPrivateAddresses: bool
   if (!allowPrivateAddresses) {
     for (const record of records) {
       if (classifyAddress(record.address.toLowerCase()) !== 'public') {
-        throw new RestrictedDestinationError(`Destination ${host} points to a restricted address (${record.address})`);
+        throw new RestrictedDestinationError(
+          `Destination ${host} points to a restricted address (${record.address})`,
+        );
       }
     }
   }
@@ -157,7 +170,10 @@ function classifyAddress(address: string): 'public' | 'private' | 'local' {
 
 function classifyIpv4(address: string): 'public' | 'private' | 'local' {
   const octets = address.split('.').map((part) => Number.parseInt(part, 10));
-  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+  if (
+    octets.length !== 4 ||
+    octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
+  ) {
     return 'local';
   }
 
@@ -203,7 +219,8 @@ function classifyIpv6(address: string): 'public' | 'private' | 'local' {
 }
 
 function embeddedIpv4(value: bigint): string | null {
-  const toIpv4 = (bits: bigint) => [24n, 16n, 8n, 0n].map((shift) => Number((bits >> shift) & 0xffn)).join('.');
+  const toIpv4 = (bits: bigint) =>
+    [24n, 16n, 8n, 0n].map((shift) => Number((bits >> shift) & 0xffn)).join('.');
   if (inIpv6Range(value, '::ffff:0:0', 96)) return toIpv4(value); // IPv4-mapped
   if (inIpv6Range(value, '::', 96)) return toIpv4(value); // IPv4-compatible (deprecated)
   if (inIpv6Range(value, '64:ff9b::', 96)) return toIpv4(value); // NAT64
@@ -233,20 +250,14 @@ function ipv6ToBigInt(address: string): bigint | null {
     return null;
   }
 
-  const head = parts[0]
-    ? parts[0].split(':').filter(Boolean)
-    : [];
-  const tail = parts[1]
-    ? parts[1].split(':').filter(Boolean)
-    : [];
+  const head = parts[0] ? parts[0].split(':').filter(Boolean) : [];
+  const tail = parts[1] ? parts[1].split(':').filter(Boolean) : [];
   const missing = 8 - (head.length + tail.length);
   if (missing < 0) {
     return null;
   }
 
-  const expanded = parts.length === 2
-    ? [...head, ...new Array(missing).fill('0'), ...tail]
-    : head;
+  const expanded = parts.length === 2 ? [...head, ...new Array(missing).fill('0'), ...tail] : head;
   if (expanded.length !== 8) {
     return null;
   }
@@ -263,7 +274,10 @@ function ipv6ToBigInt(address: string): bigint | null {
 
 function ipv4ToIpv6Tail(address: string): string | null {
   const octets = address.split('.').map((part) => Number.parseInt(part, 10));
-  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+  if (
+    octets.length !== 4 ||
+    octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
+  ) {
     return null;
   }
   return `${((octets[0] << 8) | octets[1]).toString(16)}:${((octets[2] << 8) | octets[3]).toString(16)}`;
@@ -275,5 +289,5 @@ function inIpv6Range(value: bigint, base: string, prefixBits: number): boolean {
     return false;
   }
   const shift = 128n - BigInt(prefixBits);
-  return (value >> shift) === (baseValue >> shift);
+  return value >> shift === baseValue >> shift;
 }

@@ -1,18 +1,12 @@
-import { describe, expect, test, vi } from 'vitest';
 import path from 'path';
-import type { AlertRecord, DashboardStatsResponse, PaginatedResponse, SlimAlert } from '../../../shared/contracts';
+
+import { describe, expect, test, vi } from 'vitest';
+
+import type { DashboardStatsResponse, PaginatedResponse, SlimAlert } from '../../../shared/contracts';
 import { CrowdsecDatabase } from '../../database';
 import { DatabaseQueryWorker } from '../../query-worker-client';
 import { DatabaseSyncWorker } from '../../sync-worker-client';
-import {
-  createController,
-  dashboardDateKey,
-  destroyTempDir,
-  sampleAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, sampleAlert, seedAlert, tempDir } from './harness';
 
 describe('createApp refresh API', () => {
   test('reports the next scheduled automatic refresh', async () => {
@@ -22,13 +16,15 @@ describe('createApp refresh API', () => {
     });
     const beforeUpdate = Date.now();
 
-    const update = await controller.fetch(new Request('http://localhost/crowdsec/api/config/refresh-interval', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interval: '5s' }),
-    }));
+    const update = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/config/refresh-interval', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval: '5s' }),
+      }),
+    );
     expect(update.status).toBe(200);
-    const updatePayload = await update.json() as { next_refresh_at: string | null };
+    const updatePayload = (await update.json()) as { next_refresh_at: string | null };
     expect(Date.parse(updatePayload.next_refresh_at || '')).toBeGreaterThanOrEqual(beforeUpdate + 4_900);
 
     const config = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
@@ -45,29 +41,35 @@ describe('createApp refresh API', () => {
     const initialConfig = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
     expect(await initialConfig.json()).toEqual(expect.objectContaining({ manual_refresh_enabled: false }));
 
-    const blockedRefresh = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'delta' }),
-    }));
+    const blockedRefresh = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/cache/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'delta' }),
+      }),
+    );
     expect(blockedRefresh.status).toBe(403);
     expect(await blockedRefresh.json()).toEqual({
       error: 'Manual refresh is disabled',
       code: 'MANUAL_REFRESH_DISABLED',
     });
 
-    const invalidUpdate = await controller.fetch(new Request('http://localhost/crowdsec/api/config/manual-refresh', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: 'yes' }),
-    }));
+    const invalidUpdate = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/config/manual-refresh', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: 'yes' }),
+      }),
+    );
     expect(invalidUpdate.status).toBe(400);
 
-    const update = await controller.fetch(new Request('http://localhost/crowdsec/api/config/manual-refresh', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: true }),
-    }));
+    const update = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/config/manual-refresh', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      }),
+    );
     expect(update.status).toBe(200);
     expect(await update.json()).toEqual({ success: true, manual_refresh_enabled: true });
     expect(database.getMeta('manual_refresh_enabled')?.value).toBe('true');
@@ -82,7 +84,11 @@ describe('createApp refresh API', () => {
     database.setMeta('refresh_interval_ms', '5000');
     database.setMeta('manual_refresh_enabled', 'false');
     const { controller } = createController({
-      env: { CROWDSEC_REFRESH_INTERVAL: '30s', CROWDSEC_MANUAL_REFRESH_ENABLED: undefined, CONFIG_CROWDSEC_SYNC_MANUAL_REFRESH_ENABLED: 'true' },
+      env: {
+        CROWDSEC_REFRESH_INTERVAL: '30s',
+        CROWDSEC_MANUAL_REFRESH_ENABLED: undefined,
+        CONFIG_CROWDSEC_SYNC_MANUAL_REFRESH_ENABLED: 'true',
+      },
       database,
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
     });
@@ -93,16 +99,24 @@ describe('createApp refresh API', () => {
       manual_refresh_enabled: true,
       managed_settings: {
         refresh_interval: { path: 'crowdsec.sync.refreshInterval' },
-        manual_refresh_enabled: { path: 'crowdsec.sync.manualRefreshEnabled', env: 'CONFIG_CROWDSEC_SYNC_MANUAL_REFRESH_ENABLED' },
+        manual_refresh_enabled: {
+          path: 'crowdsec.sync.manualRefreshEnabled',
+          env: 'CONFIG_CROWDSEC_SYNC_MANUAL_REFRESH_ENABLED',
+        },
       },
     });
 
-    for (const [route, body] of [['refresh-interval', { interval: '5m' }], ['manual-refresh', { enabled: false }]] as const) {
-      const update = await controller.fetch(new Request(`http://localhost/crowdsec/api/config/${route}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }));
+    for (const [route, body] of [
+      ['refresh-interval', { interval: '5m' }],
+      ['manual-refresh', { enabled: false }],
+    ] as const) {
+      const update = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/config/${route}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+      );
       expect(update.status).toBe(409);
       expect(await update.json()).toMatchObject({ code: 'MANAGED_BY_CONFIG' });
     }
@@ -132,39 +146,49 @@ describe('createApp refresh API', () => {
     });
     await lapiClient.login();
 
-    const invalid = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'recent' }),
-    }));
+    const invalid = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/cache/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'recent' }),
+      }),
+    );
     expect(invalid.status).toBe(400);
 
-    const fullRefreshPromise = controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'full' }),
-    }));
+    const fullRefreshPromise = controller.fetch(
+      new Request('http://localhost/crowdsec/api/cache/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'full' }),
+      }),
+    );
 
-    await vi.waitFor(() => expect(controller.getSyncStatus()).toMatchObject({
-      isSyncing: true,
-      state: 'syncing',
-    }));
+    await vi.waitFor(() =>
+      expect(controller.getSyncStatus()).toMatchObject({
+        isSyncing: true,
+        state: 'syncing',
+      }),
+    );
     // The sync worker prunes cached entries before requesting alerts.
     await vi.waitFor(() => expect(releaseFirstAlertRequest).not.toBeNull());
 
     controller.startBackgroundTasks();
     const scheduledBefore = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
-    const scheduledBeforeAt = Date.parse((await scheduledBefore.json() as { next_refresh_at: string }).next_refresh_at);
+    const scheduledBeforeAt = Date.parse(
+      ((await scheduledBefore.json()) as { next_refresh_at: string }).next_refresh_at,
+    );
     await new Promise((resolve) => setTimeout(resolve, 1_100));
     const scheduledAfter = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
-    const scheduledAfterAt = Date.parse((await scheduledAfter.json() as { next_refresh_at: string }).next_refresh_at);
+    const scheduledAfterAt = Date.parse(((await scheduledAfter.json()) as { next_refresh_at: string }).next_refresh_at);
     expect(scheduledAfterAt).toBeGreaterThan(scheduledBeforeAt);
 
-    const manualInterval = await controller.fetch(new Request('http://localhost/crowdsec/api/config/refresh-interval', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interval: '0' }),
-    }));
+    const manualInterval = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/config/refresh-interval', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval: '0' }),
+      }),
+    );
     expect(manualInterval.status).toBe(200);
 
     const readWhileRefreshing = await Promise.race([
@@ -196,11 +220,13 @@ describe('createApp refresh API', () => {
     await lapiClient.login();
 
     for (const mode of ['delta', 'latest'] as const) {
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        }),
+      );
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({ success: true, mode });
     }
@@ -217,7 +243,7 @@ describe('createApp refresh API', () => {
       database,
       env: { CROWDSEC_REFRESH_INTERVAL: '0' },
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([cachedAlert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([cachedAlert]) : undefined),
     });
     const published = vi.fn();
     const unsubscribe = controller.subscribeCacheUpdates(published);
@@ -251,13 +277,15 @@ describe('createApp refresh API', () => {
 
     try {
       await lapiClient.login();
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'delta' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'delta' }),
+        }),
+      );
       expect(response.status).toBe(200);
-      const payload = await response.json() as { completed_at: string };
+      const payload = (await response.json()) as { completed_at: string };
       expect(published).toHaveBeenCalledExactlyOnceWith(payload.completed_at, expect.anything());
     } finally {
       unsubscribe();
@@ -265,79 +293,83 @@ describe('createApp refresh API', () => {
     }
   });
 
-  test.each(['delta', 'latest'] as const)('rolls back %s data and reconciliation state when commit fails', async (mode) => {
-    const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
-    const initialAlert = sampleAlert({ id: 931, uuid: 'rollback-931', decisions: [] });
-    const refreshedAlert = sampleAlert({ id: 932, uuid: 'rollback-932', decisions: [] });
-    seedAlert(database, initialAlert);
-    const syncWorker = new DatabaseSyncWorker({ dbPath: database.cachePath });
-    const runTransaction = syncWorker.runTransaction.bind(syncWorker);
-    const saveMetadata = vi.spyOn(syncWorker, 'setMeta');
-    const cleanupOldData = vi.spyOn(syncWorker, 'cleanupOldData');
-    let commitFailed = false;
-    vi.spyOn(syncWorker, 'runTransaction').mockImplementation((operation, options) => {
-      const cleanupCalls = cleanupOldData.mock.calls.length;
-      return runTransaction(operation, {
-        ...options,
-        beforeCommit: async () => {
-          await options?.beforeCommit?.();
-          // Retention cleanup commits separately; fail the refresh commit.
-          if (commitFailed || cleanupOldData.mock.calls.length > cleanupCalls) return;
-          commitFailed = true;
-          throw new Error('commit failed after metadata save');
-        },
+  test.each(['delta', 'latest'] as const)(
+    'rolls back %s data and reconciliation state when commit fails',
+    async (mode) => {
+      const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
+      const initialAlert = sampleAlert({ id: 931, uuid: 'rollback-931', decisions: [] });
+      const refreshedAlert = sampleAlert({ id: 932, uuid: 'rollback-932', decisions: [] });
+      seedAlert(database, initialAlert);
+      const syncWorker = new DatabaseSyncWorker({ dbPath: database.cachePath });
+      const runTransaction = syncWorker.runTransaction.bind(syncWorker);
+      const saveMetadata = vi.spyOn(syncWorker, 'setMeta');
+      const cleanupOldData = vi.spyOn(syncWorker, 'cleanupOldData');
+      let commitFailed = false;
+      vi.spyOn(syncWorker, 'runTransaction').mockImplementation((operation, options) => {
+        const cleanupCalls = cleanupOldData.mock.calls.length;
+        return runTransaction(operation, {
+          ...options,
+          beforeCommit: async () => {
+            await options?.beforeCommit?.();
+            // Retention cleanup commits separately; fail the refresh commit.
+            if (commitFailed || cleanupOldData.mock.calls.length > cleanupCalls) return;
+            commitFailed = true;
+            throw new Error('commit failed after metadata save');
+          },
+        });
       });
-    });
-    const lastUpdate = new Date(Date.now() - 10_000).toISOString();
-    const { controller, lapiClient } = createController({
-      database,
-      syncWorker,
-      env: {
-        CROWDSEC_REFRESH_INTERVAL: '0',
-        CROWDSEC_RECONCILE_WINDOW: '1m',
-        CROWDSEC_RECONCILE_RECENT_INTERVAL: '1h',
-        CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH: '3',
-      },
-      initialCacheState: { isInitialized: true, isComplete: true, lastUpdate },
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([initialAlert, refreshedAlert])
-        : undefined,
-    });
-    const published = vi.fn();
-    const unsubscribe = controller.subscribeCacheUpdates(published);
+      const lastUpdate = new Date(Date.now() - 10_000).toISOString();
+      const { controller, lapiClient } = createController({
+        database,
+        syncWorker,
+        env: {
+          CROWDSEC_REFRESH_INTERVAL: '0',
+          CROWDSEC_RECONCILE_WINDOW: '1m',
+          CROWDSEC_RECONCILE_RECENT_INTERVAL: '1h',
+          CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH: '3',
+        },
+        initialCacheState: { isInitialized: true, isComplete: true, lastUpdate },
+        fetchResolver: (url) =>
+          url.includes('/v1/alerts?') ? Response.json([initialAlert, refreshedAlert]) : undefined,
+      });
+      const published = vi.fn();
+      const unsubscribe = controller.subscribeCacheUpdates(published);
 
-    try {
-      await lapiClient.login();
-      const response = await controller.fetch(mode === 'latest'
-        ? new Request('http://localhost/crowdsec/api/cache/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode }),
-          })
-        : new Request('http://localhost/crowdsec/api/alerts'));
-      expect(response.status).toBe(mode === 'latest' ? 502 : 200);
-      expect(saveMetadata).toHaveBeenCalledTimes(1);
-      expect(database.countAlerts()).toBe(1);
-      expect(database.getMeta('alert_reconcile_window_state')).toBeNull();
-      expect(controller.getCacheLastUpdate()).toBe(lastUpdate);
-      expect(published).not.toHaveBeenCalled();
+      try {
+        await lapiClient.login();
+        const response = await controller.fetch(
+          mode === 'latest'
+            ? new Request('http://localhost/crowdsec/api/cache/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode }),
+              })
+            : new Request('http://localhost/crowdsec/api/alerts'),
+        );
+        expect(response.status).toBe(mode === 'latest' ? 502 : 200);
+        expect(saveMetadata).toHaveBeenCalledTimes(1);
+        expect(database.countAlerts()).toBe(1);
+        expect(database.getMeta('alert_reconcile_window_state')).toBeNull();
+        expect(controller.getCacheLastUpdate()).toBe(lastUpdate);
+        expect(published).not.toHaveBeenCalled();
 
-      // The failed head/window successes must remain due in memory, so the
-      // next automatic delta retries them and persists its own cutoff.
-      const retryStartedAt = Date.now();
-      expect((await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'))).status).toBe(200);
-      expect(saveMetadata).toHaveBeenCalledTimes(2);
-      const persisted = JSON.parse(database.getMeta('alert_reconcile_window_state')!.value);
-      expect(persisted.headLastSuccess).toBeGreaterThanOrEqual(retryStartedAt);
-      expect(persisted.headLastSuccess).toBeLessThanOrEqual(Date.parse(controller.getCacheLastUpdate()!));
-      expect(database.countAlerts()).toBe(2);
-      expect(published).toHaveBeenCalledOnce();
-    } finally {
-      unsubscribe();
-      controller.stopBackgroundTasks();
-      database.close();
-    }
-  });
+        // The failed head/window successes must remain due in memory, so the
+        // next automatic delta retries them and persists its own cutoff.
+        const retryStartedAt = Date.now();
+        expect((await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'))).status).toBe(200);
+        expect(saveMetadata).toHaveBeenCalledTimes(2);
+        const persisted = JSON.parse(database.getMeta('alert_reconcile_window_state')!.value);
+        expect(persisted.headLastSuccess).toBeGreaterThanOrEqual(retryStartedAt);
+        expect(persisted.headLastSuccess).toBeLessThanOrEqual(Date.parse(controller.getCacheLastUpdate()!));
+        expect(database.countAlerts()).toBe(2);
+        expect(published).toHaveBeenCalledOnce();
+      } finally {
+        unsubscribe();
+        controller.stopBackgroundTasks();
+        database.close();
+      }
+    },
+  );
 
   test('invalidates cached analytics when cleanup commits before a delta that later fails', async () => {
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
@@ -353,9 +385,13 @@ describe('createApp refresh API', () => {
     const analyticsQueryWorker = new DatabaseQueryWorker({ dbPath: database.cachePath, maxWorkers: 1 });
     const analyticsQueries = vi.spyOn(analyticsQueryWorker, 'all');
     let lapiStarted!: () => void;
-    const lapiFetchStarted = new Promise<void>((resolve) => { lapiStarted = resolve; });
+    const lapiFetchStarted = new Promise<void>((resolve) => {
+      lapiStarted = resolve;
+    });
     let releaseLapi!: () => void;
-    const lapiGate = new Promise<void>((resolve) => { releaseLapi = resolve; });
+    const lapiGate = new Promise<void>((resolve) => {
+      releaseLapi = resolve;
+    });
     const { controller, lapiClient } = createController({
       database,
       syncWorker,
@@ -385,16 +421,18 @@ describe('createApp refresh API', () => {
     try {
       await lapiClient.login();
       expect(await readAlertTotal()).toBe(1);
-      const primedDashboard = (await (await controller.fetch(
-        new Request('http://localhost/crowdsec/api/dashboard/stats'),
-      )).json()) as DashboardStatsResponse;
+      const primedDashboard = (await (
+        await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'))
+      ).json()) as DashboardStatsResponse;
       expect(primedDashboard.totals.alerts).toBe(1);
 
-      const refreshResponse = controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'delta' }),
-      }));
+      const refreshResponse = controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'delta' }),
+        }),
+      );
       refresh = refreshResponse;
       await lapiFetchStarted;
 
@@ -402,9 +440,9 @@ describe('createApp refresh API', () => {
       // commit must already have dropped the cached analytics generation.
       expect(database.countAlerts()).toBe(1);
       const queriesBeforeRead = analyticsQueries.mock.calls.length;
-      const dashboard = (await (await controller.fetch(
-        new Request('http://localhost/crowdsec/api/dashboard/stats'),
-      )).json()) as DashboardStatsResponse;
+      const dashboard = (await (
+        await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'))
+      ).json()) as DashboardStatsResponse;
       expect(dashboard.pending === true || dashboard.totals.alerts === 1).toBe(true);
       await vi.waitFor(() => expect(analyticsQueries.mock.calls.length).toBeGreaterThan(queriesBeforeRead));
       expect(await readAlertTotal()).toBe(1);
@@ -429,28 +467,32 @@ describe('createApp refresh API', () => {
       uuid: 'refresh-consistency-901',
       created_at: new Date(Date.now() - 4_000).toISOString(),
       source: { ip: '192.0.2.10', value: '192.0.2.10', cn: 'DE' },
-      decisions: [{
-        id: 9010,
-        value: '192.0.2.10',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9010,
+          value: '192.0.2.10',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const refreshedAlert = sampleAlert({
       id: 902,
       uuid: 'refresh-consistency-902',
       created_at: new Date(Date.now() - 1_000).toISOString(),
       source: { ip: '192.0.2.20', value: '192.0.2.20', cn: 'US' },
-      decisions: [{
-        id: 9020,
-        value: '192.0.2.20',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9020,
+          value: '192.0.2.20',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
     seedAlert(database, initialAlert);
@@ -461,9 +503,7 @@ describe('createApp refresh API', () => {
         isComplete: true,
         lastUpdate: new Date(Date.now() - 5_000).toISOString(),
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([initialAlert, refreshedAlert])
-        : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([initialAlert, refreshedAlert]) : undefined),
     });
     await lapiClient.login();
 
@@ -475,20 +515,24 @@ describe('createApp refresh API', () => {
       const unsubscribe = controller.subscribeCacheUpdates((revision) => {
         publishedRevisions.push(revision);
       });
-      const refresh = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'delta' }),
-      }));
+      const refresh = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'delta' }),
+        }),
+      );
       unsubscribe();
 
       expect(refresh.status).toBe(200);
-      const refreshPayload = await refresh.json() as { completed_at: string };
+      const refreshPayload = (await refresh.json()) as { completed_at: string };
       expect(publishedRevisions).toEqual([refreshPayload.completed_at]);
 
       const [dashboardResponse, alertsResponse, decisionsResponse] = await Promise.all([
         controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats')),
-        controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false')),
+        controller.fetch(
+          new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false'),
+        ),
         controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10')),
       ]);
       let dashboard = (await dashboardResponse.json()) as DashboardStatsResponse;
@@ -505,9 +549,9 @@ describe('createApp refresh API', () => {
       }
       expect(dashboard.totals.alerts).toBe(alerts.pagination.total);
       expect(dashboard.filteredTotals.alerts).toBe(alerts.pagination.total);
-      expect(
-        dashboard.filteredTotals.decisions + dashboard.filteredTotals.simulatedDecisions,
-      ).toBe(decisions.pagination.total);
+      expect(dashboard.filteredTotals.decisions + dashboard.filteredTotals.simulatedDecisions).toBe(
+        decisions.pagination.total,
+      );
       expect(alerts.data.map((alert) => alert.id).sort()).toEqual([901, 902]);
       expect(decisions.data.map((decision) => Number(decision.id)).sort()).toEqual([9010, 9020]);
     } finally {
@@ -521,27 +565,31 @@ describe('createApp refresh API', () => {
       id: 921,
       uuid: 'atomic-refresh-921',
       created_at: new Date(Date.now() - 4_000).toISOString(),
-      decisions: [{
-        id: 9210,
-        value: '192.0.2.21',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9210,
+          value: '192.0.2.21',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const refreshedAlert = sampleAlert({
       id: 922,
       uuid: 'atomic-refresh-922',
       created_at: new Date(Date.now() - 1_000).toISOString(),
-      decisions: [{
-        id: 9220,
-        value: '192.0.2.22',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9220,
+          value: '192.0.2.22',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
     seedAlert(database, initialAlert);
@@ -570,9 +618,7 @@ describe('createApp refresh API', () => {
         isComplete: true,
         lastUpdate: new Date(Date.now() - 5_000).toISOString(),
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([initialAlert, refreshedAlert])
-        : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([initialAlert, refreshedAlert]) : undefined),
     });
     await lapiClient.login();
 
@@ -580,16 +626,20 @@ describe('createApp refresh API', () => {
       const initialDashboard = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'));
       expect(((await initialDashboard.json()) as DashboardStatsResponse).totals.alerts).toBe(1);
 
-      const refreshPromise = controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'delta' }),
-      }));
+      const refreshPromise = controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'delta' }),
+        }),
+      );
       await duplicateRefreshStarted;
 
       const [dashboardResponse, alertsResponse, decisionsResponse] = await Promise.all([
         controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats')),
-        controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false')),
+        controller.fetch(
+          new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false'),
+        ),
         controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10')),
       ]);
       const dashboard = (await dashboardResponse.json()) as DashboardStatsResponse;
@@ -605,8 +655,9 @@ describe('createApp refresh API', () => {
       const committedAlerts = await controller.fetch(
         new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false'),
       );
-      expect(((await committedAlerts.json()) as PaginatedResponse<SlimAlert>).data.map((alert) => alert.id).sort())
-        .toEqual([921, 922]);
+      expect(
+        ((await committedAlerts.json()) as PaginatedResponse<SlimAlert>).data.map((alert) => alert.id).sort(),
+      ).toEqual([921, 922]);
     } finally {
       releaseCommit();
       controller.stopBackgroundTasks();
@@ -619,27 +670,31 @@ describe('createApp refresh API', () => {
       id: 931,
       uuid: 'publication-barrier-931',
       created_at: new Date(Date.now() - 4_000).toISOString(),
-      decisions: [{
-        id: 9310,
-        value: '192.0.2.31',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9310,
+          value: '192.0.2.31',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const refreshedAlert = sampleAlert({
       id: 932,
       uuid: 'publication-barrier-932',
       created_at: new Date(Date.now() - 1_000).toISOString(),
-      decisions: [{
-        id: 9320,
-        value: '192.0.2.32',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9320,
+          value: '192.0.2.32',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
     seedAlert(database, initialAlert);
@@ -657,10 +712,7 @@ describe('createApp refresh API', () => {
       dashboardBuildReached = resolve;
     });
     vi.spyOn(analyticsQueryWorker, 'all').mockImplementation(async (sql, params, options) => {
-      if (
-        holdDashboardIndex
-        && !dashboardIndexHeld
-      ) {
+      if (holdDashboardIndex && !dashboardIndexHeld) {
         dashboardIndexHeld = true;
         dashboardBuildReached();
         await dashboardGate;
@@ -676,9 +728,7 @@ describe('createApp refresh API', () => {
         isComplete: true,
         lastUpdate: new Date(Date.now() - 5_000).toISOString(),
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([initialAlert, refreshedAlert])
-        : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([initialAlert, refreshedAlert]) : undefined),
     });
     await lapiClient.login();
 
@@ -687,11 +737,13 @@ describe('createApp refresh API', () => {
       expect(((await initialDashboard.json()) as DashboardStatsResponse).totals.alerts).toBe(1);
       holdDashboardIndex = true;
 
-      const refreshPromise = controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'delta' }),
-      }));
+      const refreshPromise = controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'delta' }),
+        }),
+      );
       await dashboardBuildStarted;
 
       // This checks independence from the held dashboard build, not response
@@ -702,7 +754,10 @@ describe('createApp refresh API', () => {
           return await Promise.race([
             operation,
             new Promise<never>((_resolve, reject) => {
-              timeout = setTimeout(() => reject(new Error(`${label} remained blocked by dashboard preparation`)), 10_000);
+              timeout = setTimeout(
+                () => reject(new Error(`${label} remained blocked by dashboard preparation`)),
+                10_000,
+              );
             }),
           ]);
         } finally {
@@ -713,7 +768,9 @@ describe('createApp refresh API', () => {
       expect(completedRefresh.status).toBe(200);
 
       const readsPromise = Promise.all([
-        controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false')),
+        controller.fetch(
+          new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false'),
+        ),
         controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10')),
       ]).then(async ([alertsResponse, decisionsResponse]) => ({
         alerts: (await alertsResponse.json()) as PaginatedResponse<SlimAlert>,
@@ -744,27 +801,31 @@ describe('createApp refresh API', () => {
       id: 911,
       uuid: 'refresh-demand-911',
       created_at: new Date(Date.now() - 4_000).toISOString(),
-      decisions: [{
-        id: 9110,
-        value: '192.0.2.11',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9110,
+          value: '192.0.2.11',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const refreshedAlert = sampleAlert({
       id: 912,
       uuid: 'refresh-demand-912',
       created_at: new Date(Date.now() - 1_000).toISOString(),
-      decisions: [{
-        id: 9120,
-        value: '192.0.2.12',
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9120,
+          value: '192.0.2.12',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
     const queryWorker = new DatabaseQueryWorker({ dbPath: database.cachePath });
@@ -779,9 +840,7 @@ describe('createApp refresh API', () => {
         isComplete: true,
         lastUpdate: new Date(Date.now() - 5_000).toISOString(),
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([initialAlert, refreshedAlert])
-        : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([initialAlert, refreshedAlert]) : undefined),
     });
     await lapiClient.login();
     const nowSpy = vi.spyOn(Date, 'now');
@@ -789,19 +848,21 @@ describe('createApp refresh API', () => {
     try {
       const initialDashboard = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats'));
       expect(((await initialDashboard.json()) as DashboardStatsResponse).totals.alerts).toBe(1);
-      const decisionIndexQueryCount = () => queryAllSpy.mock.calls.filter(([sql]) => (
-        sql.includes('SELECT rowid')
-        && sql.includes('FROM decisions')
-        && sql.includes('ORDER BY rowid ASC')
-      )).length;
+      const decisionIndexQueryCount = () =>
+        queryAllSpy.mock.calls.filter(
+          ([sql]) =>
+            sql.includes('SELECT rowid') && sql.includes('FROM decisions') && sql.includes('ORDER BY rowid ASC'),
+        ).length;
       const initialDecisionIndexQueries = decisionIndexQueryCount();
 
       nowSpy.mockReturnValue(Date.now() + 11_000);
-      const refresh = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'delta' }),
-      }));
+      const refresh = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'delta' }),
+        }),
+      );
       expect(refresh.status).toBe(200);
       expect(decisionIndexQueryCount()).toBe(initialDecisionIndexQueries);
 
@@ -815,5 +876,4 @@ describe('createApp refresh API', () => {
       database.close();
     }
   });
-
 });

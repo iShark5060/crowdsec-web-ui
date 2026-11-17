@@ -1,11 +1,20 @@
-import { installControlledIntersectionObserver, largeDecisionList, setRefreshSignalMock, toPaginatedAlerts, toPaginatedDecisions } from './harness';
-import { describe, expect, test, vi } from 'vitest';
+import './harness';
+
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate, type NavigateFunction } from 'react-router-dom';
+import { describe, expect, test, vi } from 'vitest';
+
 import * as api from '../../../lib/api';
-import { Alerts } from '../../Alerts';
 import { type DecisionListItem, type SlimAlert } from '../../../types';
+import { Alerts } from '../../Alerts';
+import {
+  installControlledIntersectionObserver,
+  largeDecisionList,
+  setRefreshSignalMock,
+  toPaginatedAlerts,
+  toPaginatedDecisions,
+} from './harness';
 
 describe('Alerts page details and actions', () => {
   test('recognizes eventless AppSec alerts from their first-class kind', async () => {
@@ -43,7 +52,15 @@ describe('Alerts page details and actions', () => {
     vi.mocked(api.checkAllowlist).mockImplementationOnce(async (value) => ({
       value,
       allowlisted: true,
-      results: [{ instance_id: 'east', instance_name: 'EAST', status: 'available', allowlisted: true, reason: '10.0.0.0/8 from office' }],
+      results: [
+        {
+          instance_id: 'east',
+          instance_name: 'EAST',
+          status: 'available',
+          allowlisted: true,
+          reason: '10.0.0.0/8 from office',
+        },
+      ],
     }));
 
     render(
@@ -66,14 +83,16 @@ describe('Alerts page details and actions', () => {
       source: { ip: '1.2.3.4' },
       message: 'WAF block: crowdsecurity/vpatch-git-config from 1.2.3.4',
       decisions: [],
-      events: [{
-        timestamp: '2026-03-23T11:00:00.000Z',
-        meta: [
-          { key: 'service', value: 'http' },
-          { key: 'rule_name', value: 'crowdsecurity/vpatch-git-config' },
-          { key: 'matched_zones', value: 'REQUEST_FILENAME' },
-        ],
-      }],
+      events: [
+        {
+          timestamp: '2026-03-23T11:00:00.000Z',
+          meta: [
+            { key: 'service', value: 'http' },
+            { key: 'rule_name', value: 'crowdsecurity/vpatch-git-config' },
+            { key: 'matched_zones', value: 'REQUEST_FILENAME' },
+          ],
+        },
+      ],
       meta: [
         { key: 'host', value: 'example.test' },
         { key: 'host', value: 'alternate.test' },
@@ -146,17 +165,22 @@ describe('Alerts page details and actions', () => {
       origin_features_enabled: false,
     });
     vi.mocked(api.fetchAlertsPaginated).mockImplementation(async (page, pageSize) =>
-      toPaginatedAlerts([
-        {
-          id: 1,
-          created_at: '2026-03-23T11:00:00.000Z',
-          scenario: 'crowdsecurity/community-blocklist',
-          source: { value: 'community-blocklist' },
-          target: 'blocklist',
-          meta_search: 'community-blocklist',
-          decisions: [],
-        },
-      ], page, pageSize, 1),
+      toPaginatedAlerts(
+        [
+          {
+            id: 1,
+            created_at: '2026-03-23T11:00:00.000Z',
+            scenario: 'crowdsecurity/community-blocklist',
+            source: { value: 'community-blocklist' },
+            target: 'blocklist',
+            meta_search: 'community-blocklist',
+            decisions: [],
+          },
+        ],
+        page,
+        pageSize,
+        1,
+      ),
     );
     const fetchAlertMock = vi.mocked(api.fetchAlert);
     fetchAlertMock.mockResolvedValueOnce({
@@ -167,32 +191,36 @@ describe('Alerts page details and actions', () => {
       decisions: [],
       events: [],
     });
-    const fetchDecisionsPaginatedMock = vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (page, pageSize, filters) => {
-      expect(filters).toEqual(expect.objectContaining({
-        alert_id: '1',
-        include_expired: 'true',
-      }));
+    const fetchDecisionsPaginatedMock = vi
+      .mocked(api.fetchDecisionsPaginated)
+      .mockImplementation(async (page, pageSize, filters) => {
+        expect(filters).toEqual(
+          expect.objectContaining({
+            alert_id: '1',
+            include_expired: 'true',
+          }),
+        );
 
-      const decisions: DecisionListItem[] = largeDecisionList.map((decision) => ({
-        id: decision.id,
-        created_at: '2026-03-23T11:00:00.000Z',
-        value: decision.value,
-        expired: false,
-        is_duplicate: false,
-        simulated: false,
-        detail: {
-          origin: decision.origin || 'CAPI',
-          type: decision.type,
-          reason: 'crowdsecurity/community-blocklist',
-          action: decision.type,
-          duration: decision.duration,
-          expiration: '2030-01-01T00:00:00.000Z',
-          alert_id: 1,
-        },
-      }));
+        const decisions: DecisionListItem[] = largeDecisionList.map((decision) => ({
+          id: decision.id,
+          created_at: '2026-03-23T11:00:00.000Z',
+          value: decision.value,
+          expired: false,
+          is_duplicate: false,
+          simulated: false,
+          detail: {
+            origin: decision.origin || 'CAPI',
+            type: decision.type,
+            reason: 'crowdsecurity/community-blocklist',
+            action: decision.type,
+            duration: decision.duration,
+            expiration: '2030-01-01T00:00:00.000Z',
+            alert_id: 1,
+          },
+        }));
 
-      return toPaginatedDecisions(decisions, page, pageSize);
-    });
+        return toPaginatedDecisions(decisions, page, pageSize);
+      });
 
     render(
       <MemoryRouter initialEntries={['/alerts?id=1']}>
@@ -248,30 +276,32 @@ describe('Alerts page details and actions', () => {
       });
 
     let decisionIds = [10];
-    const fetchDecisionsPaginatedMock = vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (_page, pageSize, filters) => {
-      const decisions: DecisionListItem[] = decisionIds.map((id) => ({
-        id,
-        created_at: '2026-03-23T11:00:00.000Z',
-        machine: 'host-a',
-        value: '1.2.3.4',
-        expired: false,
-        is_duplicate: false,
-        simulated: false,
-        detail: {
-          origin: 'manual',
-          type: 'ban',
-          reason: 'crowdsecurity/ssh-bf',
-          action: 'ban',
-          country: 'DE',
-          as: 'Hetzner',
-          duration: '4h',
-          expiration: '2030-01-01T00:00:00.000Z',
-          alert_id: Number(filters?.alert_id || 1),
-        },
-      }));
+    const fetchDecisionsPaginatedMock = vi
+      .mocked(api.fetchDecisionsPaginated)
+      .mockImplementation(async (_page, pageSize, filters) => {
+        const decisions: DecisionListItem[] = decisionIds.map((id) => ({
+          id,
+          created_at: '2026-03-23T11:00:00.000Z',
+          machine: 'host-a',
+          value: '1.2.3.4',
+          expired: false,
+          is_duplicate: false,
+          simulated: false,
+          detail: {
+            origin: 'manual',
+            type: 'ban',
+            reason: 'crowdsecurity/ssh-bf',
+            action: 'ban',
+            country: 'DE',
+            as: 'Hetzner',
+            duration: '4h',
+            expiration: '2030-01-01T00:00:00.000Z',
+            alert_id: Number(filters?.alert_id || 1),
+          },
+        }));
 
-      return toPaginatedDecisions(decisions, 1, pageSize);
-    });
+        return toPaginatedDecisions(decisions, 1, pageSize);
+      });
 
     const { rerender } = render(
       <MemoryRouter initialEntries={['/alerts?id=1']}>
@@ -294,10 +324,12 @@ describe('Alerts page details and actions', () => {
 
     await waitFor(() => expect(screen.getByText('#11')).toBeInTheDocument());
     expect(fetchDecisionsPaginatedMock.mock.calls.length).toBeGreaterThan(1);
-    expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toEqual(expect.objectContaining({
-      alert_id: '1',
-      include_expired: 'true',
-    }));
+    expect(fetchDecisionsPaginatedMock.mock.calls.at(-1)?.[2]).toEqual(
+      expect.objectContaining({
+        alert_id: '1',
+        include_expired: 'true',
+      }),
+    );
   });
 
   test('preserves loaded decision pages during same-alert detail refresh', async () => {
@@ -312,32 +344,36 @@ describe('Alerts page details and actions', () => {
     });
 
     let refreshedDecisionList = largeDecisionList;
-    const fetchDecisionsPaginatedMock = vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (page, pageSize, filters) => {
-      expect(filters).toEqual(expect.objectContaining({
-        alert_id: '1',
-        include_expired: 'true',
-      }));
+    const fetchDecisionsPaginatedMock = vi
+      .mocked(api.fetchDecisionsPaginated)
+      .mockImplementation(async (page, pageSize, filters) => {
+        expect(filters).toEqual(
+          expect.objectContaining({
+            alert_id: '1',
+            include_expired: 'true',
+          }),
+        );
 
-      const decisions: DecisionListItem[] = refreshedDecisionList.map((decision) => ({
-        id: decision.id,
-        created_at: '2026-03-23T11:00:00.000Z',
-        value: decision.value,
-        expired: false,
-        is_duplicate: false,
-        simulated: false,
-        detail: {
-          origin: decision.origin || 'CAPI',
-          type: decision.type,
-          reason: 'crowdsecurity/community-blocklist',
-          action: decision.type,
-          duration: decision.duration,
-          expiration: '2030-01-01T00:00:00.000Z',
-          alert_id: 1,
-        },
-      }));
+        const decisions: DecisionListItem[] = refreshedDecisionList.map((decision) => ({
+          id: decision.id,
+          created_at: '2026-03-23T11:00:00.000Z',
+          value: decision.value,
+          expired: false,
+          is_duplicate: false,
+          simulated: false,
+          detail: {
+            origin: decision.origin || 'CAPI',
+            type: decision.type,
+            reason: 'crowdsecurity/community-blocklist',
+            action: decision.type,
+            duration: decision.duration,
+            expiration: '2030-01-01T00:00:00.000Z',
+            alert_id: 1,
+          },
+        }));
 
-      return toPaginatedDecisions(decisions, page, pageSize);
-    });
+        return toPaginatedDecisions(decisions, page, pageSize);
+      });
 
     const { rerender } = render(
       <MemoryRouter initialEntries={['/alerts?id=1']}>
@@ -354,15 +390,18 @@ describe('Alerts page details and actions', () => {
     await waitFor(() => expect(screen.getByText('#1074')).toBeInTheDocument());
 
     const callCountBeforeRefresh = fetchDecisionsPaginatedMock.mock.calls.length;
-    refreshedDecisionList = [{
-      id: 2000,
-      value: '198.51.100.200',
-      type: 'ban',
-      duration: '24h',
-      simulated: false,
-      expired: false,
-      origin: 'CAPI',
-    }, ...largeDecisionList];
+    refreshedDecisionList = [
+      {
+        id: 2000,
+        value: '198.51.100.200',
+        type: 'ban',
+        duration: '24h',
+        simulated: false,
+        expired: false,
+        origin: 'CAPI',
+      },
+      ...largeDecisionList,
+    ];
     setRefreshSignalMock(1);
 
     rerender(
@@ -412,23 +451,25 @@ describe('Alerts page details and actions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }));
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
-    await waitFor(() => expect(bulkDeleteAlertsMock).toHaveBeenCalledWith(
-      Array.from({ length: 50 }, (_, index) => String(index + 1)),
-    ));
+    await waitFor(() =>
+      expect(bulkDeleteAlertsMock).toHaveBeenCalledWith(Array.from({ length: 50 }, (_, index) => String(index + 1))),
+    );
   });
 
   test('shows delete permission guidance inside the confirmation modal', async () => {
-    const alerts: SlimAlert[] = [{
-      id: 1,
-      created_at: '2026-03-23T10:00:00.000Z',
-      scenario: 'crowdsecurity/ssh-bf',
-      machine_id: 'machine-1',
-      machine_alias: 'host-a',
-      source: { ip: '1.2.3.4', value: '1.2.3.4', cn: 'DE', as_name: 'Hetzner' },
-      target: 'ssh',
-      meta_search: 'ssh',
-      decisions: [{ id: 10, value: '1.2.3.4', type: 'ban', origin: 'manual', simulated: false, expired: false }],
-    }];
+    const alerts: SlimAlert[] = [
+      {
+        id: 1,
+        created_at: '2026-03-23T10:00:00.000Z',
+        scenario: 'crowdsecurity/ssh-bf',
+        machine_id: 'machine-1',
+        machine_alias: 'host-a',
+        source: { ip: '1.2.3.4', value: '1.2.3.4', cn: 'DE', as_name: 'Hetzner' },
+        target: 'ssh',
+        meta_search: 'ssh',
+        decisions: [{ id: 10, value: '1.2.3.4', type: 'ban', origin: 'manual', simulated: false, expired: false }],
+      },
+    ];
     const permissionError = Object.assign(new Error('Permission denied.'), {
       helpLink: 'https://github.com/TheDuffman85/crowdsec-web-ui#trusted-ips-for-delete-operations-optional',
       helpText: 'Trusted IPs for Delete Operations',

@@ -1,8 +1,14 @@
 import { describe, expect, test, vi } from 'vitest';
+
 import type { CrowdsecUpdateObservation } from '../../crowdsec-update-check';
 import { createService } from './harness';
 
-function observation(endpointId: string, currentVersion: string | null, remoteVersion: string | null, updateAvailable: boolean | null): CrowdsecUpdateObservation {
+function observation(
+  endpointId: string,
+  currentVersion: string | null,
+  remoteVersion: string | null,
+  updateAvailable: boolean | null,
+): CrowdsecUpdateObservation {
   return {
     instanceId: 'edge',
     instanceName: 'Edge CrowdSec',
@@ -17,10 +23,7 @@ function observation(endpointId: string, currentVersion: string | null, remoteVe
 
 describe('CrowdSec update notifications', () => {
   test('delivers once per endpoint and target, replaces older targets, and preserves unknown checks', async () => {
-    let observations = [
-      observation('one', 'v1.7.8', 'v1.8.0', true),
-      observation('two', 'v1.7.7', 'v1.8.0', true),
-    ];
+    let observations = [observation('one', 'v1.7.8', 'v1.8.0', true), observation('two', 'v1.7.7', 'v1.8.0', true)];
     const sent = vi.fn(async () => Response.json({ ok: true }));
     const { database, service } = createService({
       crowdsecUpdateChecker: async () => observations,
@@ -62,21 +65,17 @@ describe('CrowdSec update notifications', () => {
         expect.objectContaining({ metadata: expect.objectContaining({ endpoint_id: 'one' }) }),
       ]);
 
-      observations = [
-        observation('one', 'v1.7.8', 'v1.8.1', true),
-        observation('two', null, 'v1.8.1', null),
-      ];
+      observations = [observation('one', 'v1.7.8', 'v1.8.1', true), observation('two', null, 'v1.8.1', null)];
       await service.evaluateRules(new Date('2026-09-24T11:00:00.000Z'));
       expect(sent).toHaveBeenCalledTimes(3);
-      expect(service.listNotifications().data.map((item) => [item.metadata.endpoint_id, item.metadata.remote_version])).toEqual([
+      expect(
+        service.listNotifications().data.map((item) => [item.metadata.endpoint_id, item.metadata.remote_version]),
+      ).toEqual([
         ['one', 'v1.8.1'],
         ['two', 'v1.8.0'],
       ]);
 
-      observations = [
-        observation('one', 'v1.8.1', 'v1.8.1', false),
-        observation('two', null, null, null),
-      ];
+      observations = [observation('one', 'v1.8.1', 'v1.8.1', false), observation('two', null, null, null)];
       await service.evaluateRules(new Date('2026-09-24T11:05:00.000Z'));
       expect(service.listNotifications().data.map((item) => item.metadata.endpoint_id)).toEqual(['two']);
 

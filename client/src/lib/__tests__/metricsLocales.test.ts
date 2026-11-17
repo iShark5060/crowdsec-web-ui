@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import ar from '../../locales/ar.json';
 import de from '../../locales/de.json';
 import en from '../../locales/en.json';

@@ -3,7 +3,7 @@ services:
     build: .
     container_name: crowdsec_web_ui
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       CONFIG_INSTANCE_LAPI_URL: http://crowdsec:8080
       CONFIG_INSTANCE_LAPI_AUTH_USERNAME: crowdsec-web-ui

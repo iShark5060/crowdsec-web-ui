@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { getAlertTargets, getAlertTargetSummary } from '../../utils/alerts';
 
 describe('getAlertTargets', () => {

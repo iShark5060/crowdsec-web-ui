@@ -69,8 +69,40 @@ export interface InstanceSummary {
 }
 
 export type TableColumnPreferenceTable = 'alerts' | 'decisions';
-export type AlertTableColumnId = 'id' | 'instance' | 'time' | 'scenario' | 'message' | 'kind' | 'target' | 'country' | 'region' | 'city' | 'as' | 'source' | 'machine' | 'origin' | 'decisions';
-export type DecisionTableColumnId = 'id' | 'instance' | 'time' | 'scenario' | 'message' | 'kind' | 'target' | 'country' | 'region' | 'city' | 'as' | 'source' | 'action' | 'expiration' | 'machine' | 'origin' | 'alert';
+export type AlertTableColumnId =
+  | 'id'
+  | 'instance'
+  | 'time'
+  | 'scenario'
+  | 'message'
+  | 'kind'
+  | 'target'
+  | 'country'
+  | 'region'
+  | 'city'
+  | 'as'
+  | 'source'
+  | 'machine'
+  | 'origin'
+  | 'decisions';
+export type DecisionTableColumnId =
+  | 'id'
+  | 'instance'
+  | 'time'
+  | 'scenario'
+  | 'message'
+  | 'kind'
+  | 'target'
+  | 'country'
+  | 'region'
+  | 'city'
+  | 'as'
+  | 'source'
+  | 'action'
+  | 'expiration'
+  | 'machine'
+  | 'origin'
+  | 'alert';
 export type TableColumnId = AlertTableColumnId | DecisionTableColumnId;
 
 export interface TableColumnDefinition {
@@ -81,44 +113,45 @@ export interface TableColumnDefinition {
 
 export type TableColumnPreferences = Record<TableColumnPreferenceTable, TableColumnId[]>;
 
-export const TABLE_COLUMN_DEFINITIONS: Record<TableColumnPreferenceTable, TableColumnDefinition[]> = {
-  alerts: [
-    { id: 'id', label: 'ID', defaultVisible: false },
-    { id: 'instance', label: 'Instance', defaultVisible: false },
-    { id: 'time', label: 'Time', defaultVisible: true },
-    { id: 'scenario', label: 'Scenario', defaultVisible: true },
-    { id: 'message', label: 'Message', defaultVisible: false },
-    { id: 'kind', label: 'Kind', defaultVisible: false },
-    { id: 'country', label: 'Country', defaultVisible: true },
-    { id: 'region', label: 'Region', defaultVisible: false },
-    { id: 'city', label: 'City', defaultVisible: false },
-    { id: 'as', label: 'AS', defaultVisible: true },
-    { id: 'source', label: 'IP / Range', defaultVisible: true },
-    { id: 'target', label: 'Target', defaultVisible: true },
-    { id: 'machine', label: 'Machine', defaultVisible: false },
-    { id: 'origin', label: 'Origin', defaultVisible: false },
-    { id: 'decisions', label: 'Decisions', defaultVisible: true },
-  ],
-  decisions: [
-    { id: 'id', label: 'ID', defaultVisible: false },
-    { id: 'instance', label: 'Instance', defaultVisible: false },
-    { id: 'time', label: 'Time', defaultVisible: true },
-    { id: 'scenario', label: 'Scenario', defaultVisible: true },
-    { id: 'message', label: 'Message', defaultVisible: false },
-    { id: 'kind', label: 'Kind', defaultVisible: false },
-    { id: 'country', label: 'Country', defaultVisible: true },
-    { id: 'region', label: 'Region', defaultVisible: false },
-    { id: 'city', label: 'City', defaultVisible: false },
-    { id: 'as', label: 'AS', defaultVisible: true },
-    { id: 'source', label: 'IP / Range', defaultVisible: true },
-    { id: 'action', label: 'Action', defaultVisible: true },
-    { id: 'expiration', label: 'Expiration', defaultVisible: true },
-    { id: 'target', label: 'Target', defaultVisible: true },
-    { id: 'machine', label: 'Machine', defaultVisible: false },
-    { id: 'origin', label: 'Origin', defaultVisible: false },
-    { id: 'alert', label: 'Alert', defaultVisible: true },
-  ],
-};
+export const TABLE_COLUMN_DEFINITIONS: Record<TableColumnPreferenceTable, TableColumnDefinition[]> =
+  {
+    alerts: [
+      { id: 'id', label: 'ID', defaultVisible: false },
+      { id: 'instance', label: 'Instance', defaultVisible: false },
+      { id: 'time', label: 'Time', defaultVisible: true },
+      { id: 'scenario', label: 'Scenario', defaultVisible: true },
+      { id: 'message', label: 'Message', defaultVisible: false },
+      { id: 'kind', label: 'Kind', defaultVisible: false },
+      { id: 'country', label: 'Country', defaultVisible: true },
+      { id: 'region', label: 'Region', defaultVisible: false },
+      { id: 'city', label: 'City', defaultVisible: false },
+      { id: 'as', label: 'AS', defaultVisible: true },
+      { id: 'source', label: 'IP / Range', defaultVisible: true },
+      { id: 'target', label: 'Target', defaultVisible: true },
+      { id: 'machine', label: 'Machine', defaultVisible: false },
+      { id: 'origin', label: 'Origin', defaultVisible: false },
+      { id: 'decisions', label: 'Decisions', defaultVisible: true },
+    ],
+    decisions: [
+      { id: 'id', label: 'ID', defaultVisible: false },
+      { id: 'instance', label: 'Instance', defaultVisible: false },
+      { id: 'time', label: 'Time', defaultVisible: true },
+      { id: 'scenario', label: 'Scenario', defaultVisible: true },
+      { id: 'message', label: 'Message', defaultVisible: false },
+      { id: 'kind', label: 'Kind', defaultVisible: false },
+      { id: 'country', label: 'Country', defaultVisible: true },
+      { id: 'region', label: 'Region', defaultVisible: false },
+      { id: 'city', label: 'City', defaultVisible: false },
+      { id: 'as', label: 'AS', defaultVisible: true },
+      { id: 'source', label: 'IP / Range', defaultVisible: true },
+      { id: 'action', label: 'Action', defaultVisible: true },
+      { id: 'expiration', label: 'Expiration', defaultVisible: true },
+      { id: 'target', label: 'Target', defaultVisible: true },
+      { id: 'machine', label: 'Machine', defaultVisible: false },
+      { id: 'origin', label: 'Origin', defaultVisible: false },
+      { id: 'alert', label: 'Alert', defaultVisible: true },
+    ],
+  };
 
 const DEFAULT_ALERT_TABLE_COLUMNS = TABLE_COLUMN_DEFINITIONS.alerts
   .filter((column) => column.defaultVisible)
@@ -132,13 +165,7 @@ export const DEFAULT_TABLE_COLUMN_PREFERENCES: TableColumnPreferences = {
   decisions: [...DEFAULT_DECISION_TABLE_COLUMNS],
 };
 
-export type AlertMetaValue =
-  | string
-  | number
-  | boolean
-  | null
-  | Record<string, unknown>
-  | unknown[];
+export type AlertMetaValue = string | number | boolean | null | Record<string, unknown> | unknown[];
 
 export interface LapiStatus {
   isConnected: boolean;
@@ -372,7 +399,10 @@ export interface StatsAlert {
   created_at: string;
   kind?: string;
   scenario?: string;
-  source: Pick<AlertSource, 'ip' | 'value' | 'range' | 'cn' | 'city' | 'region' | 'as_name' | 'scope'> | null;
+  source: Pick<
+    AlertSource,
+    'ip' | 'value' | 'range' | 'cn' | 'city' | 'region' | 'as_name' | 'scope'
+  > | null;
   target?: string;
   simulated?: boolean;
 }
@@ -476,7 +506,15 @@ export interface UpdateCheckResponse {
 }
 
 export type NotificationChannelType = 'apprise' | 'ntfy' | 'gotify' | 'email' | 'mqtt' | 'webhook';
-export type NotificationRuleType = 'alert-spike' | 'alert-threshold' | 'new-alert-decision' | 'new-cve' | 'ip-ban' | 'application-update' | 'crowdsec-update' | 'lapi-availability';
+export type NotificationRuleType =
+  | 'alert-spike'
+  | 'alert-threshold'
+  | 'new-alert-decision'
+  | 'new-cve'
+  | 'ip-ban'
+  | 'application-update'
+  | 'crowdsec-update'
+  | 'lapi-availability';
 export type NotificationSeverity = 'info' | 'warning' | 'critical';
 export type NotificationDeliveryStatus = 'delivered' | 'failed' | 'skipped';
 
@@ -625,7 +663,12 @@ export interface UpsertNotificationRuleRequest {
   config: NotificationRuleConfig;
 }
 
-export type ManagedConfigSetting = 'refresh_interval' | 'manual_refresh_enabled' | 'allowlists_sidebar_visible' | 'metrics_sidebar_visible' | 'statistics_sidebar_visible';
+export type ManagedConfigSetting =
+  | 'refresh_interval'
+  | 'manual_refresh_enabled'
+  | 'allowlists_sidebar_visible'
+  | 'metrics_sidebar_visible'
+  | 'statistics_sidebar_visible';
 
 /** Where the application config sets a value that Settings cannot change. */
 export interface ManagedSettingSource {
@@ -856,7 +899,9 @@ export function formatAlertMessage(message: string | null | undefined): string |
   if (typeof message !== 'string') return undefined;
   const trimmed = message.trim();
   const manualPrefix = `${MANUAL_DECISION_MESSAGE_PREFIX}:`;
-  const displayed = trimmed.startsWith(manualPrefix) ? trimmed.slice(manualPrefix.length).trim() : trimmed;
+  const displayed = trimmed.startsWith(manualPrefix)
+    ? trimmed.slice(manualPrefix.length).trim()
+    : trimmed;
   return displayed || undefined;
 }
 

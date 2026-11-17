@@ -93,7 +93,7 @@ export interface WebhookConfig {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {};
 }
 
@@ -216,12 +216,16 @@ export function defaultWebhookConfig(): WebhookConfig {
   };
 }
 
-export function defaultChannelConfig(type: NotificationChannelType): Record<string, AlertMetaValue> {
-  if (type === 'apprise') return defaultAppriseConfig() as unknown as Record<string, AlertMetaValue>;
+export function defaultChannelConfig(
+  type: NotificationChannelType,
+): Record<string, AlertMetaValue> {
+  if (type === 'apprise')
+    return defaultAppriseConfig() as unknown as Record<string, AlertMetaValue>;
   if (type === 'email') return defaultEmailConfig() as unknown as Record<string, AlertMetaValue>;
   if (type === 'gotify') return defaultGotifyConfig() as unknown as Record<string, AlertMetaValue>;
   if (type === 'mqtt') return defaultMqttConfig() as unknown as Record<string, AlertMetaValue>;
-  if (type === 'webhook') return defaultWebhookConfig() as unknown as Record<string, AlertMetaValue>;
+  if (type === 'webhook')
+    return defaultWebhookConfig() as unknown as Record<string, AlertMetaValue>;
   return defaultNtfyConfig() as unknown as Record<string, AlertMetaValue>;
 }
 
@@ -230,17 +234,19 @@ export function coerceEmailConfig(config: unknown): EmailConfig {
   return {
     smtpHost: stringValue(raw.smtpHost),
     smtpPort: numberValue(raw.smtpPort, 587),
-    smtpTlsMode: raw.smtpTlsMode === 'plain' || raw.smtpTlsMode === 'starttls' || raw.smtpTlsMode === 'tls'
-      ? raw.smtpTlsMode
-      : 'starttls',
+    smtpTlsMode:
+      raw.smtpTlsMode === 'plain' || raw.smtpTlsMode === 'starttls' || raw.smtpTlsMode === 'tls'
+        ? raw.smtpTlsMode
+        : 'starttls',
     allowInsecureTls: booleanValue(raw.allowInsecureTls),
     smtpUser: stringValue(raw.smtpUser),
     smtpPassword: stringValue(raw.smtpPassword),
     smtpFrom: stringValue(raw.smtpFrom),
     emailTo: stringValue(raw.emailTo),
-    emailImportanceOverride: raw.emailImportanceOverride === 'normal' || raw.emailImportanceOverride === 'important'
-      ? raw.emailImportanceOverride
-      : 'auto',
+    emailImportanceOverride:
+      raw.emailImportanceOverride === 'normal' || raw.emailImportanceOverride === 'important'
+        ? raw.emailImportanceOverride
+        : 'auto',
     subjectPrefix: stringValue(raw.subjectPrefix, '[CrowdSec]'),
   };
 }
@@ -254,7 +260,7 @@ export function coerceAppriseConfig(config: unknown): AppriseConfig {
     appriseTags: stringValue(raw.appriseTags),
     appriseUrls: stringValue(raw.appriseUrls),
     appriseTypeOverride: APPRISE_TYPES.includes(raw.appriseTypeOverride as AppriseType)
-      ? raw.appriseTypeOverride as AppriseType
+      ? (raw.appriseTypeOverride as AppriseType)
       : 'auto',
     appriseUsername: stringValue(raw.appriseUsername),
     apprisePassword: stringValue(raw.apprisePassword),
@@ -315,7 +321,11 @@ function normalizeWebhookAuth(value: unknown): WebhookAuthConfig {
     return { mode: 'bearer', token: stringValue(raw.token) };
   }
   if (raw.mode === 'basic') {
-    return { mode: 'basic', username: stringValue(raw.username), password: stringValue(raw.password) };
+    return {
+      mode: 'basic',
+      username: stringValue(raw.username),
+      password: stringValue(raw.password),
+    };
   }
   return { mode: 'none' };
 }
@@ -325,9 +335,7 @@ function normalizeWebhookBody(value: unknown): WebhookBodyConfig {
   if (raw.mode === 'form') {
     return {
       mode: 'form',
-      fields: Array.isArray(raw.fields)
-        ? raw.fields.map(normalizeWebhookField)
-        : [],
+      fields: Array.isArray(raw.fields) ? raw.fields.map(normalizeWebhookField) : [],
     };
   }
   return {
@@ -347,9 +355,7 @@ export function coerceWebhookConfig(config: unknown): WebhookConfig {
           return { name: stringValue(item.name), value: stringValue(item.value) };
         })
       : [],
-    headers: Array.isArray(raw.headers)
-      ? raw.headers.map(normalizeWebhookField)
-      : [],
+    headers: Array.isArray(raw.headers) ? raw.headers.map(normalizeWebhookField) : [],
     auth: normalizeWebhookAuth(raw.auth),
     body: normalizeWebhookBody(raw.body),
     timeoutMs: numberValue(raw.timeoutMs, 10000),
@@ -359,20 +365,28 @@ export function coerceWebhookConfig(config: unknown): WebhookConfig {
   };
 }
 
-export function validateNotificationChannelConfig(type: NotificationChannelType, config: Record<string, AlertMetaValue>): string | null {
+export function validateNotificationChannelConfig(
+  type: NotificationChannelType,
+  config: Record<string, AlertMetaValue>,
+): string | null {
   if (type === 'email') {
     const email = coerceEmailConfig(config);
     if (!email.smtpHost.trim()) return 'SMTP host is required';
     if (!email.smtpFrom.trim()) return 'Sender email address is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.smtpFrom.trim())) return 'Invalid sender email address';
-    const recipients = email.emailTo.split(',').map((entry) => entry.trim()).filter(Boolean);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.smtpFrom.trim()))
+      return 'Invalid sender email address';
+    const recipients = email.emailTo
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
     if (recipients.length === 0) return 'At least one email address is required';
     for (const recipient of recipients) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
         return `Invalid email address: ${recipient}`;
       }
     }
-    if (email.smtpPort < 1 || email.smtpPort > 65535) return 'SMTP port must be between 1 and 65535';
+    if (email.smtpPort < 1 || email.smtpPort > 65535)
+      return 'SMTP port must be between 1 and 65535';
     return null;
   }
 
@@ -455,11 +469,15 @@ export function validateNotificationChannelConfig(type: NotificationChannelType,
       return 'Invalid MQTT broker URL';
     }
     if (!mqtt.topic.trim()) return 'MQTT topic is required';
-    if (mqtt.topic.includes('#') || mqtt.topic.includes('+')) return 'MQTT topic must not contain MQTT wildcards';
-    if (mqtt.topic.startsWith('/') || mqtt.topic.endsWith('/')) return 'MQTT topic must not start or end with a slash';
+    if (mqtt.topic.includes('#') || mqtt.topic.includes('+'))
+      return 'MQTT topic must not contain MQTT wildcards';
+    if (mqtt.topic.startsWith('/') || mqtt.topic.endsWith('/'))
+      return 'MQTT topic must not start or end with a slash';
     if (mqtt.topic.includes('//')) return 'MQTT topic must not contain empty topic levels';
-    if (mqtt.keepaliveSeconds < 1 || mqtt.keepaliveSeconds > 3600) return 'Keepalive must be between 1 and 3600 seconds';
-    if (mqtt.connectTimeoutMs < 1000 || mqtt.connectTimeoutMs > 120000) return 'Connect timeout must be between 1000 and 120000 ms';
+    if (mqtt.keepaliveSeconds < 1 || mqtt.keepaliveSeconds > 3600)
+      return 'Keepalive must be between 1 and 3600 seconds';
+    if (mqtt.connectTimeoutMs < 1000 || mqtt.connectTimeoutMs > 120000)
+      return 'Connect timeout must be between 1000 and 120000 ms';
     return null;
   }
 
@@ -476,11 +494,18 @@ export function validateNotificationChannelConfig(type: NotificationChannelType,
   } catch {
     return 'Webhook URL must be a valid URL';
   }
-  if (webhook.timeoutMs < 1000 || webhook.timeoutMs > 30000) return 'Timeout must be between 1000 and 30000 ms';
-  if (webhook.retryAttempts < 0 || webhook.retryAttempts > 5) return 'Retry attempts must be between 0 and 5';
-  if (webhook.retryDelayMs < 0 || webhook.retryDelayMs > 300000) return 'Retry delay must be between 0 and 300000 ms';
-  if (webhook.auth.mode === 'bearer' && !webhook.auth.token.trim()) return 'Bearer authentication requires a token';
-  if (webhook.auth.mode === 'basic' && (!webhook.auth.username.trim() || !webhook.auth.password.trim())) {
+  if (webhook.timeoutMs < 1000 || webhook.timeoutMs > 30000)
+    return 'Timeout must be between 1000 and 30000 ms';
+  if (webhook.retryAttempts < 0 || webhook.retryAttempts > 5)
+    return 'Retry attempts must be between 0 and 5';
+  if (webhook.retryDelayMs < 0 || webhook.retryDelayMs > 300000)
+    return 'Retry delay must be between 0 and 300000 ms';
+  if (webhook.auth.mode === 'bearer' && !webhook.auth.token.trim())
+    return 'Bearer authentication requires a token';
+  if (
+    webhook.auth.mode === 'basic' &&
+    (!webhook.auth.username.trim() || !webhook.auth.password.trim())
+  ) {
     return 'Basic authentication requires username and password';
   }
   return null;

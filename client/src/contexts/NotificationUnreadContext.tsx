@@ -1,4 +1,5 @@
-import { type SetStateAction, useCallback, useEffect, useState } from 'react';
+import { type SetStateAction, useCallback, useEffect, useMemo, useState } from 'react';
+
 import { fetchNotificationsPaginated } from '../lib/api';
 import type { NotificationUnreadContextValue, WithChildren } from '../types';
 import { NotificationUnreadContext } from './notification-unread-context';
@@ -17,12 +18,15 @@ export function NotificationUnreadProvider({ children }: WithChildren) {
   const { refreshSignal = 0 } = useRefresh();
   const [unreadCount, setUnreadCountState] = useState(0);
 
-  const setUnreadCount = useCallback<NotificationUnreadContextValue['setUnreadCount']>((value: SetStateAction<number>) => {
-    setUnreadCountState((previousValue) => {
-      const nextValue = typeof value === 'function' ? value(previousValue) : value;
-      return sanitizeUnreadCount(nextValue);
-    });
-  }, []);
+  const setUnreadCount = useCallback<NotificationUnreadContextValue['setUnreadCount']>(
+    (value: SetStateAction<number>) => {
+      setUnreadCountState((previousValue) => {
+        const nextValue = typeof value === 'function' ? value(previousValue) : value;
+        return sanitizeUnreadCount(nextValue);
+      });
+    },
+    [],
+  );
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -72,8 +76,13 @@ export function NotificationUnreadProvider({ children }: WithChildren) {
     };
   }, [refreshSignal]);
 
+  const value = useMemo(
+    () => ({ unreadCount, setUnreadCount, refreshUnreadCount }),
+    [unreadCount, setUnreadCount, refreshUnreadCount],
+  );
+
   return (
-    <NotificationUnreadContext.Provider value={{ unreadCount, setUnreadCount, refreshUnreadCount }}>
+    <NotificationUnreadContext.Provider value={value}>
       {children}
     </NotificationUnreadContext.Provider>
   );

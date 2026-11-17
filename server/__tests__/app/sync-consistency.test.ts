@@ -1,93 +1,157 @@
-import { describe, expect, test, vi } from 'vitest';
 import path from 'path';
+
+import { describe, expect, test, vi } from 'vitest';
+
 import { CrowdsecDatabase } from '../../database';
-import type { CreateAppOptions } from '../../app';
 import { DatabaseSyncWorker } from '../../sync-worker-client';
 import { parseGoDuration } from '../../utils/duration';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleImplicitSimulatedAlert,
-  sampleRangeAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, destroyTempDir, sampleAlert, seedAlert, tempDir } from './harness';
 
 describe('createApp synchronization consistency and pruning', () => {
-  test.each([false, true])('uses alert creation time for decisions from long-running buckets (legacy cache: %s)', async (legacyCache) => {
-    const createdAt = new Date(Date.now() - 10_000).toISOString();
-    const startedAt = new Date(Date.now() - 18 * 60 * 60 * 1_000).toISOString();
-    const explicitCreatedAt = new Date(Date.now() - 5_000).toISOString();
-    const stopAt = new Date(Date.now() + 60 * 60 * 1_000).toISOString();
-    const alert = sampleAlert({
-      created_at: createdAt,
-      start_at: startedAt,
-      stop_at: createdAt,
-      scenario: 'ssh-persistent-bf',
-      decisions: [
-        { id: 10, type: 'ban', origin: 'crowdsec', value: '1.2.3.4', duration: '59m' },
-        { id: 11, type: 'ban', origin: 'crowdsec', value: '1.2.3.4', created_at: explicitCreatedAt, stop_at: stopAt },
-      ],
-    });
-    const { controller, database } = createController({
-      env: { CROWDSEC_LOOKBACK_PERIOD: '1d', CROWDSEC_REFRESH_INTERVAL: '0' },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([alert]) : undefined,
-    });
+  test.each([false, true])(
+    'uses alert creation time for decisions from long-running buckets (legacy cache: %s)',
+    async (legacyCache) => {
+      const createdAt = new Date(Date.now() - 10_000).toISOString();
+      const startedAt = new Date(Date.now() - 18 * 60 * 60 * 1_000).toISOString();
+      const explicitCreatedAt = new Date(Date.now() - 5_000).toISOString();
+      const stopAt = new Date(Date.now() + 60 * 60 * 1_000).toISOString();
+      const alert = sampleAlert({
+        created_at: createdAt,
+        start_at: startedAt,
+        stop_at: createdAt,
+        scenario: 'ssh-persistent-bf',
+        decisions: [
+          { id: 10, type: 'ban', origin: 'crowdsec', value: '1.2.3.4', duration: '59m' },
+          { id: 11, type: 'ban', origin: 'crowdsec', value: '1.2.3.4', created_at: explicitCreatedAt, stop_at: stopAt },
+        ],
+      });
+      const { controller, database } = createController({
+        env: { CROWDSEC_LOOKBACK_PERIOD: '1d', CROWDSEC_REFRESH_INTERVAL: '0' },
+        fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([alert]) : undefined),
+      });
 
-    try {
-      if (legacyCache) {
-        // Reproduce the old cached timestamp and unversioned metadata hash.
-        seedAlert(database, alert);
-        const hash = database.getAlertDecisionSnapshot(1, 'default')!.metadata_hash!;
-        database.db.prepare('UPDATE alerts SET metadata_hash = ?').run(hash.split(':').at(-1)!);
-        database.db.prepare('UPDATE decisions SET created_at = ? WHERE upstream_id = ?').run(startedAt, '10');
-        expect(database.db.prepare('SELECT created_at FROM decisions WHERE upstream_id = ?').get('10'))
-          .toEqual({ created_at: startedAt });
+      try {
+        if (legacyCache) {
+          // Reproduce the old cached timestamp and unversioned metadata hash.
+          seedAlert(database, alert);
+          const hash = database.getAlertDecisionSnapshot(1, 'default')!.metadata_hash!;
+          database.db.prepare('UPDATE alerts SET metadata_hash = ?').run(hash.split(':').at(-1)!);
+          database.db.prepare('UPDATE decisions SET created_at = ? WHERE upstream_id = ?').run(startedAt, '10');
+          expect(database.db.prepare('SELECT created_at FROM decisions WHERE upstream_id = ?').get('10')).toEqual({
+            created_at: startedAt,
+          });
+        }
+
+        const response = await controller.fetch(
+          new Request(
+            'http://localhost/crowdsec/api/decisions?page=1&page_size=50&hide_duplicates=false&include_expired=true',
+          ),
+        );
+        expect(response.status).toBe(200);
+        const body = (await response.json()) as { data: Array<{ id: number; created_at: string }> };
+        expect(body.data).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: 10, created_at: createdAt }),
+            expect.objectContaining({ id: 11, created_at: explicitCreatedAt }),
+          ]),
+        );
+        expect(database.db.prepare('SELECT created_at FROM decisions WHERE upstream_id = ?').get('10')).toEqual({
+          created_at: createdAt,
+        });
+        // Alert history still uses bucket start time to match LAPI window filters.
+        expect(database.db.prepare('SELECT created_at FROM alerts WHERE upstream_id = ?').get('1')).toEqual({
+          created_at: startedAt,
+        });
+      } finally {
+        controller.stopBackgroundTasks();
+        database.close();
+        destroyTempDir();
       }
-
-      const response = await controller.fetch(new Request(
-        'http://localhost/crowdsec/api/decisions?page=1&page_size=50&hide_duplicates=false&include_expired=true',
-      ));
-      expect(response.status).toBe(200);
-      const body = await response.json() as { data: Array<{ id: number; created_at: string }> };
-      expect(body.data).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 10, created_at: createdAt }),
-        expect.objectContaining({ id: 11, created_at: explicitCreatedAt }),
-      ]));
-      expect(database.db.prepare('SELECT created_at FROM decisions WHERE upstream_id = ?').get('10'))
-        .toEqual({ created_at: createdAt });
-      // Alert history still uses bucket start time to match LAPI window filters.
-      expect(database.db.prepare('SELECT created_at FROM alerts WHERE upstream_id = ?').get('1'))
-        .toEqual({ created_at: startedAt });
-    } finally {
-      controller.stopBackgroundTasks();
-      database.close();
-      destroyTempDir();
-    }
-  });
+    },
+  );
 
   test('copies the latest known country and AS onto manual alerts without re-persisting them on later syncs', async () => {
     const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
     const olderEnriched = sampleAlert({
-      id: 1, uuid: 'alert-1', created_at: at(30), decisions: [],
-      source: { scope: 'Ip', ip: '1.2.3.4', value: '1.2.3.4', cn: 'FR', as_name: 'Old AS', latitude: 48.85, longitude: 2.35 },
+      id: 1,
+      uuid: 'alert-1',
+      created_at: at(30),
+      decisions: [],
+      source: {
+        scope: 'Ip',
+        ip: '1.2.3.4',
+        value: '1.2.3.4',
+        cn: 'FR',
+        as_name: 'Old AS',
+        latitude: 48.85,
+        longitude: 2.35,
+      },
     });
     const enriched = sampleAlert({
-      id: 2, uuid: 'alert-2', created_at: at(20), decisions: [],
-      source: { scope: 'Ip', ip: '1.2.3.4', value: '1.2.3.4', cn: 'CA', as_name: 'GOOGLE-CLOUD-PLATFORM', as_number: '396982', range: '1.2.0.0/16', latitude: 43.65, longitude: -79.38 },
+      id: 2,
+      uuid: 'alert-2',
+      created_at: at(20),
+      decisions: [],
+      source: {
+        scope: 'Ip',
+        ip: '1.2.3.4',
+        value: '1.2.3.4',
+        cn: 'CA',
+        as_name: 'GOOGLE-CLOUD-PLATFORM',
+        as_number: '396982',
+        range: '1.2.0.0/16',
+        latitude: 43.65,
+        longitude: -79.38,
+      },
     });
     // Like LAPI returns a `cscli decisions add` or web UI alert: unknown fields are empty.
     const manual = sampleAlert({
-      id: 3, uuid: 'alert-3', created_at: at(1), scenario: 'manual/web-ui', message: 'Manual decision from Web UI: abuse', events: [],
-      source: { scope: 'ip', value: '1.2.3.4', cn: '', as_name: '', as_number: '', range: '', latitude: 0, longitude: 0 },
-      decisions: [{ id: 30, type: 'ban', value: '1.2.3.4', duration: '4h', origin: 'cscli', scenario: 'manual/web-ui', simulated: false }],
+      id: 3,
+      uuid: 'alert-3',
+      created_at: at(1),
+      scenario: 'manual/web-ui',
+      message: 'Manual decision from Web UI: abuse',
+      events: [],
+      source: {
+        scope: 'ip',
+        value: '1.2.3.4',
+        cn: '',
+        as_name: '',
+        as_number: '',
+        range: '',
+        latitude: 0,
+        longitude: 0,
+      },
+      decisions: [
+        {
+          id: 30,
+          type: 'ban',
+          value: '1.2.3.4',
+          duration: '4h',
+          origin: 'cscli',
+          scenario: 'manual/web-ui',
+          simulated: false,
+        },
+      ],
     });
     const unknownManual = sampleAlert({
-      id: 4, uuid: 'alert-4', created_at: at(1), scenario: 'manual/web-ui', events: [],
+      id: 4,
+      uuid: 'alert-4',
+      created_at: at(1),
+      scenario: 'manual/web-ui',
+      events: [],
       source: { scope: 'ip', value: '9.9.9.9' },
-      decisions: [{ id: 40, type: 'ban', value: '9.9.9.9', duration: '4h', origin: 'cscli', scenario: 'manual/web-ui', simulated: false }],
+      decisions: [
+        {
+          id: 40,
+          type: 'ban',
+          value: '9.9.9.9',
+          duration: '4h',
+          origin: 'cscli',
+          scenario: 'manual/web-ui',
+          simulated: false,
+        },
+      ],
     });
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
     const syncWorker = new DatabaseSyncWorker({ dbPath: database.cachePath });
@@ -96,19 +160,29 @@ describe('createApp synchronization consistency and pruning', () => {
       database,
       syncWorker,
       env: { CROWDSEC_LOOKBACK_PERIOD: '1d', CROWDSEC_REFRESH_INTERVAL: '0' },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([olderEnriched, enriched, manual, unknownManual]) : undefined,
+      fetchResolver: (url) =>
+        url.includes('/v1/alerts?') ? Response.json([olderEnriched, enriched, manual, unknownManual]) : undefined,
     });
-    const row = (table: 'alerts' | 'decisions', id: string) => database.db.prepare(
-      `SELECT country, as_name${table === 'alerts' ? ', source_as_number, source_range, latitude, longitude, metadata_hash' : ''} FROM ${table} WHERE upstream_id = ?`,
-    ).get(id) as Record<string, unknown>;
+    const row = (table: 'alerts' | 'decisions', id: string) =>
+      database.db
+        .prepare(
+          `SELECT country, as_name${table === 'alerts' ? ', source_as_number, source_range, latitude, longitude, metadata_hash' : ''} FROM ${table} WHERE upstream_id = ?`,
+        )
+        .get(id) as Record<string, unknown>;
 
     try {
       // The first import fills the manual alert from the newest enriched alert of the same batch.
-      expect((await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'))).status).toBe(200);
+      expect(
+        (await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'))).status,
+      ).toBe(200);
       const manualRow = row('alerts', '3');
       expect(manualRow).toMatchObject({
-        country: 'CA', as_name: 'GOOGLE-CLOUD-PLATFORM', source_as_number: '396982',
-        source_range: '1.2.0.0/16', latitude: 43.65, longitude: -79.38,
+        country: 'CA',
+        as_name: 'GOOGLE-CLOUD-PLATFORM',
+        source_as_number: '396982',
+        source_range: '1.2.0.0/16',
+        latitude: 43.65,
+        longitude: -79.38,
       });
       expect(row('decisions', '30')).toEqual({ country: 'CA', as_name: 'GOOGLE-CLOUD-PLATFORM' });
       expect(row('alerts', '4')).toMatchObject({ country: null, as_name: null });
@@ -116,13 +190,17 @@ describe('createApp synchronization consistency and pruning', () => {
       // A full refresh compares every alert again; unchanged LAPI data compares
       // equal, so nothing is written again.
       persistAlerts.mockClear();
-      const refresh = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'full' }),
-      }));
+      const refresh = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/cache/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'full' }),
+        }),
+      );
       expect(refresh.status).toBe(200);
-      const persisted = persistAlerts.mock.calls.flatMap(([mutations]) => mutations.map((mutation) => String(mutation.alert?.$id ?? mutation.alertId)));
+      const persisted = persistAlerts.mock.calls.flatMap(([mutations]) =>
+        mutations.map((mutation) => String(mutation.alert?.$id ?? mutation.alertId)),
+      );
       expect(persisted).toEqual([]);
       expect(row('alerts', '3').metadata_hash).toBe(manualRow.metadata_hash);
     } finally {
@@ -134,24 +212,53 @@ describe('createApp synchronization consistency and pruning', () => {
   });
 
   test('repairs manual alerts cached without country and AS on their next sync', async () => {
-    const enriched = sampleAlert({ id: 1, uuid: 'alert-1', created_at: new Date(Date.now() - 20 * 60_000).toISOString(), decisions: [] });
+    const enriched = sampleAlert({
+      id: 1,
+      uuid: 'alert-1',
+      created_at: new Date(Date.now() - 20 * 60_000).toISOString(),
+      decisions: [],
+    });
     const manual = sampleAlert({
-      id: 2, uuid: 'alert-2', scenario: 'manual/web-ui', events: [], source: { scope: 'ip', value: '1.2.3.4' },
-      decisions: [{ id: 20, type: 'ban', value: '1.2.3.4', duration: '4h', origin: 'cscli', scenario: 'manual/web-ui', simulated: false }],
+      id: 2,
+      uuid: 'alert-2',
+      scenario: 'manual/web-ui',
+      events: [],
+      source: { scope: 'ip', value: '1.2.3.4' },
+      decisions: [
+        {
+          id: 20,
+          type: 'ban',
+          value: '1.2.3.4',
+          duration: '4h',
+          origin: 'cscli',
+          scenario: 'manual/web-ui',
+          simulated: false,
+        },
+      ],
     });
     const { controller, database } = createController({
       env: { CROWDSEC_LOOKBACK_PERIOD: '1d', CROWDSEC_REFRESH_INTERVAL: '0' },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([enriched, manual]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([enriched, manual]) : undefined),
     });
     seedAlert(database, enriched);
     seedAlert(database, manual);
-    expect(database.db.prepare('SELECT country FROM decisions WHERE upstream_id = ?').get('20')).toEqual({ country: null });
+    expect(database.db.prepare('SELECT country FROM decisions WHERE upstream_id = ?').get('20')).toEqual({
+      country: null,
+    });
 
     try {
       // Startup reconciles the existing cache with LAPI.
-      expect((await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'))).status).toBe(200);
-      expect(database.db.prepare('SELECT country, as_name FROM alerts WHERE upstream_id = ?').get('2')).toEqual({ country: 'DE', as_name: 'Hetzner' });
-      expect(database.db.prepare('SELECT country, as_name FROM decisions WHERE upstream_id = ?').get('20')).toEqual({ country: 'DE', as_name: 'Hetzner' });
+      expect(
+        (await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'))).status,
+      ).toBe(200);
+      expect(database.db.prepare('SELECT country, as_name FROM alerts WHERE upstream_id = ?').get('2')).toEqual({
+        country: 'DE',
+        as_name: 'Hetzner',
+      });
+      expect(database.db.prepare('SELECT country, as_name FROM decisions WHERE upstream_id = ?').get('20')).toEqual({
+        country: 'DE',
+        as_name: 'Hetzner',
+      });
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -236,11 +343,11 @@ describe('createApp synchronization consistency and pruning', () => {
       }),
     });
 
-    const alertsResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=50&include_decisions=false',
-    ));
+    const alertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50&include_decisions=false'),
+    );
     expect(alertsResponse.status).toBe(200);
-    const alertsJson = await alertsResponse.json() as {
+    const alertsJson = (await alertsResponse.json()) as {
       data: Array<{
         id: number;
         target?: string;
@@ -257,9 +364,11 @@ describe('createApp synchronization consistency and pruning', () => {
       decision_summary: { active_count: 1, expired_count: 0 },
     });
 
-    const decisionsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&alert_id=200&include_expired=true'));
+    const decisionsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&alert_id=200&include_expired=true'),
+    );
     expect(decisionsResponse.status).toBe(200);
-    const decisionsJson = await decisionsResponse.json() as {
+    const decisionsJson = (await decisionsResponse.json()) as {
       data: Array<{ id: number; detail: { target?: string; target_count?: number } }>;
       pagination: { total: number };
     };
@@ -356,12 +465,16 @@ describe('createApp synchronization consistency and pruning', () => {
       },
     });
 
-    const refreshedAlertsResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=50&include_decisions=false',
-    ));
+    const refreshedAlertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50&include_decisions=false'),
+    );
     expect(refreshedAlertsResponse.status).toBe(200);
-    const refreshedAlertsJson = await refreshedAlertsResponse.json() as {
-      data: Array<{ id: number; decisions: unknown[]; decision_summary: { active_count: number; expired_count: number } }>;
+    const refreshedAlertsJson = (await refreshedAlertsResponse.json()) as {
+      data: Array<{
+        id: number;
+        decisions: unknown[];
+        decision_summary: { active_count: number; expired_count: number };
+      }>;
     };
     const refreshedAlertRow = refreshedAlertsJson.data.find((alert) => alert.id === 210);
     expect(refreshedAlertRow).toMatchObject({
@@ -369,9 +482,11 @@ describe('createApp synchronization consistency and pruning', () => {
       decision_summary: { active_count: 1, expired_count: 0 },
     });
 
-    const refreshedDecisionsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&alert_id=210&include_expired=true'));
+    const refreshedDecisionsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=50&alert_id=210&include_expired=true'),
+    );
     expect(refreshedDecisionsResponse.status).toBe(200);
-    const refreshedDecisionsJson = await refreshedDecisionsResponse.json() as {
+    const refreshedDecisionsJson = (await refreshedDecisionsResponse.json()) as {
       data: Array<{ id: number }>;
       pagination: { total: number };
     };
@@ -436,9 +551,11 @@ describe('createApp synchronization consistency and pruning', () => {
     seedAlert(database, syncedAlert);
     seedAlert(database, staleAlert);
 
-    const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+    const alertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+    );
     expect(alertsResponse.status).toBe(200);
-    const alertsJson = await alertsResponse.json() as {
+    const alertsJson = (await alertsResponse.json()) as {
       data: Array<{ id: number }>;
       pagination: { total: number };
     };
@@ -509,9 +626,11 @@ describe('createApp synchronization consistency and pruning', () => {
     seedAlert(database, syncedAlert);
     seedAlert(database, cachedOnlyAlert);
 
-    const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+    const alertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+    );
     expect(alertsResponse.status).toBe(200);
-    const alertsJson = await alertsResponse.json() as {
+    const alertsJson = (await alertsResponse.json()) as {
       data: Array<{ id: number }>;
       pagination: { total: number };
     };
@@ -572,23 +691,28 @@ describe('createApp synchronization consistency and pruning', () => {
       },
     });
 
-    const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+    const alertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+    );
     expect(alertsResponse.status).toBe(200);
-    const alertsJson = await alertsResponse.json() as {
+    const alertsJson = (await alertsResponse.json()) as {
       data: Array<{ id: number; created_at: string }>;
       pagination: { total: number };
     };
     expect(alertsJson.pagination.total).toBe(1);
-    expect(alertsJson.data).toEqual([
-      expect.objectContaining({ id: 242, created_at: replayStartAt }),
-    ]);
+    expect(alertsJson.data).toEqual([expect.objectContaining({ id: 242, created_at: replayStartAt })]);
 
-    const storedAlerts = database.db.query('SELECT id, created_at FROM alerts ORDER BY id').all() as Array<{ id: number; created_at: string }>;
+    const storedAlerts = database.db.query('SELECT id, created_at FROM alerts ORDER BY id').all() as Array<{
+      id: number;
+      created_at: string;
+    }>;
     expect(storedAlerts).toEqual([{ id: 242, created_at: replayStartAt }]);
 
-    const dashboardResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=day'));
+    const dashboardResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=day'),
+    );
     expect(dashboardResponse.status).toBe(200);
-    const dashboardJson = await dashboardResponse.json() as {
+    const dashboardJson = (await dashboardResponse.json()) as {
       series: { alertsHistory: Array<{ date: string; count: number }> };
     };
     expect(dashboardJson.series.alertsHistory).toEqual(
@@ -631,15 +755,19 @@ describe('createApp synchronization consistency and pruning', () => {
       },
     });
 
-    const initialResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+    const initialResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+    );
     expect(initialResponse.status).toBe(200);
     expect(((await initialResponse.json()) as { pagination: { total: number } }).pagination.total).toBe(2);
 
     phase = 'refresh';
 
-    const refreshedResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+    const refreshedResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+    );
     expect(refreshedResponse.status).toBe(200);
-    const refreshedJson = await refreshedResponse.json() as {
+    const refreshedJson = (await refreshedResponse.json()) as {
       data: Array<{ id: number }>;
       pagination: { total: number };
     };
@@ -661,14 +789,16 @@ describe('createApp synchronization consistency and pruning', () => {
       id: 252,
       uuid: 'alert-252',
       created_at: new Date(firstCutoff + 1_000).toISOString(),
-      decisions: [{
-        id: 2520,
-        type: 'ban',
-        value: '192.0.2.252',
-        stop_at: new Date(firstCutoff + 60 * 60_000).toISOString(),
-        origin: 'crowdsec',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 2520,
+          type: 'ban',
+          value: '192.0.2.252',
+          stop_at: new Date(firstCutoff + 60 * 60_000).toISOString(),
+          origin: 'crowdsec',
+          simulated: false,
+        },
+      ],
     });
     let advancedPastFirstCutoff = false;
     const { controller, database } = createController({
@@ -694,14 +824,18 @@ describe('createApp synchronization consistency and pruning', () => {
     });
 
     try {
-      const firstResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+      const firstResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+      );
       expect(firstResponse.status).toBe(200);
       expect(((await firstResponse.json()) as { pagination: { total: number } }).pagination.total).toBe(0);
       expect(database.getAlertDecisionSnapshot(252)).toBeNull();
 
-      const secondResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+      const secondResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+      );
       expect(secondResponse.status).toBe(200);
-      const secondJson = await secondResponse.json() as {
+      const secondJson = (await secondResponse.json()) as {
         data: Array<{ id: number }>;
         pagination: { total: number };
       };
@@ -776,9 +910,11 @@ describe('createApp synchronization consistency and pruning', () => {
       },
     });
 
-    const refreshedResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'));
+    const refreshedResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50'),
+    );
     expect(refreshedResponse.status).toBe(200);
-    const refreshedJson = await refreshedResponse.json() as {
+    const refreshedJson = (await refreshedResponse.json()) as {
       data: Array<{ id: number }>;
       pagination: { total: number };
     };
@@ -829,15 +965,19 @@ describe('createApp synchronization consistency and pruning', () => {
     seedAlert(database, staleAlert);
     await lapiClient.login();
 
-    const deleteResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/230', { method: 'DELETE' }));
+    const deleteResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/230', { method: 'DELETE' }),
+    );
     expect(deleteResponse.status).toBe(200);
-    expect(await deleteResponse.json()).toEqual(expect.objectContaining({
-      requested_alerts: 1,
-      requested_decisions: 1,
-      deleted_alerts: 1,
-      deleted_decisions: 1,
-      failed: [],
-    }));
+    expect(await deleteResponse.json()).toEqual(
+      expect.objectContaining({
+        requested_alerts: 1,
+        requested_decisions: 1,
+        deleted_alerts: 1,
+        deleted_decisions: 1,
+        failed: [],
+      }),
+    );
     await vi.waitFor(() => {
       expect(database.getAlertDeletionTombstone('230')?.completed_at).not.toBeNull();
     });
@@ -848,4 +988,4 @@ describe('createApp synchronization consistency and pruning', () => {
     database.close();
     destroyTempDir();
   });
- });
+});

@@ -8,6 +8,7 @@ import type {
 import type { SearchParseError } from '../../shared/search';
 import { matchesIpSearchValue } from '../../shared/search';
 import { getDateTimeKey } from '../utils/date-time';
+import { matchesSimulationFilter } from './simulation';
 import type {
   AlertListFilters,
   DashboardStatsFilters,
@@ -15,9 +16,6 @@ import type {
   FacetRequest,
   PageRequest,
 } from './types';
-import { getDateFilterBoundary } from './search-sql';
-import { getCountryName } from './country';
-import { matchesSimulationFilter } from './simulation';
 
 type HonoContext = any;
 
@@ -31,7 +29,10 @@ export function getPageRequest(context: HonoContext): PageRequest | null {
   }
 
   const page = Math.max(1, Number.parseInt(context.req.query('page') || '1', 10) || 1);
-  const pageSize = Math.min(200, Math.max(10, Number.parseInt(context.req.query('page_size') || '50', 10) || 50));
+  const pageSize = Math.min(
+    200,
+    Math.max(10, Number.parseInt(context.req.query('page_size') || '50', 10) || 50),
+  );
   return { page, pageSize };
 }
 
@@ -55,7 +56,10 @@ export function toPaginatedResponse<T>(
   };
 }
 
-export function getAlertListFilters(context: HonoContext, timeZone: string | null): AlertListFilters {
+export function getAlertListFilters(
+  context: HonoContext,
+  timeZone: string | null,
+): AlertListFilters {
   return getAlertListFiltersFromValues((key) => context.req.query(key), timeZone);
 }
 
@@ -63,14 +67,18 @@ export function getFacetRequest(
   context: HonoContext,
   allowedFields: readonly string[],
 ): FacetRequest | { error: string } {
-  const field = String(context.req.query('field') || '').trim().toLowerCase();
+  const field = String(context.req.query('field') || '')
+    .trim()
+    .toLowerCase();
   if (!allowedFields.includes(field)) {
     return { error: `field must be one of: ${allowedFields.join(', ')}` };
   }
 
   return {
     field: field as FacetField,
-    search: String(context.req.query('search') || '').trim().slice(0, 200),
+    search: String(context.req.query('search') || '')
+      .trim()
+      .slice(0, 200),
     searchValues: parseFacetSearchValues(context.req.query('search_values')),
     offset: clampInteger(context.req.query('offset'), 0, FACET_MAX_OFFSET, 0),
     limit: clampInteger(context.req.query('limit'), 1, FACET_MAX_LIMIT, FACET_DEFAULT_LIMIT),
@@ -82,11 +90,14 @@ export function parseFacetSearchValues(rawValue: string | undefined): string[] {
   try {
     const parsed = JSON.parse(rawValue) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return [...new Set(parsed
-      .filter((value): value is string => typeof value === 'string')
-      .map((value) => value.trim())
-      .filter(Boolean))]
-      .slice(0, 700);
+    return [
+      ...new Set(
+        parsed
+          .filter((value): value is string => typeof value === 'string')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ].slice(0, 700);
   } catch {
     return [];
   }
@@ -103,7 +114,10 @@ export function clampInteger(
   return Math.min(maximum, Math.max(minimum, parsed));
 }
 
-export function withoutAlertFacetFilter(filters: AlertListFilters, field: FacetField): AlertListFilters {
+export function withoutAlertFacetFilter(
+  filters: AlertListFilters,
+  field: FacetField,
+): AlertListFilters {
   const result = { ...filters };
   if (field === 'instance') result.instanceId = 'all';
   if (field === 'country') result.country = '';
@@ -114,7 +128,10 @@ export function withoutAlertFacetFilter(filters: AlertListFilters, field: FacetF
   return result;
 }
 
-export function withoutDecisionFacetFilter(filters: DecisionListFilters, field: FacetField): DecisionListFilters {
+export function withoutDecisionFacetFilter(
+  filters: DecisionListFilters,
+  field: FacetField,
+): DecisionListFilters {
   const result = { ...filters };
   if (field === 'instance') result.instanceId = 'all';
   if (field === 'alert') result.alertIds = [];
@@ -126,7 +143,10 @@ export function withoutDecisionFacetFilter(filters: DecisionListFilters, field: 
   return result;
 }
 
-export function getAlertListFiltersFromValues(readValue: (key: string) => string | undefined, timeZone: string | null): AlertListFilters {
+export function getAlertListFiltersFromValues(
+  readValue: (key: string) => string | undefined,
+  timeZone: string | null,
+): AlertListFilters {
   return {
     instanceId: readValue('instance') || 'all',
     q: readValue('q') || '',
@@ -144,12 +164,25 @@ export function getAlertListFiltersFromValues(readValue: (key: string) => string
   };
 }
 
-export function getDecisionListFilters(context: HonoContext, timeZone: string | null): DecisionListFilters {
+export function getDecisionListFilters(
+  context: HonoContext,
+  timeZone: string | null,
+): DecisionListFilters {
   return getDecisionListFiltersFromValues((key) => context.req.query(key), timeZone);
 }
 
-export function getDecisionListFiltersFromValues(readValue: (key: string) => string | undefined, timeZone: string | null): DecisionListFilters {
-  const alertIds = [...new Set((readValue('alert_id') || '').split(',').map((id) => id.trim()).filter(Boolean))];
+export function getDecisionListFiltersFromValues(
+  readValue: (key: string) => string | undefined,
+  timeZone: string | null,
+): DecisionListFilters {
+  const alertIds = [
+    ...new Set(
+      (readValue('alert_id') || '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ];
   return {
     instanceId: readValue('instance') || 'all',
     q: readValue('q') || '',
@@ -168,7 +201,10 @@ export function getDecisionListFiltersFromValues(readValue: (key: string) => str
   };
 }
 
-export function getDashboardStatsFilters(context: HonoContext, timeZone: string | null): DashboardStatsFilters {
+export function getDashboardStatsFilters(
+  context: HonoContext,
+  timeZone: string | null,
+): DashboardStatsFilters {
   return {
     instanceId: context.req.query('instance') || 'all',
     q: context.req.query('q') || '',
@@ -187,14 +223,15 @@ export function getDashboardStatsFilters(context: HonoContext, timeZone: string 
   };
 }
 
-export function parseDashboardSimulationFilter(value: string | undefined): DashboardSimulationFilter {
+export function parseDashboardSimulationFilter(
+  value: string | undefined,
+): DashboardSimulationFilter {
   if (value === 'live' || value === 'simulated') {
     return value;
   }
 
   return 'all';
 }
-
 
 export function lowerQuery(context: HonoContext, key: string): string {
   return lowerValue(context.req.query(key));
@@ -204,7 +241,10 @@ export function lowerValue(value: string | undefined): string {
   return (value || '').toLowerCase();
 }
 
-export function toSearchErrorResponse(error: SearchParseError): { error: string; details: SearchParseError } {
+export function toSearchErrorResponse(error: SearchParseError): {
+  error: string;
+  details: SearchParseError;
+} {
   return {
     error: error.message,
     details: error,
@@ -220,11 +260,17 @@ export function parseTimezoneOffsetValue(rawValue: string | undefined): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-export function getEffectiveRequestTimeZone(context: HonoContext, configuredTimeZone: string | null): string | null {
+export function getEffectiveRequestTimeZone(
+  context: HonoContext,
+  configuredTimeZone: string | null,
+): string | null {
   return getEffectiveRequestTimeZoneValue(context.req.query('browser_tz'), configuredTimeZone);
 }
 
-export function getEffectiveRequestTimeZoneValue(browserTimeZone: string | undefined, configuredTimeZone: string | null): string | null {
+export function getEffectiveRequestTimeZoneValue(
+  browserTimeZone: string | undefined,
+  configuredTimeZone: string | null,
+): string | null {
   return configuredTimeZone || sanitizeRequestTimeZone(browserTimeZone);
 }
 
@@ -249,7 +295,7 @@ export function parseRecordExtras(value: RecordExtrasInput): Record<string, unkn
   try {
     const parsed = JSON.parse(value) as unknown;
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
+      ? (parsed as Record<string, unknown>)
       : {};
   } catch {
     return {};
@@ -281,13 +327,23 @@ export function matchesAlertListFilters(alert: SlimAlert, filters: AlertListFilt
   const cn = (alert.source?.cn || '').toLowerCase();
   const asName = (alert.source?.as_name || '').toLowerCase();
 
-  if (filters.ip && !getSlimAlertSourceValues(alert).some((value) => matchesIpSearchValue(value, filters.ip))) return false;
+  if (
+    filters.ip &&
+    !getSlimAlertSourceValues(alert).some((value) => matchesIpSearchValue(value, filters.ip))
+  )
+    return false;
   if (filters.country && !cn.includes(filters.country)) return false;
   if (filters.scenario && !scenario.includes(filters.scenario)) return false;
   if (filters.as && !asName.includes(filters.as)) return false;
-  if (filters.target && ![...(alert.targets || []), alert.target || '']
-    .some((target) => target.toLowerCase().includes(filters.target))) return false;
-  if (filters.date && !(alert.created_at && alert.created_at.startsWith(filters.date))) return false;
+  if (
+    filters.target &&
+    ![...(alert.targets || []), alert.target || ''].some((target) =>
+      target.toLowerCase().includes(filters.target),
+    )
+  )
+    return false;
+  if (filters.date && !(alert.created_at && alert.created_at.startsWith(filters.date)))
+    return false;
 
   if (filters.dateStart || filters.dateEnd) {
     const itemKey = getDateTimeKey(
@@ -303,9 +359,13 @@ export function matchesAlertListFilters(alert: SlimAlert, filters: AlertListFilt
   return true;
 }
 
-export function matchesDecisionListFilters(decision: DecisionListItem, filters: DecisionListFilters): boolean {
+export function matchesDecisionListFilters(
+  decision: DecisionListItem,
+  filters: DecisionListFilters,
+): boolean {
   if (!filters.showDuplicates && decision.is_duplicate) return false;
-  if (filters.alertIds.length > 0 && !filters.alertIds.includes(String(decision.detail.alert_id))) return false;
+  if (filters.alertIds.length > 0 && !filters.alertIds.includes(String(decision.detail.alert_id)))
+    return false;
   if (!matchesSimulationFilter(decision.simulated === true, filters.simulation)) return false;
   if (filters.country && decision.detail.country !== filters.country) return false;
   if (filters.scenario && decision.detail.reason !== filters.scenario) return false;
@@ -314,8 +374,9 @@ export function matchesDecisionListFilters(decision: DecisionListItem, filters: 
 
   if (filters.target) {
     const value = (decision.value || '').toLowerCase();
-    const matchesTarget = [...(decision.detail.targets || []), decision.detail.target || '']
-      .some((target) => target.toLowerCase().includes(filters.target));
+    const matchesTarget = [...(decision.detail.targets || []), decision.detail.target || ''].some(
+      (target) => target.toLowerCase().includes(filters.target),
+    );
     if (!value.includes(filters.target) && !matchesTarget) return false;
   }
 
@@ -335,8 +396,9 @@ export function matchesDecisionListFilters(decision: DecisionListItem, filters: 
 }
 
 export function getSlimAlertSourceValues(alert: SlimAlert): string[] {
-  return [alert.source?.ip, alert.source?.value, alert.source?.range]
-    .filter((value): value is string => Boolean(value));
+  return [alert.source?.ip, alert.source?.value, alert.source?.range].filter(
+    (value): value is string => Boolean(value),
+  );
 }
 
 export function isDecisionListItemExpired(decision: DecisionListItem): boolean {

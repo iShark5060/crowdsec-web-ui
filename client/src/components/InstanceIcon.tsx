@@ -17,14 +17,18 @@ interface InstanceIconProps {
 export function InstanceIcon({ icon, colorIndex }: InstanceIconProps) {
   if (icon) {
     return (
-      <span className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center leading-none" aria-hidden="true">
+      <span
+        className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center leading-none"
+        aria-hidden="true"
+      >
         {icon}
       </span>
     );
   }
 
-  const normalizedIndex = ((colorIndex % INSTANCE_COLOR_CLASSES.length) + INSTANCE_COLOR_CLASSES.length)
-    % INSTANCE_COLOR_CLASSES.length;
+  const normalizedIndex =
+    ((colorIndex % INSTANCE_COLOR_CLASSES.length) + INSTANCE_COLOR_CLASSES.length) %
+    INSTANCE_COLOR_CLASSES.length;
 
   return (
     <span

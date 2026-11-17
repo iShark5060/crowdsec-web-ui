@@ -4,11 +4,9 @@
 
 <div align="center">
 
-  [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/TheDuffman85/crowdsec-web-ui/release.yml?style=flat-square&logo=github&label=build)](https://github.com/TheDuffman85/crowdsec-web-ui/actions/workflows/release.yml)
-  [![Trivy Scan](https://img.shields.io/github/actions/workflow/status/TheDuffman85/crowdsec-web-ui/trivy-scan.yml?style=flat-square&logo=aqua&label=security)](https://github.com/TheDuffman85/crowdsec-web-ui/actions/workflows/trivy-scan.yml)
-  [![GitHub License](https://img.shields.io/github/license/TheDuffman85/crowdsec-web-ui?style=flat-square&logo=github)](https://github.com/TheDuffman85/crowdsec-web-ui/blob/main/LICENSE)
-  [![GitHub last commit](https://img.shields.io/github/last-commit/TheDuffman85/crowdsec-web-ui?style=flat-square&logo=github)](https://github.com/TheDuffman85/crowdsec-web-ui/commits/main)
-  [![Latest Container](https://img.shields.io/badge/ghcr.io-latest-blue?style=flat-square&logo=github)](https://github.com/users/TheDuffman85/packages/container/package/crowdsec-web-ui)
+[![GitHub License](https://img.shields.io/github/license/TheDuffman85/crowdsec-web-ui?style=flat-square&logo=github)](https://github.com/TheDuffman85/crowdsec-web-ui/blob/main/LICENSE)
+[![GitHub last commit](https://img.shields.io/github/last-commit/TheDuffman85/crowdsec-web-ui?style=flat-square&logo=github)](https://github.com/TheDuffman85/crowdsec-web-ui/commits/main)
+[![Latest Container](https://img.shields.io/badge/ghcr.io-latest-blue?style=flat-square&logo=github)](https://github.com/users/TheDuffman85/packages/container/package/crowdsec-web-ui)
 
 </div>
 
@@ -26,20 +24,20 @@ A self-hosted web UI for investigating alerts, managing decisions, tracking long
 
 ## Features
 
-| Area | Highlights |
-| --- | --- |
-| Dashboard | Alert and active-decision totals, attack map, drilldowns, top lists, shared quick filters, and simulation counts |
-| Statistics | Long-term attack trends, period comparisons, attacker and target rankings, and findings on recurring IPs, quiet machines, and gaps in remediation coverage |
-| Alerts | Searchable alert history, persistent count-aware quick filters, CrowdSec alert contexts, IP/AS/location details, event metadata, simulation labels, configurable columns, and an optional view grouped by attacking IP session |
-| Decisions | Active and expired decisions, persistent count-aware quick filters, duplicate hiding, manual bans, custom durations, reasons, and cleanup actions |
-| Allowlists | Read-only view of CrowdSec centralized allowlists with an IP/range check, cross-instance differences, and allowlist protection for manual decisions |
-| Multi-instance | Several CrowdSec LAPIs, per-instance views, and a Combined scope for Dashboard, Statistics, Alerts, Decisions, and Allowlists |
-| Metrics | Optional Prometheus views for LAPI activity, bouncers, AppSec, parsers, latency, parsing time, and whitelists |
-| Notifications | Alert, decision, CVE, availability, and update rules delivered through Apprise, Email, Gotify, MQTT, ntfy, or Webhooks |
-| Security | Initial administrator setup, local user management with admin and read-only roles, password and TOTP login, passkeys, OIDC SSO, linking local accounts to SSO identities, group roles, and instance-wide read-only mode |
-| Localization | Arabic, Chinese, English, French, German, Hindi, Japanese, Korean, Portuguese, Russian, and Spanish |
-| Experience | Unified search, server-synced saved and recent filters, light, dark, and system themes, and responsive layouts |
-| Branding | Custom application name, light and dark mode logos, and colors for the sidebar, browser tab, sign-in page, notifications, and authenticator apps |
+| Area           | Highlights                                                                                                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dashboard      | Alert and active-decision totals, attack map, drilldowns, top lists, shared quick filters, and simulation counts                                                                                                               |
+| Statistics     | Long-term attack trends, period comparisons, attacker and target rankings, and findings on recurring IPs, quiet machines, and gaps in remediation coverage                                                                     |
+| Alerts         | Searchable alert history, persistent count-aware quick filters, CrowdSec alert contexts, IP/AS/location details, event metadata, simulation labels, configurable columns, and an optional view grouped by attacking IP session |
+| Decisions      | Active and expired decisions, persistent count-aware quick filters, duplicate hiding, manual bans, custom durations, reasons, and cleanup actions                                                                              |
+| Allowlists     | Read-only view of CrowdSec centralized allowlists with an IP/range check, cross-instance differences, and allowlist protection for manual decisions                                                                            |
+| Multi-instance | Several CrowdSec LAPIs, per-instance views, and a Combined scope for Dashboard, Statistics, Alerts, Decisions, and Allowlists                                                                                                  |
+| Metrics        | Optional Prometheus views for LAPI activity, bouncers, AppSec, parsers, latency, parsing time, and whitelists                                                                                                                  |
+| Notifications  | Alert, decision, CVE, availability, and update rules delivered through Apprise, Email, Gotify, MQTT, ntfy, or Webhooks                                                                                                         |
+| Security       | Initial administrator setup, local user management with admin and read-only roles, password and TOTP login, passkeys, OIDC SSO, linking local accounts to SSO identities, group roles, and instance-wide read-only mode        |
+| Localization   | Arabic, Chinese, English, French, German, Hindi, Japanese, Korean, Portuguese, Russian, and Spanish                                                                                                                            |
+| Experience     | Unified search, server-synced saved and recent filters, light, dark, and system themes, and responsive layouts                                                                                                                 |
+| Branding       | Custom application name, light and dark mode logos, and colors for the sidebar, browser tab, sign-in page, notifications, and authenticator apps                                                                               |
 
 ### Screenshots
 
@@ -108,10 +106,10 @@ services:
     image: ghcr.io/theduffman85/crowdsec-web-ui:latest
     container_name: crowdsec_web_ui
     ports:
-      - "3000:3000"
+      - '3000:3000'
     # For local CrowdSec instances
     # extra_hosts:
-      # - "host.docker.internal:host-gateway"
+    # - "host.docker.internal:host-gateway"
     environment:
       CONFIG_INSTANCE_LAPI_URL: http://crowdsec:8080
       # For local CrowdSec instances
@@ -157,7 +155,7 @@ services:
     image: ghcr.io/theduffman85/crowdsec-web-ui:latest
     container_name: crowdsec_web_ui
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       CONFIG_INSTANCE_LAPI_URL: https://crowdsec:8080
       CONFIG_INSTANCE_LAPI_AUTH_TYPE: mtls
@@ -179,35 +177,35 @@ Adjust the URL and certificate paths. Enable `CONFIG_INSTANCE_LAPI_TLS_CA_FILE` 
 
 ## Architecture
 
-| Component | Implementation |
-| --- | --- |
-| Client | React, Vite, and Tailwind CSS; builds to `dist/client` |
-| Server | Node.js and Hono; builds to `dist/server` |
-| Storage | SQLite via `better-sqlite3`: durable `state.db` and optional `statistics.db`, plus rebuildable `cache.db` under `/app/data` |
-| CrowdSec | Watcher password or agent mTLS; delta refreshes and chunked historical synchronization |
-| Container | Runs as the non-root `node` user |
+| Component | Implementation                                                                                                              |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Client    | React, Vite, and Tailwind CSS; builds to `dist/client`                                                                      |
+| Server    | Node.js and Hono; builds to `dist/server`                                                                                   |
+| Storage   | SQLite via `better-sqlite3`: durable `state.db` and optional `statistics.db`, plus rebuildable `cache.db` under `/app/data` |
+| CrowdSec  | Watcher password or agent mTLS; delta refreshes and chunked historical synchronization                                      |
+| Container | Runs as the non-root `node` user                                                                                            |
 
 ## Configuration
 
 ### Configuration files
 
-| Environment | Default path |
-| --- | --- |
-| Docker | `/app/data/config.yaml` |
-| Local | `./data/config.yaml` |
+| Environment | Default path            |
+| ----------- | ----------------------- |
+| Docker      | `/app/data/config.yaml` |
+| Local       | `./data/config.yaml`    |
 
 Use `CONFIG_FILE` only to select another existing file. [`config.example.yaml`](config.example.yaml) contains the complete commented YAML reference.
 
 ### Configuration lifecycle
 
-| Stage | Behavior |
-| --- | --- |
-| First start | Creates the missing default file. Supplied values become active YAML; defaults and optional examples remain comments. Generated mappings use block rows and the documented order. |
-| Later starts | Treats the file as user-managed. `CONFIG_*` values override it in memory without rewriting it; generated explanations and defaults are not refreshed. |
+| Stage                | Behavior                                                                                                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First start          | Creates the missing default file. Supplied values become active YAML; defaults and optional examples remain comments. Generated mappings use block rows and the documented order.   |
+| Later starts         | Treats the file as user-managed. `CONFIG_*` values override it in memory without rewriting it; generated explanations and defaults are not refreshed.                               |
 | Persistent overrides | `CONFIG_PERSIST_OVERRIDES: "true"` writes validated merged values while preserving comments where possible. Removing a persisted non-secret override leaves its last value in YAML. |
-| Precedence | Applies section variables, then field variables, then indexed array variables. Removing a non-persisted override reveals the file value. |
-| Logging | Records applied paths and before/after values. Credentials are redacted; secret references show only their environment name or file path. |
-| Reloading | Requires a restart after configuration changes or secret rotation. |
+| Precedence           | Applies section variables, then field variables, then indexed array variables. Removing a non-persisted override reveals the file value.                                            |
+| Logging              | Records applied paths and before/after values. Credentials are redacted; secret references show only their environment name or file path.                                           |
+| Reloading            | Requires a restart after configuration changes or secret rotation.                                                                                                                  |
 
 ### Environment overrides
 
@@ -228,59 +226,59 @@ To manage a locked value in Settings again, remove it from both the environment 
 
 ### Server, storage, UI, and updates
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `server.port` | `3000` | HTTP listen port. | `CONFIG_SERVER_PORT` |
-| `server.basePath` | `""` | Optional URL prefix such as `/crowdsec`; no trailing slash. | `CONFIG_SERVER_BASE_PATH` |
-| `server.hostname` | Unset (`localhost`) | Hostname or IP address this installation identifies itself with to remote services. Email destinations announce it in SMTP `EHLO`; set a FQDN for mail servers that reject `localhost`. It is not a listen address. | `CONFIG_SERVER_HOSTNAME` |
-| `storage.dataDir` | `/app/data` | Location of `state.db` and optional `statistics.db`: users, passkeys, notification channels and rules, saved filters, and UI settings. Back it up. | `CONFIG_STORAGE_DATA_DIR` |
-| `storage.cacheDir` | `storage.dataDir` | Location of `cache.db`, the alert and decision cache. It is rebuilt from LAPI when lost, so it can live on fast local storage. | `CONFIG_STORAGE_CACHE_DIR` |
-| `storage.geonamesDir` | `/app/geonames` in Docker; `./geonames` locally | Local GeoNames snapshot used for location labels. | `CONFIG_STORAGE_GEONAMES_DIR` |
-| `storage.walEnabled` | `true` | Enables SQLite write-ahead logging for `cache.db` and `statistics.db`. Set to `false` for filesystems that do not support WAL. `state.db` always uses a rollback journal. | `CONFIG_STORAGE_WAL_ENABLED` |
-| `storage.incrementalVacuumEnabled` | `true` | Uses bounded incremental vacuum while idle. Applies when `cache.db` or `statistics.db` is created. | `CONFIG_STORAGE_INCREMENTAL_VACUUM_ENABLED` |
-| `storage.journalSizeLimit` | `128MiB` | Retained WAL size after checkpoints. This does not cap transactions; use `unlimited` to disable trimming. Ignored when WAL is disabled. | `CONFIG_STORAGE_JOURNAL_SIZE_LIMIT` |
-| `storage.queryTimeout` | `30s` | Maximum execution time for regular database queries, such as list pages and cache synchronization. Raise it for very large databases or slow storage. | `CONFIG_STORAGE_QUERY_TIMEOUT` |
-| `storage.analyticsQueryTimeout` | `60s` | Maximum execution time for dashboard statistics queries. | `CONFIG_STORAGE_ANALYTICS_QUERY_TIMEOUT` |
-| `ui.timeZone` | `browser` | Browser timezone or an IANA zone such as `Europe/Berlin` or `UTC`. Statistics days use this zone, or the server's zone with `browser`. | `CONFIG_UI_TIME_ZONE` |
-| `ui.timeFormat` | `browser` | Clock format: `browser`, `12h`, or `24h`. | `CONFIG_UI_TIME_FORMAT` |
-| `ui.dateFormat` | `browser` | Browser date format or a custom pattern such as `dd/mm/yyyy`, `mm/dd/yyyy`, or `yyyy-MM-dd`. | `CONFIG_UI_DATE_FORMAT` |
-| `ui.readOnly` | `false` | Hides management actions and rejects mutating API operations. | `CONFIG_UI_READ_ONLY` |
-| `ui.allowlistsSidebarVisible` | `true` | Shows the Allowlists sidebar link. The `/allowlists` route remains available when hidden. Omit to let each user choose in Settings > Profile. | `CONFIG_UI_ALLOWLISTS_SIDEBAR_VISIBLE` |
-| `ui.statisticsSidebarVisible` | `true` | Shows the Statistics sidebar link. The `/statistics` route remains available when hidden. Omit to let each user choose in Settings > Profile. | `CONFIG_UI_STATISTICS_SIDEBAR_VISIBLE` |
-| `ui.metricsSidebarVisible` | `true` | Shows the Metrics sidebar link. The `/metrics` route remains available when Prometheus metrics are configured. Omit to let each user choose in Settings > Profile. | `CONFIG_UI_METRICS_SIDEBAR_VISIBLE` |
-| `updates.enabled` | `true` in packaged images | Enables the built-in update check. | `CONFIG_UPDATES_ENABLED` |
+| YAML field                         | Default                                         | Purpose                                                                                                                                                                                                             | Environment override                        |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `server.port`                      | `3000`                                          | HTTP listen port.                                                                                                                                                                                                   | `CONFIG_SERVER_PORT`                        |
+| `server.basePath`                  | `""`                                            | Optional URL prefix such as `/crowdsec`; no trailing slash.                                                                                                                                                         | `CONFIG_SERVER_BASE_PATH`                   |
+| `server.hostname`                  | Unset (`localhost`)                             | Hostname or IP address this installation identifies itself with to remote services. Email destinations announce it in SMTP `EHLO`; set a FQDN for mail servers that reject `localhost`. It is not a listen address. | `CONFIG_SERVER_HOSTNAME`                    |
+| `storage.dataDir`                  | `/app/data`                                     | Location of `state.db` and optional `statistics.db`: users, passkeys, notification channels and rules, saved filters, and UI settings. Back it up.                                                                  | `CONFIG_STORAGE_DATA_DIR`                   |
+| `storage.cacheDir`                 | `storage.dataDir`                               | Location of `cache.db`, the alert and decision cache. It is rebuilt from LAPI when lost, so it can live on fast local storage.                                                                                      | `CONFIG_STORAGE_CACHE_DIR`                  |
+| `storage.geonamesDir`              | `/app/geonames` in Docker; `./geonames` locally | Local GeoNames snapshot used for location labels.                                                                                                                                                                   | `CONFIG_STORAGE_GEONAMES_DIR`               |
+| `storage.walEnabled`               | `true`                                          | Enables SQLite write-ahead logging for `cache.db` and `statistics.db`. Set to `false` for filesystems that do not support WAL. `state.db` always uses a rollback journal.                                           | `CONFIG_STORAGE_WAL_ENABLED`                |
+| `storage.incrementalVacuumEnabled` | `true`                                          | Uses bounded incremental vacuum while idle. Applies when `cache.db` or `statistics.db` is created.                                                                                                                  | `CONFIG_STORAGE_INCREMENTAL_VACUUM_ENABLED` |
+| `storage.journalSizeLimit`         | `128MiB`                                        | Retained WAL size after checkpoints. This does not cap transactions; use `unlimited` to disable trimming. Ignored when WAL is disabled.                                                                             | `CONFIG_STORAGE_JOURNAL_SIZE_LIMIT`         |
+| `storage.queryTimeout`             | `30s`                                           | Maximum execution time for regular database queries, such as list pages and cache synchronization. Raise it for very large databases or slow storage.                                                               | `CONFIG_STORAGE_QUERY_TIMEOUT`              |
+| `storage.analyticsQueryTimeout`    | `60s`                                           | Maximum execution time for dashboard statistics queries.                                                                                                                                                            | `CONFIG_STORAGE_ANALYTICS_QUERY_TIMEOUT`    |
+| `ui.timeZone`                      | `browser`                                       | Browser timezone or an IANA zone such as `Europe/Berlin` or `UTC`. Statistics days use this zone, or the server's zone with `browser`.                                                                              | `CONFIG_UI_TIME_ZONE`                       |
+| `ui.timeFormat`                    | `browser`                                       | Clock format: `browser`, `12h`, or `24h`.                                                                                                                                                                           | `CONFIG_UI_TIME_FORMAT`                     |
+| `ui.dateFormat`                    | `browser`                                       | Browser date format or a custom pattern such as `dd/mm/yyyy`, `mm/dd/yyyy`, or `yyyy-MM-dd`.                                                                                                                        | `CONFIG_UI_DATE_FORMAT`                     |
+| `ui.readOnly`                      | `false`                                         | Hides management actions and rejects mutating API operations.                                                                                                                                                       | `CONFIG_UI_READ_ONLY`                       |
+| `ui.allowlistsSidebarVisible`      | `true`                                          | Shows the Allowlists sidebar link. The `/allowlists` route remains available when hidden. Omit to let each user choose in Settings > Profile.                                                                       | `CONFIG_UI_ALLOWLISTS_SIDEBAR_VISIBLE`      |
+| `ui.statisticsSidebarVisible`      | `true`                                          | Shows the Statistics sidebar link. The `/statistics` route remains available when hidden. Omit to let each user choose in Settings > Profile.                                                                       | `CONFIG_UI_STATISTICS_SIDEBAR_VISIBLE`      |
+| `ui.metricsSidebarVisible`         | `true`                                          | Shows the Metrics sidebar link. The `/metrics` route remains available when Prometheus metrics are configured. Omit to let each user choose in Settings > Profile.                                                  | `CONFIG_UI_METRICS_SIDEBAR_VISIBLE`         |
+| `updates.enabled`                  | `true` in packaged images                       | Enables the built-in update check.                                                                                                                                                                                  | `CONFIG_UPDATES_ENABLED`                    |
 
 Date patterns require one day, month, and year token in any order: `d`/`dd` (day), `m`/`mm` (numeric month), `mmm`/`mmmm` (localized month name), and `yy`/`yyyy` (year). Punctuation and spaces are literal; wrap words in single quotes, for example `d 'of' mmmm yyyy`. Date patterns affect full dates and timestamps; compact chart labels keep their own display format. Set `ui.timeFormat` separately for a 12 or 24 hour clock.
 
 ### Authentication
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `auth.enabled` | `auto` | Enables authentication; `auto` enables new databases while preserving migrated database state. | `CONFIG_AUTH_ENABLED` |
-| `auth.sessionSecret` | Generated and stored | Signs sessions and encrypts saved authentication settings. | `CONFIG_AUTH_SESSION_SECRET` or `CONFIG_AUTH_SESSION_SECRET_FILE` |
-| `auth.totpSecret` | `sessionSecret` | Encrypts stored per-account TOTP seeds. | `CONFIG_AUTH_TOTP_SECRET` or `CONFIG_AUTH_TOTP_SECRET_FILE` |
-| `auth.totpSeed` | Unset | Optional base32 fallback TOTP seed for the password user; minimum 26 characters. | `CONFIG_AUTH_TOTP_SEED` or `CONFIG_AUTH_TOTP_SEED_FILE` |
-| `auth.passwordLogin.enabled` | Unset (managed in Settings) | Enables or disables password login from deployment config and locks the Settings toggle. `false` keeps password login enabled until OIDC or an administrator passkey exists. | `CONFIG_AUTH_PASSWORD_LOGIN_ENABLED` |
-| `auth.oidc.issuerUrl` | Unset | OIDC provider issuer URL. | `CONFIG_AUTH_OIDC_ISSUER_URL` |
-| `auth.oidc.clientId` | Unset | OIDC client identifier. | `CONFIG_AUTH_OIDC_CLIENT_ID` |
-| `auth.oidc.clientSecret` | Unset | OIDC client secret. | `CONFIG_AUTH_OIDC_CLIENT_SECRET` or `CONFIG_AUTH_OIDC_CLIENT_SECRET_FILE` |
-| `auth.oidc.scope` | `openid profile email` | Requested OIDC scopes; must include `openid`. | `CONFIG_AUTH_OIDC_SCOPE` |
-| `auth.oidc.groupsClaim` | `groups` | Claim containing role-mapping groups. | `CONFIG_AUTH_OIDC_GROUPS_CLAIM` |
-| `auth.oidc.adminGroups` | `[]` | Groups granted administrator access. | `CONFIG_AUTH_OIDC_ADMIN_GROUPS` or `CONFIG_AUTH_OIDC_ADMIN_GROUPS_<INDEX>` |
-| `auth.oidc.readOnlyGroups` | `[]` | Groups granted read-only access. | `CONFIG_AUTH_OIDC_READ_ONLY_GROUPS` or `CONFIG_AUTH_OIDC_READ_ONLY_GROUPS_<INDEX>` |
-| `auth.oidc.unmatchedRole` | `deny` | Role for unmatched OIDC users: `deny`, `admin`, or `read-only`. | `CONFIG_AUTH_OIDC_UNMATCHED_ROLE` |
-| `auth.oidc.endSession` | `false` (`true` on installations that already used OIDC before it defaulted to off) | Also end the identity provider session when an SSO user logs out (RP-initiated logout). | `CONFIG_AUTH_OIDC_END_SESSION` |
-| `auth.oidc.backchannelLogout` | `false` | Accept back-channel logout notifications, so signing out at the identity provider also ends dashboard sessions. | `CONFIG_AUTH_OIDC_BACKCHANNEL_LOGOUT` |
-| `auth.oidc.autoLogin` | `false` | Redirect the login page straight to the identity provider. Only active while OIDC is configured and password login is disabled. | `CONFIG_AUTH_OIDC_AUTO_LOGIN` |
-| `auth.oidc.autoLinkUsername` | `false` | Link SSO sign-ins to existing local accounts with the same username. See [Linking local and SSO sign-in](#linking-local-and-sso-sign-in). | `CONFIG_AUTH_OIDC_AUTO_LINK_USERNAME` |
+| YAML field                    | Default                                                                             | Purpose                                                                                                                                                                      | Environment override                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `auth.enabled`                | `auto`                                                                              | Enables authentication; `auto` enables new databases while preserving migrated database state.                                                                               | `CONFIG_AUTH_ENABLED`                                                              |
+| `auth.sessionSecret`          | Generated and stored                                                                | Signs sessions and encrypts saved authentication settings.                                                                                                                   | `CONFIG_AUTH_SESSION_SECRET` or `CONFIG_AUTH_SESSION_SECRET_FILE`                  |
+| `auth.totpSecret`             | `sessionSecret`                                                                     | Encrypts stored per-account TOTP seeds.                                                                                                                                      | `CONFIG_AUTH_TOTP_SECRET` or `CONFIG_AUTH_TOTP_SECRET_FILE`                        |
+| `auth.totpSeed`               | Unset                                                                               | Optional base32 fallback TOTP seed for the password user; minimum 26 characters.                                                                                             | `CONFIG_AUTH_TOTP_SEED` or `CONFIG_AUTH_TOTP_SEED_FILE`                            |
+| `auth.passwordLogin.enabled`  | Unset (managed in Settings)                                                         | Enables or disables password login from deployment config and locks the Settings toggle. `false` keeps password login enabled until OIDC or an administrator passkey exists. | `CONFIG_AUTH_PASSWORD_LOGIN_ENABLED`                                               |
+| `auth.oidc.issuerUrl`         | Unset                                                                               | OIDC provider issuer URL.                                                                                                                                                    | `CONFIG_AUTH_OIDC_ISSUER_URL`                                                      |
+| `auth.oidc.clientId`          | Unset                                                                               | OIDC client identifier.                                                                                                                                                      | `CONFIG_AUTH_OIDC_CLIENT_ID`                                                       |
+| `auth.oidc.clientSecret`      | Unset                                                                               | OIDC client secret.                                                                                                                                                          | `CONFIG_AUTH_OIDC_CLIENT_SECRET` or `CONFIG_AUTH_OIDC_CLIENT_SECRET_FILE`          |
+| `auth.oidc.scope`             | `openid profile email`                                                              | Requested OIDC scopes; must include `openid`.                                                                                                                                | `CONFIG_AUTH_OIDC_SCOPE`                                                           |
+| `auth.oidc.groupsClaim`       | `groups`                                                                            | Claim containing role-mapping groups.                                                                                                                                        | `CONFIG_AUTH_OIDC_GROUPS_CLAIM`                                                    |
+| `auth.oidc.adminGroups`       | `[]`                                                                                | Groups granted administrator access.                                                                                                                                         | `CONFIG_AUTH_OIDC_ADMIN_GROUPS` or `CONFIG_AUTH_OIDC_ADMIN_GROUPS_<INDEX>`         |
+| `auth.oidc.readOnlyGroups`    | `[]`                                                                                | Groups granted read-only access.                                                                                                                                             | `CONFIG_AUTH_OIDC_READ_ONLY_GROUPS` or `CONFIG_AUTH_OIDC_READ_ONLY_GROUPS_<INDEX>` |
+| `auth.oidc.unmatchedRole`     | `deny`                                                                              | Role for unmatched OIDC users: `deny`, `admin`, or `read-only`.                                                                                                              | `CONFIG_AUTH_OIDC_UNMATCHED_ROLE`                                                  |
+| `auth.oidc.endSession`        | `false` (`true` on installations that already used OIDC before it defaulted to off) | Also end the identity provider session when an SSO user logs out (RP-initiated logout).                                                                                      | `CONFIG_AUTH_OIDC_END_SESSION`                                                     |
+| `auth.oidc.backchannelLogout` | `false`                                                                             | Accept back-channel logout notifications, so signing out at the identity provider also ends dashboard sessions.                                                              | `CONFIG_AUTH_OIDC_BACKCHANNEL_LOGOUT`                                              |
+| `auth.oidc.autoLogin`         | `false`                                                                             | Redirect the login page straight to the identity provider. Only active while OIDC is configured and password login is disabled.                                              | `CONFIG_AUTH_OIDC_AUTO_LOGIN`                                                      |
+| `auth.oidc.autoLinkUsername`  | `false`                                                                             | Link SSO sign-ins to existing local accounts with the same username. See [Linking local and SSO sign-in](#linking-local-and-sso-sign-in).                                    | `CONFIG_AUTH_OIDC_AUTO_LINK_USERNAME`                                              |
 
 ### Notifications
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `notifications.secretKey` | Generated and stored | Encrypts saved notification credentials. | `CONFIG_NOTIFICATIONS_SECRET_KEY` or `CONFIG_NOTIFICATIONS_SECRET_KEY_FILE` |
-| `notifications.allowPrivateAddresses` | `true` | Allows private, loopback, and link-local notification destinations. | `CONFIG_NOTIFICATIONS_ALLOW_PRIVATE_ADDRESSES` |
-| `notifications.debugPayloads` | `false` | Logs truncated rendered payloads after failed notification delivery. | `CONFIG_NOTIFICATIONS_DEBUG_PAYLOADS` |
+| YAML field                            | Default              | Purpose                                                              | Environment override                                                        |
+| ------------------------------------- | -------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `notifications.secretKey`             | Generated and stored | Encrypts saved notification credentials.                             | `CONFIG_NOTIFICATIONS_SECRET_KEY` or `CONFIG_NOTIFICATIONS_SECRET_KEY_FILE` |
+| `notifications.allowPrivateAddresses` | `true`               | Allows private, loopback, and link-local notification destinations.  | `CONFIG_NOTIFICATIONS_ALLOW_PRIVATE_ADDRESSES`                              |
+| `notifications.debugPayloads`         | `false`              | Logs truncated rendered payloads after failed notification delivery. | `CONFIG_NOTIFICATIONS_DEBUG_PAYLOADS`                                       |
 
 ### Audit log
 
@@ -292,25 +290,25 @@ User actions that change CrowdSec state (adding decisions, deleting decisions an
 
 Outcomes are `success`, `partial`, `failure`, or `queued`. Alert deletions handled by the persistent deletion queue are recorded as `queued`, because CrowdSec may complete them after the HTTP request returns. Multi-target actions include `target_results` or `instance_results` so successful, failed, and queued targets remain distinguishable. The Alerts page sends large deletions in batches of 2,000 alerts, and each batch has its own audit entry.
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `audit.enabled` | `true` | Writes audit entries for user actions to the application log. | `CONFIG_AUDIT_ENABLED` |
-| `audit.logFile` | Unset | Also appends audit entries as JSON lines to this file. | `CONFIG_AUDIT_LOG_FILE` |
+| YAML field      | Default | Purpose                                                       | Environment override    |
+| --------------- | ------- | ------------------------------------------------------------- | ----------------------- |
+| `audit.enabled` | `true`  | Writes audit entries for user actions to the application log. | `CONFIG_AUDIT_ENABLED`  |
+| `audit.logFile` | Unset   | Also appends audit entries as JSON lines to this file.        | `CONFIG_AUDIT_LOG_FILE` |
 
 ### Alert handling
 
 Omitting `crowdsec.alertFilters` uses the standard non-CAPI feed. Setting any explicit filter field enables explicit filtering.
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `crowdsec.simulationsEnabled` | `false` | Includes simulation-mode alerts and decisions. | `CONFIG_CROWDSEC_SIMULATIONS_ENABLED` |
-| `crowdsec.alertFilters.includeOrigins` | `[]` | Keeps alerts matching these exact origins. | `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGINS` or `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGINS_<INDEX>` |
-| `crowdsec.alertFilters.excludeOrigins` | `[]` | Drops alerts matching these exact origins. | `CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGINS` or `CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGINS_<INDEX>` |
-| `crowdsec.alertFilters.includeCapi` | `false` | Adds the Central API/community-blocklist feed. | `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_CAPI` |
-| `crowdsec.alertFilters.includeOriginEmpty` | `false` | Keeps empty-origin alerts with explicit include filters. | `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGIN_EMPTY` |
-| `crowdsec.alertFilters.excludeOriginEmpty` | `false` | Drops alerts whose effective origin is empty. | `CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGIN_EMPTY` |
-| `crowdsec.alertFilters.legacy.origins` | `[]` | Compatibility origin allowlist; `CAPI` enables the CAPI feed. | `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS` or `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS_<INDEX>` |
-| `crowdsec.alertFilters.legacy.extraScenarios` | `[]` | Compatibility list of additional scenarios. | `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS` or `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS_<INDEX>` |
+| YAML field                                    | Default | Purpose                                                       | Environment override                                                                                                     |
+| --------------------------------------------- | ------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `crowdsec.simulationsEnabled`                 | `false` | Includes simulation-mode alerts and decisions.                | `CONFIG_CROWDSEC_SIMULATIONS_ENABLED`                                                                                    |
+| `crowdsec.alertFilters.includeOrigins`        | `[]`    | Keeps alerts matching these exact origins.                    | `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGINS` or `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGINS_<INDEX>`               |
+| `crowdsec.alertFilters.excludeOrigins`        | `[]`    | Drops alerts matching these exact origins.                    | `CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGINS` or `CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGINS_<INDEX>`               |
+| `crowdsec.alertFilters.includeCapi`           | `false` | Adds the Central API/community-blocklist feed.                | `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_CAPI`                                                                             |
+| `crowdsec.alertFilters.includeOriginEmpty`    | `false` | Keeps empty-origin alerts with explicit include filters.      | `CONFIG_CROWDSEC_ALERT_FILTERS_INCLUDE_ORIGIN_EMPTY`                                                                     |
+| `crowdsec.alertFilters.excludeOriginEmpty`    | `false` | Drops alerts whose effective origin is empty.                 | `CONFIG_CROWDSEC_ALERT_FILTERS_EXCLUDE_ORIGIN_EMPTY`                                                                     |
+| `crowdsec.alertFilters.legacy.origins`        | `[]`    | Compatibility origin allowlist; `CAPI` enables the CAPI feed. | `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS` or `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_ORIGINS_<INDEX>`                 |
+| `crowdsec.alertFilters.legacy.extraScenarios` | `[]`    | Compatibility list of additional scenarios.                   | `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS` or `CONFIG_CROWDSEC_ALERT_FILTERS_LEGACY_EXTRA_SCENARIOS_<INDEX>` |
 
 ### Manual decisions
 
@@ -318,36 +316,36 @@ The Add Decision form always offers `manual/web-ui` and selects it by default. W
 
 CrowdSec LAPI does not check allowlists for decisions sent with an alert, which is how the Web UI adds them. Like `cscli decisions add`, the Web UI therefore checks the target instances' allowlists first and refuses an allowlisted IP or range until **Bypass allowlist** is confirmed. Instances whose LAPI predates allowlists (CrowdSec 1.6.5) or cannot be checked do not block the decision.
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `crowdsec.manualDecisions.scenarios` | `[]` | Additional `author/name` scenarios offered by the Add Decision form. | `CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS` or `CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS_<INDEX>` |
+| YAML field                           | Default | Purpose                                                              | Environment override                                                                                 |
+| ------------------------------------ | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `crowdsec.manualDecisions.scenarios` | `[]`    | Additional `author/name` scenarios offered by the Add Decision form. | `CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS` or `CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS_<INDEX>` |
 
 ### Global synchronization
 
 Synchronization durations accept `ms`, `s`, `m`, `h`, or `d`, for example `500ms`, `30s`, `5m`, or `7d`. The `lookback` fields accept only `m`, `h`, or `d`.
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `crowdsec.sync.lookback` | `168h` | Imported history and retention window. | `CONFIG_CROWDSEC_SYNC_LOOKBACK` |
-| `crowdsec.sync.refreshInterval` | `1m` | Active refresh cadence; `0` or `manual` disables scheduling. | `CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL` |
-| `crowdsec.sync.manualRefreshEnabled` | `false` | Enables manual refresh controls. | `CONFIG_CROWDSEC_SYNC_MANUAL_REFRESH_ENABLED` |
-| `crowdsec.sync.idleRefreshInterval` | `10m` | Refresh cadence while the application is idle; `0` disables it. | `CONFIG_CROWDSEC_SYNC_IDLE_REFRESH_INTERVAL` |
-| `crowdsec.sync.idleThreshold` | `2m` | Inactivity before idle refresh behavior begins. | `CONFIG_CROWDSEC_SYNC_IDLE_THRESHOLD` |
-| `crowdsec.sync.requestTimeout` | `30s` | Timeout for individual LAPI requests. | `CONFIG_CROWDSEC_SYNC_REQUEST_TIMEOUT` |
-| `crowdsec.sync.bouncerPropagationDelay` | `15s` | Grace period before deleting alerts owned by expired decisions. | `CONFIG_CROWDSEC_SYNC_BOUNCER_PROPAGATION_DELAY` |
-| `crowdsec.sync.deletionQueueMaxAge` | `24h` | Stops retrying failed queued deletions after this age; `0` disables the limit. Tombstones remain until the retention window passes. | `CONFIG_CROWDSEC_SYNC_DELETION_QUEUE_MAX_AGE` |
-| `crowdsec.sync.metricsRequestTimeout` | `5s` | Default timeout for metrics endpoints. | `CONFIG_CROWDSEC_SYNC_METRICS_REQUEST_TIMEOUT` |
-| `crowdsec.sync.heartbeatInterval` | `30s` | CrowdSec machine heartbeat cadence; `0` disables it. | `CONFIG_CROWDSEC_SYNC_HEARTBEAT_INTERVAL` |
-| `crowdsec.sync.alertSyncChunk` | `12h` | Historical import window size. | `CONFIG_CROWDSEC_SYNC_ALERT_SYNC_CHUNK` |
-| `crowdsec.sync.alertSyncMinChunk` | `15m` | Minimum retry window after a timed-out import. | `CONFIG_CROWDSEC_SYNC_ALERT_SYNC_MIN_CHUNK` |
-| `crowdsec.sync.reconcileWindow` | `1h` | Fixed alert-history reconciliation window size. | `CONFIG_CROWDSEC_SYNC_RECONCILE_WINDOW` |
-| `crowdsec.sync.reconcileRecentAge` | `24h` | Boundary between recent and older windows. | `CONFIG_CROWDSEC_SYNC_RECONCILE_RECENT_AGE` |
-| `crowdsec.sync.reconcileRecentInterval` | `15m` | Reconciliation cadence for recent windows. | `CONFIG_CROWDSEC_SYNC_RECONCILE_RECENT_INTERVAL` |
-| `crowdsec.sync.reconcileActiveInterval` | `5m` | Reconciliation cadence for windows with active decisions. | `CONFIG_CROWDSEC_SYNC_RECONCILE_ACTIVE_INTERVAL` |
-| `crowdsec.sync.reconcileOldInterval` | `3h` | Reconciliation cadence for older windows. | `CONFIG_CROWDSEC_SYNC_RECONCILE_OLD_INTERVAL` |
-| `crowdsec.sync.reconcileWindowsPerRefresh` | `2` | Maximum due windows processed per refresh. | `CONFIG_CROWDSEC_SYNC_RECONCILE_WINDOWS_PER_REFRESH` |
-| `crowdsec.sync.bootstrapRetryDelay` | `30s` | Delay between failed initial-sync retries; `0` retries immediately. | `CONFIG_CROWDSEC_SYNC_BOOTSTRAP_RETRY_DELAY` |
-| `crowdsec.sync.bootstrapRetryEnabled` | `true` | Enables background retry after initial synchronization failure. | `CONFIG_CROWDSEC_SYNC_BOOTSTRAP_RETRY_ENABLED` |
+| YAML field                                 | Default | Purpose                                                                                                                             | Environment override                                 |
+| ------------------------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `crowdsec.sync.lookback`                   | `168h`  | Imported history and retention window.                                                                                              | `CONFIG_CROWDSEC_SYNC_LOOKBACK`                      |
+| `crowdsec.sync.refreshInterval`            | `1m`    | Active refresh cadence; `0` or `manual` disables scheduling.                                                                        | `CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL`              |
+| `crowdsec.sync.manualRefreshEnabled`       | `false` | Enables manual refresh controls.                                                                                                    | `CONFIG_CROWDSEC_SYNC_MANUAL_REFRESH_ENABLED`        |
+| `crowdsec.sync.idleRefreshInterval`        | `10m`   | Refresh cadence while the application is idle; `0` disables it.                                                                     | `CONFIG_CROWDSEC_SYNC_IDLE_REFRESH_INTERVAL`         |
+| `crowdsec.sync.idleThreshold`              | `2m`    | Inactivity before idle refresh behavior begins.                                                                                     | `CONFIG_CROWDSEC_SYNC_IDLE_THRESHOLD`                |
+| `crowdsec.sync.requestTimeout`             | `30s`   | Timeout for individual LAPI requests.                                                                                               | `CONFIG_CROWDSEC_SYNC_REQUEST_TIMEOUT`               |
+| `crowdsec.sync.bouncerPropagationDelay`    | `15s`   | Grace period before deleting alerts owned by expired decisions.                                                                     | `CONFIG_CROWDSEC_SYNC_BOUNCER_PROPAGATION_DELAY`     |
+| `crowdsec.sync.deletionQueueMaxAge`        | `24h`   | Stops retrying failed queued deletions after this age; `0` disables the limit. Tombstones remain until the retention window passes. | `CONFIG_CROWDSEC_SYNC_DELETION_QUEUE_MAX_AGE`        |
+| `crowdsec.sync.metricsRequestTimeout`      | `5s`    | Default timeout for metrics endpoints.                                                                                              | `CONFIG_CROWDSEC_SYNC_METRICS_REQUEST_TIMEOUT`       |
+| `crowdsec.sync.heartbeatInterval`          | `30s`   | CrowdSec machine heartbeat cadence; `0` disables it.                                                                                | `CONFIG_CROWDSEC_SYNC_HEARTBEAT_INTERVAL`            |
+| `crowdsec.sync.alertSyncChunk`             | `12h`   | Historical import window size.                                                                                                      | `CONFIG_CROWDSEC_SYNC_ALERT_SYNC_CHUNK`              |
+| `crowdsec.sync.alertSyncMinChunk`          | `15m`   | Minimum retry window after a timed-out import.                                                                                      | `CONFIG_CROWDSEC_SYNC_ALERT_SYNC_MIN_CHUNK`          |
+| `crowdsec.sync.reconcileWindow`            | `1h`    | Fixed alert-history reconciliation window size.                                                                                     | `CONFIG_CROWDSEC_SYNC_RECONCILE_WINDOW`              |
+| `crowdsec.sync.reconcileRecentAge`         | `24h`   | Boundary between recent and older windows.                                                                                          | `CONFIG_CROWDSEC_SYNC_RECONCILE_RECENT_AGE`          |
+| `crowdsec.sync.reconcileRecentInterval`    | `15m`   | Reconciliation cadence for recent windows.                                                                                          | `CONFIG_CROWDSEC_SYNC_RECONCILE_RECENT_INTERVAL`     |
+| `crowdsec.sync.reconcileActiveInterval`    | `5m`    | Reconciliation cadence for windows with active decisions.                                                                           | `CONFIG_CROWDSEC_SYNC_RECONCILE_ACTIVE_INTERVAL`     |
+| `crowdsec.sync.reconcileOldInterval`       | `3h`    | Reconciliation cadence for older windows.                                                                                           | `CONFIG_CROWDSEC_SYNC_RECONCILE_OLD_INTERVAL`        |
+| `crowdsec.sync.reconcileWindowsPerRefresh` | `2`     | Maximum due windows processed per refresh.                                                                                          | `CONFIG_CROWDSEC_SYNC_RECONCILE_WINDOWS_PER_REFRESH` |
+| `crowdsec.sync.bootstrapRetryDelay`        | `30s`   | Delay between failed initial-sync retries; `0` retries immediately.                                                                 | `CONFIG_CROWDSEC_SYNC_BOOTSTRAP_RETRY_DELAY`         |
+| `crowdsec.sync.bootstrapRetryEnabled`      | `true`  | Enables background retry after initial synchronization failure.                                                                     | `CONFIG_CROWDSEC_SYNC_BOOTSTRAP_RETRY_ENABLED`       |
 
 ### Instances and LAPI
 
@@ -358,6 +356,7 @@ Synchronization durations accept `ms`, `s`, `m`, `h`, or `d`, for example `500ms
 
 > [!IMPORTANT]
 > Configure exactly one credential shape:
+>
 > - Password auth: set `username` and `password`
 > - mTLS auth: set `certFile` and `keyFile`
 >
@@ -365,26 +364,26 @@ Synchronization durations accept `ms`, `s`, `m`, `h`, or `d`, for example `500ms
 >
 > Plaintext secrets are supported, but mounted secret files are recommended so credentials do not end up in source control, backups, or configuration-management logs.
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `instances` | One generated `default` instance | Configures one or more CrowdSec connections. | `CONFIG_INSTANCES` or `CONFIG_INSTANCES_<INDEX>_*` |
-| `instances[].id` | Zero-based instance index | Stable database identity for the instance. | `CONFIG_INSTANCES_<INDEX>_ID` |
-| `instances[].name` | `Instance <INDEX>` | Unique display name. | `CONFIG_INSTANCES_<INDEX>_NAME` |
-| `instances[].icon` | Unset | Optional short text or emoji shown in the selector. | `CONFIG_INSTANCES_<INDEX>_ICON` |
-| `instances[].lapi` | Required | Complete LAPI connection object. | `CONFIG_INSTANCES_<INDEX>_LAPI` |
-| `instances[].lapi.url` | Required (`http://crowdsec:8080` in starter config) | Absolute HTTP(S) LAPI base URL without credentials, a path, or a fragment. | `CONFIG_INSTANCES_<INDEX>_LAPI_URL` |
-| `instances[].lapi.auth` | `type: none` | LAPI authentication object. | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH` |
-| `instances[].lapi.auth.type` | Inferred from credentials | Optional authentication mode: `none`, `password`, or `mtls`. | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_TYPE` |
-| `instances[].lapi.auth.username` | Required for `password` | CrowdSec machine username. | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_USERNAME` |
-| `instances[].lapi.auth.password` | Required for `password` | CrowdSec machine password or secret reference. | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_PASSWORD` or `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_PASSWORD_FILE` |
-| `instances[].lapi.auth.certFile` | Required for `mtls` | Client certificate path. | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_CERT_FILE` |
-| `instances[].lapi.auth.keyFile` | Required for `mtls` | Client private-key path. | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_KEY_FILE` |
-| `instances[].lapi.tls` | Empty mapping | LAPI server-trust settings. | `CONFIG_INSTANCES_<INDEX>_LAPI_TLS` |
-| `instances[].lapi.tls.caFile` | Unset | CA bundle used to verify the LAPI server. | `CONFIG_INSTANCES_<INDEX>_LAPI_TLS_CA_FILE` |
-| `instances[].metrics` | `[]` | Zero or more metrics endpoints. | `CONFIG_INSTANCES_<INDEX>_METRICS` or `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_*` |
-| `instances[].manualDecisions` | Inherits global values | Per-instance Add Decision settings. | `CONFIG_INSTANCES_<INDEX>_MANUAL_DECISIONS` |
-| `instances[].manualDecisions.scenarios` | Global `crowdsec.manualDecisions.scenarios` | Replaces the global scenario list for this instance; `[]` offers only `manual/web-ui`. | `CONFIG_INSTANCES_<INDEX>_MANUAL_DECISIONS_SCENARIOS` as a YAML list (indexed entries are not supported) |
-| `instances[].sync` | Inherits global values | Per-instance synchronization overrides. | `CONFIG_INSTANCES_<INDEX>_SYNC` or `CONFIG_INSTANCES_<INDEX>_SYNC_*` |
+| YAML field                              | Default                                             | Purpose                                                                                | Environment override                                                                                     |
+| --------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `instances`                             | One generated `default` instance                    | Configures one or more CrowdSec connections.                                           | `CONFIG_INSTANCES` or `CONFIG_INSTANCES_<INDEX>_*`                                                       |
+| `instances[].id`                        | Zero-based instance index                           | Stable database identity for the instance.                                             | `CONFIG_INSTANCES_<INDEX>_ID`                                                                            |
+| `instances[].name`                      | `Instance <INDEX>`                                  | Unique display name.                                                                   | `CONFIG_INSTANCES_<INDEX>_NAME`                                                                          |
+| `instances[].icon`                      | Unset                                               | Optional short text or emoji shown in the selector.                                    | `CONFIG_INSTANCES_<INDEX>_ICON`                                                                          |
+| `instances[].lapi`                      | Required                                            | Complete LAPI connection object.                                                       | `CONFIG_INSTANCES_<INDEX>_LAPI`                                                                          |
+| `instances[].lapi.url`                  | Required (`http://crowdsec:8080` in starter config) | Absolute HTTP(S) LAPI base URL without credentials, a path, or a fragment.             | `CONFIG_INSTANCES_<INDEX>_LAPI_URL`                                                                      |
+| `instances[].lapi.auth`                 | `type: none`                                        | LAPI authentication object.                                                            | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH`                                                                     |
+| `instances[].lapi.auth.type`            | Inferred from credentials                           | Optional authentication mode: `none`, `password`, or `mtls`.                           | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_TYPE`                                                                |
+| `instances[].lapi.auth.username`        | Required for `password`                             | CrowdSec machine username.                                                             | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_USERNAME`                                                            |
+| `instances[].lapi.auth.password`        | Required for `password`                             | CrowdSec machine password or secret reference.                                         | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_PASSWORD` or `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_PASSWORD_FILE`      |
+| `instances[].lapi.auth.certFile`        | Required for `mtls`                                 | Client certificate path.                                                               | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_CERT_FILE`                                                           |
+| `instances[].lapi.auth.keyFile`         | Required for `mtls`                                 | Client private-key path.                                                               | `CONFIG_INSTANCES_<INDEX>_LAPI_AUTH_KEY_FILE`                                                            |
+| `instances[].lapi.tls`                  | Empty mapping                                       | LAPI server-trust settings.                                                            | `CONFIG_INSTANCES_<INDEX>_LAPI_TLS`                                                                      |
+| `instances[].lapi.tls.caFile`           | Unset                                               | CA bundle used to verify the LAPI server.                                              | `CONFIG_INSTANCES_<INDEX>_LAPI_TLS_CA_FILE`                                                              |
+| `instances[].metrics`                   | `[]`                                                | Zero or more metrics endpoints.                                                        | `CONFIG_INSTANCES_<INDEX>_METRICS` or `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_*`                |
+| `instances[].manualDecisions`           | Inherits global values                              | Per-instance Add Decision settings.                                                    | `CONFIG_INSTANCES_<INDEX>_MANUAL_DECISIONS`                                                              |
+| `instances[].manualDecisions.scenarios` | Global `crowdsec.manualDecisions.scenarios`         | Replaces the global scenario list for this instance; `[]` offers only `manual/web-ui`. | `CONFIG_INSTANCES_<INDEX>_MANUAL_DECISIONS_SCENARIOS` as a YAML list (indexed entries are not supported) |
+| `instances[].sync`                      | Inherits global values                              | Per-instance synchronization overrides.                                                | `CONFIG_INSTANCES_<INDEX>_SYNC` or `CONFIG_INSTANCES_<INDEX>_SYNC_*`                                     |
 
 ### Metrics endpoints
 
@@ -393,46 +392,46 @@ Synchronization durations accept `ms`, `s`, `m`, `h`, or `d`, for example `500ms
 - Endpoint icons are optional short text or emoji values and appear in the metrics source selector.
 - Inferred values appear as comments in initial YAML.
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `instances[].metrics[].id` | Zero-based metrics index | Stable identifier unique within the instance. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_ID` |
-| `instances[].metrics[].name` | `Metrics <METRIC_INDEX>` | Display name. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_NAME` |
-| `instances[].metrics[].icon` | Unset | Optional short text or emoji icon. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_ICON` |
-| `instances[].metrics[].url` | Required | Absolute HTTP(S) Prometheus endpoint URL. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_URL` |
-| `instances[].metrics[].requestTimeout` | Global `5s` | Request timeout for this endpoint. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_REQUEST_TIMEOUT` |
-| `instances[].metrics[].auth` | `type: none` | Complete metrics authentication object. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH` |
-| `instances[].metrics[].auth.type` | Inferred from credentials | Optional authentication mode: `none`, `basic`, or `bearer`. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_TYPE` |
-| `instances[].metrics[].auth.username` | Required for `basic` | Basic-auth username. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_USERNAME` |
-| `instances[].metrics[].auth.password` | Required for `basic` | Basic-auth password or secret reference. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_PASSWORD` or `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_PASSWORD_FILE` |
-| `instances[].metrics[].auth.token` | Required for `bearer` | Bearer token or secret reference. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_TOKEN` or `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_TOKEN_FILE` |
-| `instances[].metrics[].tls` | Empty mapping | Metrics TLS settings. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS` |
-| `instances[].metrics[].tls.caFile` | Unset | CA bundle used to verify the metrics server. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS_CA_FILE` |
-| `instances[].metrics[].tls.certFile` | Unset | Optional metrics client certificate; requires `keyFile`. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS_CERT_FILE` |
-| `instances[].metrics[].tls.keyFile` | Unset | Optional metrics client private key; requires `certFile`. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS_KEY_FILE` |
+| YAML field                             | Default                   | Purpose                                                     | Environment override                                                                                                                    |
+| -------------------------------------- | ------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `instances[].metrics[].id`             | Zero-based metrics index  | Stable identifier unique within the instance.               | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_ID`                                                                                    |
+| `instances[].metrics[].name`           | `Metrics <METRIC_INDEX>`  | Display name.                                               | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_NAME`                                                                                  |
+| `instances[].metrics[].icon`           | Unset                     | Optional short text or emoji icon.                          | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_ICON`                                                                                  |
+| `instances[].metrics[].url`            | Required                  | Absolute HTTP(S) Prometheus endpoint URL.                   | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_URL`                                                                                   |
+| `instances[].metrics[].requestTimeout` | Global `5s`               | Request timeout for this endpoint.                          | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_REQUEST_TIMEOUT`                                                                       |
+| `instances[].metrics[].auth`           | `type: none`              | Complete metrics authentication object.                     | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH`                                                                                  |
+| `instances[].metrics[].auth.type`      | Inferred from credentials | Optional authentication mode: `none`, `basic`, or `bearer`. | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_TYPE`                                                                             |
+| `instances[].metrics[].auth.username`  | Required for `basic`      | Basic-auth username.                                        | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_USERNAME`                                                                         |
+| `instances[].metrics[].auth.password`  | Required for `basic`      | Basic-auth password or secret reference.                    | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_PASSWORD` or `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_PASSWORD_FILE` |
+| `instances[].metrics[].auth.token`     | Required for `bearer`     | Bearer token or secret reference.                           | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_TOKEN` or `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_AUTH_TOKEN_FILE`       |
+| `instances[].metrics[].tls`            | Empty mapping             | Metrics TLS settings.                                       | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS`                                                                                   |
+| `instances[].metrics[].tls.caFile`     | Unset                     | CA bundle used to verify the metrics server.                | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS_CA_FILE`                                                                           |
+| `instances[].metrics[].tls.certFile`   | Unset                     | Optional metrics client certificate; requires `keyFile`.    | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS_CERT_FILE`                                                                         |
+| `instances[].metrics[].tls.keyFile`    | Unset                     | Optional metrics client private key; requires `certFile`.   | `CONFIG_INSTANCES_<INDEX>_METRICS_<METRIC_INDEX>_TLS_KEY_FILE`                                                                          |
 
 ### Per-instance synchronization overrides
 
 Every field inherits its corresponding global value when omitted.
 
-| YAML field | Default | Purpose | Environment override |
-| --- | --- | --- | --- |
-| `instances[].sync.lookback` | Global `168h` | History and retention window for this instance. | `CONFIG_INSTANCES_<INDEX>_SYNC_LOOKBACK` |
-| `instances[].sync.refreshInterval` | Global `1m` | Active refresh cadence. | `CONFIG_INSTANCES_<INDEX>_SYNC_REFRESH_INTERVAL` |
-| `instances[].sync.idleRefreshInterval` | Global `10m` | Idle refresh cadence. | `CONFIG_INSTANCES_<INDEX>_SYNC_IDLE_REFRESH_INTERVAL` |
-| `instances[].sync.idleThreshold` | Global `2m` | Time before this instance is considered idle. | `CONFIG_INSTANCES_<INDEX>_SYNC_IDLE_THRESHOLD` |
-| `instances[].sync.requestTimeout` | Global `30s` | LAPI request timeout. | `CONFIG_INSTANCES_<INDEX>_SYNC_REQUEST_TIMEOUT` |
-| `instances[].sync.heartbeatInterval` | Global `30s` | Machine heartbeat cadence. | `CONFIG_INSTANCES_<INDEX>_SYNC_HEARTBEAT_INTERVAL` |
-| `instances[].sync.alertSyncChunk` | Global `12h` | Historical import window size. | `CONFIG_INSTANCES_<INDEX>_SYNC_ALERT_SYNC_CHUNK` |
-| `instances[].sync.alertSyncMinChunk` | Global `15m` | Minimum retry window. | `CONFIG_INSTANCES_<INDEX>_SYNC_ALERT_SYNC_MIN_CHUNK` |
-| `instances[].sync.reconcileWindow` | Global `1h` | Reconciliation window size. | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_WINDOW` |
-| `instances[].sync.reconcileRecentAge` | Global `24h` | Recent-window age boundary. | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_RECENT_AGE` |
-| `instances[].sync.reconcileRecentInterval` | Global `15m` | Recent-window reconciliation cadence. | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_RECENT_INTERVAL` |
-| `instances[].sync.reconcileActiveInterval` | Global `5m` | Active-decision reconciliation cadence. | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_ACTIVE_INTERVAL` |
-| `instances[].sync.reconcileOldInterval` | Global `3h` | Older-window reconciliation cadence. | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_OLD_INTERVAL` |
-| `instances[].sync.reconcileWindowsPerRefresh` | Global `2` | Due-window budget per refresh. | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_WINDOWS_PER_REFRESH` |
-| `instances[].sync.bootstrapRetryDelay` | Global `30s` | Initial-sync retry delay. | `CONFIG_INSTANCES_<INDEX>_SYNC_BOOTSTRAP_RETRY_DELAY` |
-| `instances[].sync.bootstrapRetryEnabled` | Global `true` | Enables background initial-sync retry. | `CONFIG_INSTANCES_<INDEX>_SYNC_BOOTSTRAP_RETRY_ENABLED` |
-| `instances[].sync.bouncerPropagationDelay` | Global `15s` | Alert-deletion grace period. | `CONFIG_INSTANCES_<INDEX>_SYNC_BOUNCER_PROPAGATION_DELAY` |
+| YAML field                                    | Default       | Purpose                                         | Environment override                                          |
+| --------------------------------------------- | ------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| `instances[].sync.lookback`                   | Global `168h` | History and retention window for this instance. | `CONFIG_INSTANCES_<INDEX>_SYNC_LOOKBACK`                      |
+| `instances[].sync.refreshInterval`            | Global `1m`   | Active refresh cadence.                         | `CONFIG_INSTANCES_<INDEX>_SYNC_REFRESH_INTERVAL`              |
+| `instances[].sync.idleRefreshInterval`        | Global `10m`  | Idle refresh cadence.                           | `CONFIG_INSTANCES_<INDEX>_SYNC_IDLE_REFRESH_INTERVAL`         |
+| `instances[].sync.idleThreshold`              | Global `2m`   | Time before this instance is considered idle.   | `CONFIG_INSTANCES_<INDEX>_SYNC_IDLE_THRESHOLD`                |
+| `instances[].sync.requestTimeout`             | Global `30s`  | LAPI request timeout.                           | `CONFIG_INSTANCES_<INDEX>_SYNC_REQUEST_TIMEOUT`               |
+| `instances[].sync.heartbeatInterval`          | Global `30s`  | Machine heartbeat cadence.                      | `CONFIG_INSTANCES_<INDEX>_SYNC_HEARTBEAT_INTERVAL`            |
+| `instances[].sync.alertSyncChunk`             | Global `12h`  | Historical import window size.                  | `CONFIG_INSTANCES_<INDEX>_SYNC_ALERT_SYNC_CHUNK`              |
+| `instances[].sync.alertSyncMinChunk`          | Global `15m`  | Minimum retry window.                           | `CONFIG_INSTANCES_<INDEX>_SYNC_ALERT_SYNC_MIN_CHUNK`          |
+| `instances[].sync.reconcileWindow`            | Global `1h`   | Reconciliation window size.                     | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_WINDOW`              |
+| `instances[].sync.reconcileRecentAge`         | Global `24h`  | Recent-window age boundary.                     | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_RECENT_AGE`          |
+| `instances[].sync.reconcileRecentInterval`    | Global `15m`  | Recent-window reconciliation cadence.           | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_RECENT_INTERVAL`     |
+| `instances[].sync.reconcileActiveInterval`    | Global `5m`   | Active-decision reconciliation cadence.         | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_ACTIVE_INTERVAL`     |
+| `instances[].sync.reconcileOldInterval`       | Global `3h`   | Older-window reconciliation cadence.            | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_OLD_INTERVAL`        |
+| `instances[].sync.reconcileWindowsPerRefresh` | Global `2`    | Due-window budget per refresh.                  | `CONFIG_INSTANCES_<INDEX>_SYNC_RECONCILE_WINDOWS_PER_REFRESH` |
+| `instances[].sync.bootstrapRetryDelay`        | Global `30s`  | Initial-sync retry delay.                       | `CONFIG_INSTANCES_<INDEX>_SYNC_BOOTSTRAP_RETRY_DELAY`         |
+| `instances[].sync.bootstrapRetryEnabled`      | Global `true` | Enables background initial-sync retry.          | `CONFIG_INSTANCES_<INDEX>_SYNC_BOOTSTRAP_RETRY_ENABLED`       |
+| `instances[].sync.bouncerPropagationDelay`    | Global `15s`  | Alert-deletion grace period.                    | `CONFIG_INSTANCES_<INDEX>_SYNC_BOUNCER_PROPAGATION_DELAY`     |
 
 ## Multiple CrowdSec instances
 
@@ -545,23 +544,23 @@ instances:
 
 ### Multi-instance behavior
 
-| Area | Behavior |
-| --- | --- |
-| Dashboard, Alerts, Decisions | Support one instance or Combined scope |
-| Metrics | Defaults to a source-aware Combined view when the selected scope has multiple endpoints; individual endpoints remain selectable |
-| Allowlists | Combined scope groups allowlists by name and marks entries missing on some instances |
-| Add decision / clean IP | Runs against every LAPI in Combined scope and reports partial failures; an allowlist match on any target instance requires a bypass |
-| Row deletion | Uses the row's owning instance; numeric upstream IDs are never broadcast |
+| Area                         | Behavior                                                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard, Alerts, Decisions | Support one instance or Combined scope                                                                                              |
+| Metrics                      | Defaults to a source-aware Combined view when the selected scope has multiple endpoints; individual endpoints remain selectable     |
+| Allowlists                   | Combined scope groups allowlists by name and marks entries missing on some instances                                                |
+| Add decision / clean IP      | Runs against every LAPI in Combined scope and reports partial failures; an allowlist match on any target instance requires a bypass |
+| Row deletion                 | Uses the row's owning instance; numeric upstream IDs are never broadcast                                                            |
 
 ## Authentication
 
 Authentication covers the browser UI and protected APIs; `/api/health` remains public.
 
-| `auth.enabled` | Behavior |
-| --- | --- |
-| `auto` | Enables authentication for new databases; preserves the state of migrated databases |
-| `true` | Requires authentication and initial administrator setup |
-| `false` | Disables authentication; this deployment setting is not available in the UI |
+| `auth.enabled` | Behavior                                                                            |
+| -------------- | ----------------------------------------------------------------------------------- |
+| `auto`         | Enables authentication for new databases; preserves the state of migrated databases |
+| `true`         | Requires authentication and initial administrator setup                             |
+| `false`        | Disables authentication; this deployment setting is not available in the UI         |
 
 ### Upgraded installations
 
@@ -715,7 +714,7 @@ api:
     trusted_ips:
       - 127.0.0.1
       - ::1
-      - 172.16.0.0/12  # Docker default bridge network
+      - 172.16.0.0/12 # Docker default bridge network
 ```
 
 Use the narrowest CIDR that contains the Web UI container and LAPI network. Container IPs can change when containers are recreated, so the Docker network CIDR is usually more reliable than one container IP. Restart CrowdSec after updating the file. The current CrowdSec container does not provide a `TRUSTED_IPS` environment override. See the [CrowdSec configuration reference](https://docs.crowdsec.net/docs/configuration/crowdsec_configuration/).
@@ -736,7 +735,7 @@ services:
     image: ghcr.io/theduffman85/crowdsec-web-ui:latest
     container_name: crowdsec_web_ui
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       CONFIG_INSTANCE_LAPI_URL: https://crowdsec:8080
       CONFIG_INSTANCE_LAPI_AUTH_USERNAME: crowdsec-web-ui
@@ -773,7 +772,7 @@ services:
   crowdsec-web-ui:
     image: ghcr.io/theduffman85/crowdsec-web-ui:latest
     expose:
-      - "3000"
+      - '3000'
     environment:
       CONFIG_INSTANCE_LAPI_URL: http://crowdsec:8080
       CONFIG_INSTANCE_LAPI_AUTH_USERNAME: crowdsec-web-ui
@@ -879,11 +878,11 @@ environment:
   CONFIG_INSTANCE_METRICS_URL: http://crowdsec:6060/metrics
 ```
 
-| CrowdSec level | Result |
-| --- | --- |
-| `full` | All supported details, including per-machine, per-bouncer, and per-node metrics |
-| `aggregated` | Less detail; omits those per-entity metrics |
-| `none` | Disables metrics registration |
+| CrowdSec level | Result                                                                          |
+| -------------- | ------------------------------------------------------------------------------- |
+| `full`         | All supported details, including per-machine, per-bouncer, and per-node metrics |
+| `aggregated`   | Less detail; omits those per-entity metrics                                     |
+| `none`         | Disables metrics registration                                                   |
 
 AppSec and latency sections appear only when CrowdSec emits those metrics. Time-window-only `rate()`/`increase()` metrics are intentionally omitted. See the [CrowdSec Prometheus documentation](https://docs.crowdsec.net/docs/next/observability/prometheus/).
 
@@ -935,30 +934,30 @@ Saved filters and recent history are stored on the server for the signed-in user
 
 ### Search Syntax
 
-| Syntax | Example |
-| --- | --- |
-| Free text / quoted phrase | `ssh hetzner`, `"nginx bf"` |
-| Field contains / exact value | `country:germany`, `country=DE` |
-| Date comparison | `date>=2026-03-24`, `date<2026-03-25T12:00:00Z` |
-| Negative / empty | `-sim:simulated`, `sim<>simulated`, `origin:""`, `origin<>""` |
-| Boolean / grouping | `country:(germany OR france) AND -sim:simulated` |
-| Decision filters | `status:active AND action:ban`, `alert:123 OR ip:"192.168.5.0/24"` |
+| Syntax                       | Example                                                            |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Free text / quoted phrase    | `ssh hetzner`, `"nginx bf"`                                        |
+| Field contains / exact value | `country:germany`, `country=DE`                                    |
+| Date comparison              | `date>=2026-03-24`, `date<2026-03-25T12:00:00Z`                    |
+| Negative / empty             | `-sim:simulated`, `sim<>simulated`, `origin:""`, `origin<>""`      |
+| Boolean / grouping           | `country:(germany OR france) AND -sim:simulated`                   |
+| Decision filters             | `status:active AND action:ban`, `alert:123 OR ip:"192.168.5.0/24"` |
 
 The `:` operator performs a case-insensitive contains match, while `=` matches the complete field value. Quick Filter selections use `=`. Date fields support `<`, `>`, `<=`, `>=`, and `=>`. A bare field name is free text unless followed by `:`. Quote literal `AND`, `OR`, or `NOT`. The search `Info` button lists page-specific fields and examples.
 
 #### Examples
 
-| Page | Query |
-| --- | --- |
-| Alerts | `country:germany ssh` |
-| Alerts | `date>=2026-03-24 AND date<2026-03-25` |
-| Alerts | `country:(germany OR france) AND -sim:simulated` |
-| Alerts | `kind=waf` |
-| Alerts | `origin:""` |
-| Decisions | `status:active AND action:ban` |
-| Decisions | `date>=2026-03-24 AND action:ban` |
-| Decisions | `alert:123 OR ip:"192.168.5.0/24"` |
-| Decisions | `kind=waf` |
+| Page      | Query                                            |
+| --------- | ------------------------------------------------ |
+| Alerts    | `country:germany ssh`                            |
+| Alerts    | `date>=2026-03-24 AND date<2026-03-25`           |
+| Alerts    | `country:(germany OR france) AND -sim:simulated` |
+| Alerts    | `kind=waf`                                       |
+| Alerts    | `origin:""`                                      |
+| Decisions | `status:active AND action:ban`                   |
+| Decisions | `date>=2026-03-24 AND action:ban`                |
+| Decisions | `alert:123 OR ip:"192.168.5.0/24"`               |
+| Decisions | `kind=waf`                                       |
 
 ### Alert Source Filtering
 
@@ -974,13 +973,13 @@ crowdsec:
     excludeOriginEmpty: false
 ```
 
-| Origin | Source |
-| --- | --- |
-| `crowdsec` | Security-engine decisions |
-| `cscli` | Manual `cscli decisions add` |
-| `cscli-import` | `cscli decisions import` |
-| `lists` | Imported list feeds |
-| `CAPI` | Central API / community blocklist |
+| Origin         | Source                            |
+| -------------- | --------------------------------- |
+| `crowdsec`     | Security-engine decisions         |
+| `cscli`        | Manual `cscli decisions add`      |
+| `cscli-import` | `cscli decisions import`          |
+| `lists`        | Imported list feeds               |
+| `CAPI`         | Central API / community blocklist |
 
 #### Behavior
 
@@ -994,15 +993,15 @@ crowdsec:
 
 #### Examples
 
-| Setting | Result |
-| --- | --- |
-| `includeOrigins: [crowdsec]` | Keeps security-engine alerts only |
-| `includeOrigins: [lists]` | Keeps list-based alerts only |
-| `includeCapi: true` | Adds CAPI to the default feed |
-| `includeOrigins: [CAPI]` | Keeps CAPI alerts only |
-| `includeOriginEmpty: true` | Keeps origin-less alerts alongside explicit includes |
-| `excludeOriginEmpty: true` | Removes origin-less alerts |
-| `excludeOrigins: [cscli, lists]` | Removes manual and imported-list alerts |
+| Setting                          | Result                                               |
+| -------------------------------- | ---------------------------------------------------- |
+| `includeOrigins: [crowdsec]`     | Keeps security-engine alerts only                    |
+| `includeOrigins: [lists]`        | Keeps list-based alerts only                         |
+| `includeCapi: true`              | Adds CAPI to the default feed                        |
+| `includeOrigins: [CAPI]`         | Keeps CAPI alerts only                               |
+| `includeOriginEmpty: true`       | Keeps origin-less alerts alongside explicit includes |
+| `excludeOriginEmpty: true`       | Removes origin-less alerts                           |
+| `excludeOrigins: [cscli, lists]` | Removes manual and imported-list alerts              |
 
 ## Notifications
 
@@ -1012,26 +1011,26 @@ Rules run against locally cached CrowdSec data, create in-app notifications, rec
 
 Every rule has a name, severity (`info`, `warning`, `critical`), incident deduplication, and destination channels. Alert rules filter scenario, target, and simulation state; the scenario filter can include or exclude matching names. `IP Ban` and `New Alert/Decision` also accept exact IP/CIDR filters, and `IP Ban` can include or exclude country codes. `Window Minutes` sets the rolling lookback for each rule evaluation; `Alert Spike` also compares it with the preceding period of equal length. It does not set how often rules are evaluated.
 
-| Rule type | Behavior |
-| --- | --- |
-| `Alert Spike` | Compares the current window with the previous window and triggers when percentage increase and minimum alert count are exceeded. |
-| `Alert Threshold` | Triggers when matching alerts in the configured time window reach the threshold. |
+| Rule type            | Behavior                                                                                                                                                                                                                                               |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Alert Spike`        | Compares the current window with the previous window and triggers when percentage increase and minimum alert count are exceeded.                                                                                                                       |
+| `Alert Threshold`    | Triggers when matching alerts in the configured time window reach the threshold.                                                                                                                                                                       |
 | `New Alert/Decision` | Creates one notification for every matching alert, decision, or both within the lookback window. Includes record ID, timestamps, scenario, target, source/value, and related alert/decision details. Stable per-record deduplication prevents repeats. |
-| `IP Ban` | Triggers once for each active ban decision in the configured window, supports exact IP/CIDR and country filters, and deduplicates duplicate active decision rows for the same ban. |
-| `Recent CVE` | Extracts CVE IDs from matching alerts and checks publication age before notifying. |
-| `LAPI Availability` | Triggers when CrowdSec LAPI stays unavailable past the outage threshold, with optional recovery notifications. |
-| `CrowdSec Update` | Reads the CrowdSec version from each configured Prometheus endpoint and triggers when a newer stable CrowdSec release is available. |
-| `Application Update` | Uses the built-in update check and triggers when a newer CrowdSec Web UI version is available. |
+| `IP Ban`             | Triggers once for each active ban decision in the configured window, supports exact IP/CIDR and country filters, and deduplicates duplicate active decision rows for the same ban.                                                                     |
+| `Recent CVE`         | Extracts CVE IDs from matching alerts and checks publication age before notifying.                                                                                                                                                                     |
+| `LAPI Availability`  | Triggers when CrowdSec LAPI stays unavailable past the outage threshold, with optional recovery notifications.                                                                                                                                         |
+| `CrowdSec Update`    | Reads the CrowdSec version from each configured Prometheus endpoint and triggers when a newer stable CrowdSec release is available.                                                                                                                    |
+| `Application Update` | Uses the built-in update check and triggers when a newer CrowdSec Web UI version is available.                                                                                                                                                         |
 
 #### Multi-instance behavior
 
-| Scope | Rules |
-| --- | --- |
+| Scope                                      | Rules                                          |
+| ------------------------------------------ | ---------------------------------------------- |
 | Aggregate matching alerts across instances | `Alert Spike`, `Alert Threshold`, `Recent CVE` |
-| Evaluate each matching record | `New Alert/Decision`, `IP Ban` |
-| Evaluate each instance | `LAPI Availability` |
-| Evaluate each Prometheus endpoint | `CrowdSec Update` |
-| Application-wide | `Application Update` |
+| Evaluate each matching record              | `New Alert/Decision`, `IP Ban`                 |
+| Evaluate each instance                     | `LAPI Availability`                            |
+| Evaluate each Prometheus endpoint          | `CrowdSec Update`                              |
+| Application-wide                           | `Application Update`                           |
 
 Instance-backed titles and metadata identify the contributing instance or instances.
 
@@ -1044,14 +1043,14 @@ Instance-backed titles and metadata identify the contributing instance or instan
 
 Destinations are independently enabled and reusable across rules. **Send Test** validates saved settings immediately; results are stored as `delivered` or `failed`.
 
-| Destination | Settings |
-| --- | --- |
-| Apprise | Apprise API URL, then either a configuration key with optional tags (`POST /notify/{key}`, URLs stay on the Apprise server) or notification URLs sent with each request (`POST /notify`, stored encrypted). Optional basic auth for a reverse proxy, title prefix, and notification type (`auto`, `info`, `success`, `warning`, `failure`). Auto type maps `info` to `info`, `warning` to `warning`, and `critical` to `failure`. Use it to reach any [Apprise-supported service](https://github.com/caronc/apprise/wiki) such as Matrix, Discord, Slack, Telegram, or Pushover. |
-| Email | SMTP host/port/security (`Plain SMTP`, `STARTTLS`, `SMTPS / Implicit TLS`), optional user/password, from address, comma-separated recipients, importance (`auto`, `normal`, `important`), and optional insecure TLS for trusted self-signed SMTP endpoints. Auto importance maps `info` to `normal` and `warning`/`critical` to `important`. The `EHLO` name comes from [`server.hostname`](#server-storage-ui-and-updates). |
-| Gotify | Gotify URL, app token, and priority (`auto` or explicit integer). Auto priority maps `info` to `5`, `warning` to `7`, and `critical` to `10`. |
-| ntfy | Server URL, topic, optional access token, and priority (`auto`, `min`, `low`, `default`, `high`, `urgent`). Auto priority maps `info` to `default`, `warning` to `high`, and `critical` to `urgent`. |
-| MQTT | Generic publish-only output with broker URL, optional username/password/client ID, QoS `0` or `1`, keepalive, connect timeout, topic, and retain flag. It does not include Home Assistant discovery, entity sync, or command handling. |
-| Webhook | Custom HTTP delivery with method (`POST`, `PUT`, `PATCH`), URL, optional query parameters/headers, auth (none, bearer token, or basic auth), body mode (`JSON`, `Text`, `Form`), timeout, retries, retry delay, and optional insecure TLS for trusted self-signed HTTPS endpoints. |
+| Destination | Settings                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apprise     | Apprise API URL, then either a configuration key with optional tags (`POST /notify/{key}`, URLs stay on the Apprise server) or notification URLs sent with each request (`POST /notify`, stored encrypted). Optional basic auth for a reverse proxy, title prefix, and notification type (`auto`, `info`, `success`, `warning`, `failure`). Auto type maps `info` to `info`, `warning` to `warning`, and `critical` to `failure`. Use it to reach any [Apprise-supported service](https://github.com/caronc/apprise/wiki) such as Matrix, Discord, Slack, Telegram, or Pushover. |
+| Email       | SMTP host/port/security (`Plain SMTP`, `STARTTLS`, `SMTPS / Implicit TLS`), optional user/password, from address, comma-separated recipients, importance (`auto`, `normal`, `important`), and optional insecure TLS for trusted self-signed SMTP endpoints. Auto importance maps `info` to `normal` and `warning`/`critical` to `important`. The `EHLO` name comes from [`server.hostname`](#server-storage-ui-and-updates).                                                                                                                                                     |
+| Gotify      | Gotify URL, app token, and priority (`auto` or explicit integer). Auto priority maps `info` to `5`, `warning` to `7`, and `critical` to `10`.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ntfy        | Server URL, topic, optional access token, and priority (`auto`, `min`, `low`, `default`, `high`, `urgent`). Auto priority maps `info` to `default`, `warning` to `high`, and `critical` to `urgent`.                                                                                                                                                                                                                                                                                                                                                                             |
+| MQTT        | Generic publish-only output with broker URL, optional username/password/client ID, QoS `0` or `1`, keepalive, connect timeout, topic, and retain flag. It does not include Home Assistant discovery, entity sync, or command handling.                                                                                                                                                                                                                                                                                                                                           |
+| Webhook     | Custom HTTP delivery with method (`POST`, `PUT`, `PATCH`), URL, optional query parameters/headers, auth (none, bearer token, or basic auth), body mode (`JSON`, `Text`, `Form`), timeout, retries, retry delay, and optional insecure TLS for trusted self-signed HTTPS endpoints.                                                                                                                                                                                                                                                                                               |
 
 #### Payloads and security
 
@@ -1071,11 +1070,11 @@ A [Helm chart for CrowdSec Web UI](https://github.com/zekker6/helm-charts/tree/m
 
 Application state, cached alert details, and optional historical statistics use separate SQLite files:
 
-| File | Location | Contents | When lost |
-| --- | --- | --- | --- |
-| `state.db` | `storage.dataDir` | Users, passkeys, notification channels, rules and history, saved filters, queued alert deletions, and UI settings | Gone; restore it from a backup |
-| `cache.db` | `storage.cacheDir` | Alerts, decisions and pending statistics observations synchronized from LAPI | Available LAPI history is reimported; unprocessed observations may be lost |
-| `statistics.db` | `storage.dataDir` | Daily statistics, hourly activity for the last two days, and compact deduplication identities, when enabled | Gone; restore it from a backup |
+| File            | Location           | Contents                                                                                                          | When lost                                                                  |
+| --------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `state.db`      | `storage.dataDir`  | Users, passkeys, notification channels, rules and history, saved filters, queued alert deletions, and UI settings | Gone; restore it from a backup                                             |
+| `cache.db`      | `storage.cacheDir` | Alerts, decisions and pending statistics observations synchronized from LAPI                                      | Available LAPI history is reimported; unprocessed observations may be lost |
+| `statistics.db` | `storage.dataDir`  | Daily statistics, hourly activity for the last two days, and compact deduplication identities, when enabled       | Gone; restore it from a backup                                             |
 
 Mount the directories, not single files: WAL mode also uses `cache.db-wal` / `cache.db-shm` and, when statistics are enabled, `statistics.db-wal` / `statistics.db-shm`. Stop the application before copying database files for a backup, or use SQLite’s online backup API. Back up `statistics.db` alongside `state.db` and `config.yaml`; completed statistics cannot be rebuilt after the underlying LAPI history expires.
 
@@ -1106,12 +1105,12 @@ statistics:
   jobTimeBudget: 30s
 ```
 
-| Setting | Default | Environment variable |
-| --- | --- | --- |
-| `statistics.enabled` | `true` for new installations, `false` for existing ones | `CONFIG_STATISTICS_ENABLED` |
-| `statistics.retentionDays` | `90` (1–3650) | `CONFIG_STATISTICS_RETENTION_DAYS` |
-| `statistics.jobInterval` | `1h` (5m–24h) | `CONFIG_STATISTICS_JOB_INTERVAL` |
-| `statistics.jobTimeBudget` | `30s` (1s–60s) | `CONFIG_STATISTICS_JOB_TIME_BUDGET` |
+| Setting                    | Default                                                 | Environment variable                |
+| -------------------------- | ------------------------------------------------------- | ----------------------------------- |
+| `statistics.enabled`       | `true` for new installations, `false` for existing ones | `CONFIG_STATISTICS_ENABLED`         |
+| `statistics.retentionDays` | `90` (1–3650)                                           | `CONFIG_STATISTICS_RETENTION_DAYS`  |
+| `statistics.jobInterval`   | `1h` (5m–24h)                                           | `CONFIG_STATISTICS_JOB_INTERVAL`    |
+| `statistics.jobTimeBudget` | `30s` (1s–60s)                                          | `CONFIG_STATISTICS_JOB_TIME_BUDGET` |
 
 Explicit YAML and environment settings lock the corresponding Settings controls. Other changes persist in `state.db` and apply without a restart.
 
@@ -1119,7 +1118,7 @@ The background job runs every `jobInterval` and works for at most `jobTimeBudget
 
 The **Statistics** page ranks attacking IPs, attacked machines and known targets. Rankings include unique IPs, linked remediations, scenarios, country and ASN, activity dates, and targeted machines. Top Targets shows alert counts and unique source IPs for each target. Target information is available for alerts archived after target collection was added.
 
-- **Findings** flag quiet machines, scenarios without remediations, AppSec blocks, IPs that return after a remediation, traffic spikes by machine, new attack types, dominant networks, and IPs that target several machines. Up to five findings appear initially, with warnings first. Expand a finding to see the IPs involved, the address ranges (`/24` or `/64`) of a dominant AS, or a machine's recent activity. IP and range tables start with 25 rows and can expand to 500. With enforcement permissions, **Ban** and **Block range** open the decision dialog for one value. **Ban all** and **Block all** apply the same decision to every listed value, skipping allowlisted values unless you bypass the allowlist. Top IPs also offer the single-IP action.
+- **Findings** flag quiet machines, scenarios without remediations, AppSec blocks, IPs that return after a remediation, traffic spikes by machine, new attack types, dominant networks, and IPs that target several machines. Scenarios listed under **Settings → General → Manual decisions**, including `manual/web-ui`, label decisions added by hand: their alerts on an instance that lists them are not reported as new attack types or scenarios without remediations, while alerts of the same scenario on other instances still are, and only those count towards the finding, its details and **Ban all**. Up to five findings appear initially, with warnings first. Expand a finding to see the IPs involved, the address ranges (`/24` or `/64`) of a dominant AS, or a machine's recent activity. IP and range tables start with 25 rows and can expand to 500. With enforcement permissions, **Ban** and **Block range** open the decision dialog for one value. **Ban all** and **Block all** apply the same decision to every listed value, skipping allowlisted values unless you bypass the allowlist. Top IPs also offer the single-IP action.
 - **Summary tiles** show alerts, unique IPs (and how many were never seen before), remediations by decision type, remediation coverage (the share of attacking IPs that received one), recurring IPs, and IPs that returned after a remediation. Remediations are the decisions of any type (ban, captcha, or a custom type) that CrowdSec issued for alerts. Most tiles compare their totals with the preceding period of equal length.
 - **Scenarios** show alerts with their trend, unique IPs, machines, remediations and remediation coverage per scenario; select one to filter the whole page by it.
 - Top countries and AS include their number of distinct IPs, which tells one noisy host from a botnet. Machine changes show increases and machines that went quiet.
@@ -1142,12 +1141,12 @@ Run `pnpm loadtest:benchmark:statistics` for an isolated A/B comparison of captu
 
 ## Documentation
 
-| Guide | Contents |
-| --- | --- |
-| [Configuration example](config.example.yaml) | Complete commented YAML configuration |
-| [API reference](API.md) | Authentication, routes, parameters, and request/response shapes |
-| [Development guide](DEVELOPMENT.md) | Local setup, builds, tests, metadata, translations, and synchronization internals |
-| [Load testing guide](LOAD_TESTING.md) | Synthetic profiles, overrides, benchmarks, and container workflow |
+| Guide                                        | Contents                                                                          |
+| -------------------------------------------- | --------------------------------------------------------------------------------- |
+| [Configuration example](config.example.yaml) | Complete commented YAML configuration                                             |
+| [API reference](API.md)                      | Authentication, routes, parameters, and request/response shapes                   |
+| [Development guide](DEVELOPMENT.md)          | Local setup, builds, tests, metadata, translations, and synchronization internals |
+| [Load testing guide](LOAD_TESTING.md)        | Synthetic profiles, overrides, benchmarks, and container workflow                 |
 
 ### Star History
 

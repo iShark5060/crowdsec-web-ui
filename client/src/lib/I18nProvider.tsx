@@ -1,11 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { updateLanguagePreference } from './api';
 import {
   I18nContext,
@@ -21,7 +16,9 @@ import {
 } from './i18n';
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreferenceState] = useState<LanguagePreference>(getStoredLanguagePreference);
+  const [preference, setPreferenceState] = useState<LanguagePreference>(
+    getStoredLanguagePreference,
+  );
   const { t: translate, i18n } = useTranslation();
   const browserLanguage = getBrowserLanguage();
   const language = resolveLanguagePreference(preference);
@@ -50,20 +47,24 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     };
   }, [i18n, language]);
 
-  const setLanguagePreference = useCallback((nextPreference: LanguagePreference, options?: { sync?: boolean }) => {
-    const normalizedPreference = normalizeLanguagePreference(nextPreference);
-    setPreferenceState(normalizedPreference);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(LANGUAGE_SETTING_KEY, normalizedPreference);
-    }
-    if (options?.sync === false) return;
-    void updateLanguagePreference(normalizedPreference).catch((error) => {
-      console.error('Failed to update server language preference', error);
-    });
-  }, []);
+  const setLanguagePreference = useCallback(
+    (nextPreference: LanguagePreference, options?: { sync?: boolean }) => {
+      const normalizedPreference = normalizeLanguagePreference(nextPreference);
+      setPreferenceState(normalizedPreference);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LANGUAGE_SETTING_KEY, normalizedPreference);
+      }
+      if (options?.sync === false) return;
+      void updateLanguagePreference(normalizedPreference).catch((error) => {
+        console.error('Failed to update server language preference', error);
+      });
+    },
+    [],
+  );
 
   const t = useCallback(
-    (key: string, values?: TranslationValues) => String(translate(key, values)),
+    (key: string, values?: TranslationValues) =>
+      String(values === undefined ? translate(key) : translate(key, values)),
     [translate],
   );
 

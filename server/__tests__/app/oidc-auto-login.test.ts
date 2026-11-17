@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { createAuthSessionCookie, createController } from './harness';
 
 const ISSUER = 'https://idp.example.com/application/o/crowdsec/';
@@ -16,8 +17,9 @@ async function readStatus(controller: Controller): Promise<{ oidcAutoLogin: bool
 }
 
 function autoLoginWarnings(): string[] {
-  return vi.mocked(console.warn).mock.calls
-    .map(([message]) => String(message))
+  return vi
+    .mocked(console.warn)
+    .mock.calls.map(([message]) => String(message))
     .filter((message) => message.startsWith('OIDC auto-login is enabled but inactive'));
 }
 
@@ -32,11 +34,13 @@ function createAdminCookie(database: ReturnType<typeof createController>['databa
 }
 
 function putSettings(controller: Controller, cookie: string, body: Record<string, unknown>) {
-  return controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', cookie },
-    body: JSON.stringify(body),
-  }));
+  return controller.fetch(
+    new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', cookie },
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 describe('OIDC auto-login', () => {
@@ -97,12 +101,16 @@ describe('OIDC auto-login', () => {
     expect(await readStatus(controller)).toMatchObject({ oidcAutoLogin: false });
 
     const disablePassword = await putSettings(controller, adminCookie, { disablePasswordLogin: true });
-    expect(await disablePassword.json()).toMatchObject({ settings: { oidcAutoLogin: true, oidcAutoLoginActive: true } });
+    expect(await disablePassword.json()).toMatchObject({
+      settings: { oidcAutoLogin: true, oidcAutoLoginActive: true },
+    });
     expect(await readStatus(controller)).toMatchObject({ oidcAutoLogin: true });
 
-    const settings = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      headers: { cookie: adminCookie },
-    }));
+    const settings = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+        headers: { cookie: adminCookie },
+      }),
+    );
     expect(await settings.json()).toMatchObject({ oidcAutoLogin: true, oidcAutoLoginActive: true });
 
     await putSettings(controller, adminCookie, { disablePasswordLogin: false });

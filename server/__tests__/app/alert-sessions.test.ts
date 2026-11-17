@@ -1,5 +1,7 @@
 import path from 'node:path';
+
 import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import type { AlertRecord, AlertSessionsResponse, PaginatedResponse, SlimAlert } from '../../../shared/contracts';
 import {
   ALERT_SESSION_GAP_MS,
@@ -10,14 +12,7 @@ import {
 } from '../../app/alert-sessions';
 import { CrowdsecDatabase } from '../../database';
 import { DatabaseQueryWorker, QueryWorkerTimeoutError } from '../../query-worker-client';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleCapiAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, destroyTempDir, sampleAlert, sampleCapiAlert, seedAlert, tempDir } from './harness';
 
 const BASE_TIME = Date.parse('2026-11-01T12:00:00.000Z');
 const minutesBefore = (minutes: number) => new Date(BASE_TIME - minutes * 60_000).toISOString();
@@ -47,13 +42,12 @@ function walk(rows: AlertSessionScanRow[]) {
 describe('AlertSessionWalker', () => {
   test('keeps alerts exactly one gap apart in a session and splits beyond it', () => {
     const gapMinutes = ALERT_SESSION_GAP_MS / 60_000;
-    const sessions = walk([
-      scanRow(4, 0),
-      scanRow(3, gapMinutes),
-      scanRow(2, gapMinutes * 2 + 1),
-    ]);
+    const sessions = walk([scanRow(4, 0), scanRow(3, gapMinutes), scanRow(2, gapMinutes * 2 + 1)]);
 
-    expect(sessions.map((session) => [session.latestAlertId, session.alertCount])).toEqual([[4, 2], [2, 1]]);
+    expect(sessions.map((session) => [session.latestAlertId, session.alertCount])).toEqual([
+      [4, 2],
+      [2, 1],
+    ]);
     expect(sessions[0]).toMatchObject({ firstSeen: minutesBefore(gapMinutes), lastSeen: minutesBefore(0) });
   });
 
@@ -163,7 +157,10 @@ describe('AlertSessionWalker', () => {
 
     walker.add(scanRow(1, 58));
     walker.advanceTo(minutesBefore(95));
-    expect(walker.toScans().map((session) => [session.latestAlertId, session.alertCount])).toEqual([[4, 3], [3, 1]]);
+    expect(walker.toScans().map((session) => [session.latestAlertId, session.alertCount])).toEqual([
+      [4, 3],
+      [3, 1],
+    ]);
   });
 
   test('caps retained alert IDs while still counting every alert', () => {
@@ -301,8 +298,24 @@ describe('alert sessions API', () => {
     const future = new Date(now + 60 * 60_000).toISOString();
     const past = new Date(now - 60_000).toISOString();
     const { controller } = seededController([
-      sessionAlert(1, 3, { decisions: [{ id: 101, type: 'ban', value: '1.1.1.1', duration: '1h', stop_at: future, origin: 'crowdsec', simulated: false }] }),
-      sessionAlert(2, 2, { decisions: [{ id: 102, type: 'ban', value: '1.1.1.1', duration: '1h', stop_at: past, origin: 'cscli', simulated: false }] }),
+      sessionAlert(1, 3, {
+        decisions: [
+          {
+            id: 101,
+            type: 'ban',
+            value: '1.1.1.1',
+            duration: '1h',
+            stop_at: future,
+            origin: 'crowdsec',
+            simulated: false,
+          },
+        ],
+      }),
+      sessionAlert(2, 2, {
+        decisions: [
+          { id: 102, type: 'ban', value: '1.1.1.1', duration: '1h', stop_at: past, origin: 'cscli', simulated: false },
+        ],
+      }),
       sessionAlert(3, 1),
     ]);
 
@@ -317,10 +330,14 @@ describe('alert sessions API', () => {
       origins: ['crowdsec', 'cscli'],
     });
 
-    const decisions = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/decisions?page=1&page_size=50&include_expired=true&alert_id=${body.data[0].decision_alert_ids.join(',')}`,
-    ));
-    expect(((await decisions.json()) as PaginatedResponse<{ id: number }>).data.map((decision) => decision.id).sort()).toEqual([101, 102]);
+    const decisions = await controller.fetch(
+      new Request(
+        `http://localhost/crowdsec/api/decisions?page=1&page_size=50&include_expired=true&alert_id=${body.data[0].decision_alert_ids.join(',')}`,
+      ),
+    );
+    expect(
+      ((await decisions.json()) as PaginatedResponse<{ id: number }>).data.map((decision) => decision.id).sort(),
+    ).toEqual([101, 102]);
   });
 
   test('does not merge imported blocklist alerts that share a source value', async () => {
@@ -335,9 +352,11 @@ describe('alert sessions API', () => {
   });
 
   test('pages through sessions without an exact session total', async () => {
-    const alerts = Array.from({ length: 25 }, (_, index) => sessionAlert(index + 1, index + 1, {
-      source: { ip: `10.0.0.${index + 1}`, value: `10.0.0.${index + 1}`, scope: 'Ip' },
-    }));
+    const alerts = Array.from({ length: 25 }, (_, index) =>
+      sessionAlert(index + 1, index + 1, {
+        source: { ip: `10.0.0.${index + 1}`, value: `10.0.0.${index + 1}`, scope: 'Ip' },
+      }),
+    );
     const { controller } = seededController(alerts);
 
     const first = await fetchSessions(controller, '?page=1&page_size=10');
@@ -352,9 +371,13 @@ describe('alert sessions API', () => {
   });
 
   test('reuses the cached window for later pages', async () => {
-    const { controller, facetQueryWorker } = seededController(Array.from({ length: 25 }, (_, index) => sessionAlert(index + 1, index + 1, {
-      source: { ip: `10.0.1.${index + 1}`, value: `10.0.1.${index + 1}`, scope: 'Ip' },
-    })));
+    const { controller, facetQueryWorker } = seededController(
+      Array.from({ length: 25 }, (_, index) =>
+        sessionAlert(index + 1, index + 1, {
+          source: { ip: `10.0.1.${index + 1}`, value: `10.0.1.${index + 1}`, scope: 'Ip' },
+        }),
+      ),
+    );
     const allSpy = vi.spyOn(facetQueryWorker, 'all');
     const scanCount = () => allSpy.mock.calls.filter(([sql]) => sql.includes('source_scope, simulated, kind')).length;
 
@@ -392,7 +415,7 @@ describe('alert sessions API', () => {
     const { controller } = seededController([sessionAlert(1, 2), sessionAlert(2, 1)]);
 
     const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10'));
-    const body = await response.json() as PaginatedResponse<SlimAlert>;
+    const body = (await response.json()) as PaginatedResponse<SlimAlert>;
 
     expect(body.data.map((alert) => alert.id)).toEqual([2, 1]);
     expect(body.pagination.total).toBe(2);

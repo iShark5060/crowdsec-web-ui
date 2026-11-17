@@ -1,36 +1,32 @@
-import { describe, expect, test, vi } from 'vitest';
 import path from 'path';
+
+import { describe, expect, test, vi } from 'vitest';
+
 import type {
   AlertRecord,
   ConfigResponse,
-  DashboardStatsResponse,
   DecisionListItem,
   PaginatedResponse,
   SlimAlert,
 } from '../../../shared/contracts';
 import { CrowdsecDatabase } from '../../database';
 import { DatabaseQueryWorker } from '../../query-worker-client';
-import {
-  createController,
-  dashboardDateKey,
-  destroyTempDir,
-  sampleAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, destroyTempDir, sampleAlert, sampleSimulatedAlert, seedAlert, tempDir } from './harness';
 
 describe('createApp API responses', () => {
   test('reuses alert totals and a narrow ID window across consecutive pages', async () => {
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
     const now = Date.now();
     for (let index = 0; index < 25; index += 1) {
-      seedAlert(database, sampleAlert({
-        id: 8_000 + index,
-        uuid: `alert-page-window-${index}`,
-        created_at: new Date(now - index * 1_000).toISOString(),
-        decisions: [],
-      }));
+      seedAlert(
+        database,
+        sampleAlert({
+          id: 8_000 + index,
+          uuid: `alert-page-window-${index}`,
+          created_at: new Date(now - index * 1_000).toISOString(),
+          decisions: [],
+        }),
+      );
     }
     const queryWorker = new DatabaseQueryWorker({ dbPath: database.cachePath });
     const getSpy = vi.spyOn(queryWorker, 'get');
@@ -59,26 +55,27 @@ describe('createApp API responses', () => {
     }).toString();
 
     try {
-      const firstResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/alerts?page=1&page_size=10&${combinedFilters}`,
-      ));
-      const firstPage = await firstResponse.json() as PaginatedResponse<SlimAlert>;
+      const firstResponse = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/alerts?page=1&page_size=10&${combinedFilters}`),
+      );
+      const firstPage = (await firstResponse.json()) as PaginatedResponse<SlimAlert>;
       expect(firstResponse.status).toBe(200);
       expect(firstPage.data).toHaveLength(10);
       expect(firstPage.pagination.total).toBe(25);
 
-      const countCalls = () => getSpy.mock.calls.filter(([sql]) => (
-        sql.includes('COUNT(*) AS count') && sql.includes('MIN(created_at) AS oldest_created_at')
-      ));
+      const countCalls = () =>
+        getSpy.mock.calls.filter(
+          ([sql]) => sql.includes('COUNT(*) AS count') && sql.includes('MIN(created_at) AS oldest_created_at'),
+        );
       const windowCalls = () => getSpy.mock.calls.filter(([sql]) => sql.includes('json_group_array(id) AS ids'));
       expect(countCalls()).toHaveLength(2);
       expect(windowCalls()).toHaveLength(1);
       expect(windowCalls()[0]?.[0]).not.toContain('raw_data');
 
-      const secondResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/alerts?page=2&page_size=10&${combinedFilters}`,
-      ));
-      const secondPage = await secondResponse.json() as PaginatedResponse<SlimAlert>;
+      const secondResponse = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/alerts?page=2&page_size=10&${combinedFilters}`),
+      );
+      const secondPage = (await secondResponse.json()) as PaginatedResponse<SlimAlert>;
       expect(secondResponse.status).toBe(200);
       expect(secondPage.data).toHaveLength(10);
       expect(secondPage.pagination.total).toBe(25);
@@ -119,15 +116,15 @@ describe('createApp API responses', () => {
         isComplete: true,
         lastUpdate: new Date().toISOString(),
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([alert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([alert]) : undefined),
     });
 
     try {
       const query = 'q=scenario%3Dcrowdsecurity%2Fpage-window';
-      const firstResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/decisions?page=1&page_size=10&${query}`,
-      ));
-      const firstPage = await firstResponse.json() as PaginatedResponse<DecisionListItem>;
+      const firstResponse = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/decisions?page=1&page_size=10&${query}`),
+      );
+      const firstPage = (await firstResponse.json()) as PaginatedResponse<DecisionListItem>;
       expect(firstResponse.status).toBe(200);
       expect(firstPage.data).toHaveLength(10);
       expect(firstPage.pagination.total).toBe(25);
@@ -137,10 +134,10 @@ describe('createApp API responses', () => {
       expect(rankingCalls()[0]?.[0]).toContain('SELECT id, created_at, stop_at');
       expect(rankingCalls()[0]?.[0]).not.toContain('SELECT decisions.*');
 
-      const secondResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/decisions?page=2&page_size=10&${query}`,
-      ));
-      const secondPage = await secondResponse.json() as PaginatedResponse<DecisionListItem>;
+      const secondResponse = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/decisions?page=2&page_size=10&${query}`),
+      );
+      const secondPage = (await secondResponse.json()) as PaginatedResponse<DecisionListItem>;
       expect(secondResponse.status).toBe(200);
       expect(secondPage.data).toHaveLength(10);
       expect(secondPage.pagination.total).toBe(25);
@@ -192,18 +189,18 @@ describe('createApp API responses', () => {
         isComplete: true,
         lastUpdate: new Date().toISOString(),
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([alert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([alert]) : undefined),
     });
 
     try {
-      const response = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/decisions?page=1&page_size=10&simulation=live&q=${encodeURIComponent(`ip:${value} AND sim:live AND status:active`)}`,
-      ));
-      const page = await response.json() as PaginatedResponse<DecisionListItem>;
+      const response = await controller.fetch(
+        new Request(
+          `http://localhost/crowdsec/api/decisions?page=1&page_size=10&simulation=live&q=${encodeURIComponent(`ip:${value} AND sim:live AND status:active`)}`,
+        ),
+      );
+      const page = (await response.json()) as PaginatedResponse<DecisionListItem>;
       expect(response.status).toBe(200);
-      expect(page.data).toEqual([
-        expect.objectContaining({ id: 9032, is_duplicate: false }),
-      ]);
+      expect(page.data).toEqual([expect.objectContaining({ id: 9032, is_duplicate: false })]);
       expect([...getSpy.mock.calls, ...allSpy.mock.calls].some(([sql]) => sql.includes('ROW_NUMBER()'))).toBe(false);
     } finally {
       controller.stopBackgroundTasks();
@@ -217,8 +214,20 @@ describe('createApp API responses', () => {
       id: 901,
       uuid: 'decision-count-cache-alert',
       decisions: [
-        { id: 9011, value: '198.51.100.1', stop_at: new Date(Date.now() + 30 * 60_000).toISOString(), type: 'ban', origin: 'lists' },
-        { id: 9012, value: '198.51.100.2', stop_at: new Date(Date.now() + 30 * 60_000).toISOString(), type: 'ban', origin: 'lists' },
+        {
+          id: 9011,
+          value: '198.51.100.1',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'lists',
+        },
+        {
+          id: 9012,
+          value: '198.51.100.2',
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'lists',
+        },
       ],
     });
     const database = new CrowdsecDatabase({ cachePath: path.join(tempDir, 'test.db') });
@@ -234,28 +243,30 @@ describe('createApp API responses', () => {
         isComplete: true,
         lastUpdate: new Date().toISOString(),
       },
-      fetchResolver: (url) => url.includes('/v1/alerts?') ? Response.json([alert]) : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([alert]) : undefined),
     });
 
     try {
-      const firstResponse = await controller.fetch(new Request(
-        'http://localhost/crowdsec/api/decisions?page=1&page_size=1',
-      ));
+      const firstResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=1'),
+      );
       expect(firstResponse.status).toBe(200);
-      expect((await firstResponse.json() as PaginatedResponse<DecisionListItem>).pagination.total).toBe(2);
-      const firstCountQueries = countQuerySpy.mock.calls.filter(([sql]) => (
-        sql.includes('COUNT(*) AS count') && sql.includes('MIN(stop_at) AS next_expiration')
-      )).length;
+      expect(((await firstResponse.json()) as PaginatedResponse<DecisionListItem>).pagination.total).toBe(2);
+      const firstCountQueries = countQuerySpy.mock.calls.filter(
+        ([sql]) => sql.includes('COUNT(*) AS count') && sql.includes('MIN(stop_at) AS next_expiration'),
+      ).length;
       expect(firstCountQueries).toBe(2);
 
-      const secondResponse = await controller.fetch(new Request(
-        'http://localhost/crowdsec/api/decisions?page=2&page_size=1',
-      ));
+      const secondResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions?page=2&page_size=1'),
+      );
       expect(secondResponse.status).toBe(200);
-      expect((await secondResponse.json() as PaginatedResponse<DecisionListItem>).pagination.total).toBe(2);
-      expect(countQuerySpy.mock.calls.filter(([sql]) => (
-        sql.includes('COUNT(*) AS count') && sql.includes('MIN(stop_at) AS next_expiration')
-      ))).toHaveLength(firstCountQueries);
+      expect(((await secondResponse.json()) as PaginatedResponse<DecisionListItem>).pagination.total).toBe(2);
+      expect(
+        countQuerySpy.mock.calls.filter(
+          ([sql]) => sql.includes('COUNT(*) AS count') && sql.includes('MIN(stop_at) AS next_expiration'),
+        ),
+      ).toHaveLength(firstCountQueries);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -274,59 +285,78 @@ describe('createApp API responses', () => {
     const { controller, database, lapiClient } = createController({
       initialCacheState: { isInitialized: true, isComplete: true, lastUpdate: new Date().toISOString() },
       attackLocationResolver: {
-        resolve: async (locations) => locations.map((location) => ({
-          ...location,
-          city: 'Berlin',
-          region: 'State of Berlin',
-          countryCode: 'DE',
-        })),
+        resolve: async (locations) =>
+          locations.map((location) => ({
+            ...location,
+            city: 'Berlin',
+            region: 'State of Berlin',
+            countryCode: 'DE',
+          })),
       },
     });
     seedAlert(database, alert);
     await lapiClient.login();
 
-    const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10'));
+    const alertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10'),
+    );
     expect(alertsResponse.status).toBe(200);
-    expect((await alertsResponse.json()) as PaginatedResponse<SlimAlert>).toEqual(expect.objectContaining({
-      data: [expect.objectContaining({
-        source: expect.objectContaining({ city: 'Berlin', region: 'State of Berlin' }),
-      })],
-    }));
+    expect((await alertsResponse.json()) as PaginatedResponse<SlimAlert>).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            source: expect.objectContaining({ city: 'Berlin', region: 'State of Berlin' }),
+          }),
+        ],
+      }),
+    );
 
-    const decisionsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10'));
+    const decisionsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10'),
+    );
     expect(decisionsResponse.status).toBe(200);
-    expect(await decisionsResponse.json()).toEqual(expect.objectContaining({
-      data: [expect.objectContaining({
-        detail: expect.objectContaining({ city: 'Berlin', region: 'State of Berlin' }),
-      })],
-    }));
+    expect(await decisionsResponse.json()).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            detail: expect.objectContaining({ city: 'Berlin', region: 'State of Berlin' }),
+          }),
+        ],
+      }),
+    );
 
-    const cityAlertsResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=city:berl',
-    ));
+    const cityAlertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=city:berl'),
+    );
     expect(cityAlertsResponse.status).toBe(200);
-    expect(await cityAlertsResponse.json()).toEqual(expect.objectContaining({
-      data: [expect.objectContaining({ id: alert.id })],
-      pagination: expect.objectContaining({ total: 1 }),
-    }));
+    expect(await cityAlertsResponse.json()).toEqual(
+      expect.objectContaining({
+        data: [expect.objectContaining({ id: alert.id })],
+        pagination: expect.objectContaining({ total: 1 }),
+      }),
+    );
 
-    const regionDecisionsResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=region:%22state%20of%20berl%22',
-    ));
+    const regionDecisionsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=region:%22state%20of%20berl%22'),
+    );
     expect(regionDecisionsResponse.status).toBe(200);
-    expect(await regionDecisionsResponse.json()).toEqual(expect.objectContaining({
-      data: [expect.objectContaining({ id: alert.decisions?.[0]?.id })],
-      pagination: expect.objectContaining({ total: 1 }),
-    }));
+    expect(await regionDecisionsResponse.json()).toEqual(
+      expect.objectContaining({
+        data: [expect.objectContaining({ id: alert.decisions?.[0]?.id })],
+        pagination: expect.objectContaining({ total: 1 }),
+      }),
+    );
 
-    const unmatchedCityResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=city:Baixa',
-    ));
+    const unmatchedCityResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=city:Baixa'),
+    );
     expect(unmatchedCityResponse.status).toBe(200);
-    expect(await unmatchedCityResponse.json()).toEqual(expect.objectContaining({
-      data: [],
-      pagination: expect.objectContaining({ total: 0 }),
-    }));
+    expect(await unmatchedCityResponse.json()).toEqual(
+      expect.objectContaining({
+        data: [],
+        pagination: expect.objectContaining({ total: 0 }),
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -352,11 +382,11 @@ describe('createApp API responses', () => {
     });
     seedAlert(database, alert);
 
-    const response = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false',
-    ));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&include_decisions=false'),
+    );
     expect(response.status).toBe(200);
-    const payload = await response.json() as PaginatedResponse<SlimAlert>;
+    const payload = (await response.json()) as PaginatedResponse<SlimAlert>;
     expect(payload.data[0]).toMatchObject({
       id: 77,
       decisions: [],
@@ -369,21 +399,21 @@ describe('createApp API responses', () => {
       },
     });
 
-    const fullListResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=10',
-    ));
+    const fullListResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10'),
+    );
     expect(fullListResponse.status).toBe(200);
-    expect((await fullListResponse.json() as PaginatedResponse<SlimAlert>).data[0].decisions).toHaveLength(4);
+    expect(((await fullListResponse.json()) as PaginatedResponse<SlimAlert>).data[0].decisions).toHaveLength(4);
 
-    const detailResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts/77?include_decisions=false',
-    ));
+    const detailResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/77?include_decisions=false'),
+    );
     expect(detailResponse.status).toBe(200);
     expect(await detailResponse.json()).toEqual(expect.objectContaining({ id: 77, decisions: [] }));
 
     const fullDetailResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1'));
     expect(fullDetailResponse.status).toBe(200);
-    expect((await fullDetailResponse.json() as AlertRecord).decisions).toHaveLength(4);
+    expect(((await fullDetailResponse.json()) as AlertRecord).decisions).toHaveLength(4);
 
     controller.stopBackgroundTasks();
     database.close();
@@ -477,15 +507,17 @@ describe('createApp API responses', () => {
 
     const configResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
     expect(configResponse.status).toBe(200);
-    expect(((await configResponse.json()) as {
-      lookback_period: string;
-      simulations_enabled: boolean;
-      machine_features_enabled: boolean;
-      origin_features_enabled: boolean;
-      metrics_enabled: boolean;
-      metrics_sidebar_visible: boolean;
-      permissions: { mode: string; can_manage_enforcement: boolean; can_manage_settings: boolean };
-    })).toEqual(
+    expect(
+      (await configResponse.json()) as {
+        lookback_period: string;
+        simulations_enabled: boolean;
+        machine_features_enabled: boolean;
+        origin_features_enabled: boolean;
+        metrics_enabled: boolean;
+        metrics_sidebar_visible: boolean;
+        permissions: { mode: string; can_manage_enforcement: boolean; can_manage_settings: boolean };
+      },
+    ).toEqual(
       expect.objectContaining({
         lookback_period: '1m',
         simulations_enabled: true,
@@ -503,17 +535,21 @@ describe('createApp API responses', () => {
 
     const alerts = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
     expect(alerts.status).toBe(200);
-    expect(((await alerts.json()) as Array<{ simulated?: boolean }>)).toEqual(
+    expect((await alerts.json()) as Array<{ simulated?: boolean }>).toEqual(
       expect.arrayContaining([expect.objectContaining({ simulated: true })]),
     );
 
-    const paginatedAlerts = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&simulation=simulated'));
+    const paginatedAlerts = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&simulation=simulated'),
+    );
     expect(paginatedAlerts.status).toBe(200);
-    expect((await paginatedAlerts.json()) as {
-      data: Array<{ id: number; simulated?: boolean }>;
-      pagination: { total: number; unfiltered_total: number };
-      selectable_ids: number[];
-    }).toEqual({
+    expect(
+      (await paginatedAlerts.json()) as {
+        data: Array<{ id: number; simulated?: boolean }>;
+        pagination: { total: number; unfiltered_total: number };
+        selectable_ids: number[];
+      },
+    ).toEqual({
       data: [expect.objectContaining({ id: 2, simulated: true })],
       pagination: expect.objectContaining({ total: 1, unfiltered_total: 2 }),
       selectable_ids: [2],
@@ -525,17 +561,21 @@ describe('createApp API responses', () => {
 
     const decisions = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions'));
     expect(decisions.status).toBe(200);
-    expect(((await decisions.json()) as Array<{ simulated?: boolean }>)).toEqual(
+    expect((await decisions.json()) as Array<{ simulated?: boolean }>).toEqual(
       expect.arrayContaining([expect.objectContaining({ simulated: true })]),
     );
 
-    const paginatedDecisions = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&alert_id=2'));
+    const paginatedDecisions = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&alert_id=2'),
+    );
     expect(paginatedDecisions.status).toBe(200);
-    expect((await paginatedDecisions.json()) as {
-      data: Array<{ id: number; detail: { alert_id?: number } }>;
-      pagination: { total: number; unfiltered_total: number };
-      selectable_ids: number[];
-    }).toEqual({
+    expect(
+      (await paginatedDecisions.json()) as {
+        data: Array<{ id: number; detail: { alert_id?: number } }>;
+        pagination: { total: number; unfiltered_total: number };
+        selectable_ids: number[];
+      },
+    ).toEqual({
       data: [expect.objectContaining({ id: 20, detail: expect.objectContaining({ alert_id: 2 }) })],
       pagination: expect.objectContaining({ total: 1, unfiltered_total: 2 }),
       selectable_ids: [20],
@@ -553,15 +593,19 @@ describe('createApp API responses', () => {
       expect.arrayContaining([expect.objectContaining({ value: '5.6.7.8', simulated: true })]),
     );
 
-    const dashboardStats = await controller.fetch(new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=day'));
+    const dashboardStats = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/dashboard/stats?granularity=day'),
+    );
     expect(dashboardStats.status).toBe(200);
-    expect((await dashboardStats.json()) as {
-      totals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
-      filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
-      series: { simulatedAlertsHistory: Array<{ count: number }> };
-      allCountries: Array<{ simulatedCount?: number }>;
-      attackLocations: Array<{ latitude: number; longitude: number; count: number; simulatedCount: number }>;
-    }).toEqual(
+    expect(
+      (await dashboardStats.json()) as {
+        totals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
+        filteredTotals: { alerts: number; decisions: number; simulatedAlerts: number; simulatedDecisions: number };
+        series: { simulatedAlertsHistory: Array<{ count: number }> };
+        allCountries: Array<{ simulatedCount?: number }>;
+        attackLocations: Array<{ latitude: number; longitude: number; count: number; simulatedCount: number }>;
+      },
+    ).toEqual(
       expect.objectContaining({
         totals: { alerts: 2, decisions: 1, simulatedAlerts: 1, simulatedDecisions: 1 },
         filteredTotals: { alerts: 2, decisions: 1, simulatedAlerts: 1, simulatedDecisions: 1 },
@@ -610,13 +654,19 @@ describe('createApp API responses', () => {
     );
     expect(addDecision.status).toBe(200);
 
-    const deleteDecision = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/10', { method: 'DELETE' }));
+    const deleteDecision = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions/10', { method: 'DELETE' }),
+    );
     expect(deleteDecision.status).toBe(200);
 
-    const deleteAlert = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', { method: 'DELETE' }));
+    const deleteAlert = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/1', { method: 'DELETE' }),
+    );
     expect(deleteAlert.status).toBe(200);
 
-    const clearCache = await controller.fetch(new Request('http://localhost/crowdsec/api/cache/clear', { method: 'POST' }));
+    const clearCache = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/cache/clear', { method: 'POST' }),
+    );
     expect(clearCache.status).toBe(200);
 
     const manifest = await controller.fetch(new Request('http://localhost/crowdsec/site.webmanifest'));
@@ -657,7 +707,9 @@ describe('createApp API responses', () => {
   });
 
   test('looks up active manual decisions per value and instance without an on-demand refresh', async () => {
-    const { controller, database, lapiClient, fetchCalls } = createController({ env: { CROWDSEC_REFRESH_INTERVAL: '0' } });
+    const { controller, database, lapiClient, fetchCalls } = createController({
+      env: { CROWDSEC_REFRESH_INTERVAL: '0' },
+    });
     try {
       const now = Date.now();
       const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString();
@@ -670,22 +722,39 @@ describe('createApp API responses', () => {
         ['6', '198.51.100.5', 'cscli', at(60)],
       ];
       for (const [id, value, origin, stopAt] of decisions) {
-        database.insertDecision({ $id: id, $uuid: id, $alert_id: Number(id), $created_at: at(-10), $stop_at: stopAt, $value: value, $type: 'ban', $origin: origin, $scenario: 'manual/web-ui' });
+        database.insertDecision({
+          $id: id,
+          $uuid: id,
+          $alert_id: Number(id),
+          $created_at: at(-10),
+          $stop_at: stopAt,
+          $value: value,
+          $type: 'ban',
+          $origin: origin,
+          $scenario: 'manual/web-ui',
+        });
       }
       await lapiClient.login();
-      const lookup = (body: unknown) => controller.fetch(new Request('http://localhost/crowdsec/api/decisions/manual-lookup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }));
+      const lookup = (body: unknown) =>
+        controller.fetch(
+          new Request('http://localhost/crowdsec/api/decisions/manual-lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }),
+        );
 
       // The first request waits for the initial sync; later lookups must not sync with LAPI on demand.
       expect((await lookup({ values: ['198.51.100.1'] })).status).toBe(200);
       const lapiCalls = fetchCalls.length;
-      const response = await lookup({ values: ['198.51.100.1', '198.51.100.2', '198.51.100.3', ' 198.51.100.4 ', '198.51.100.1'] });
+      const response = await lookup({
+        values: ['198.51.100.1', '198.51.100.2', '198.51.100.3', ' 198.51.100.4 ', '198.51.100.1'],
+      });
       expect(response.status).toBe(200);
       expect(fetchCalls).toHaveLength(lapiCalls);
-      const { decisions: found } = await response.json() as { decisions: Array<{ value: string; instance_id: string; stop_at: string }> };
+      const { decisions: found } = (await response.json()) as {
+        decisions: Array<{ value: string; instance_id: string; stop_at: string }>;
+      };
       expect(found.sort((a, b) => a.value.localeCompare(b.value))).toEqual([
         { value: '198.51.100.1', instance_id: 'default', stop_at: at(120) },
         { value: '198.51.100.4', instance_id: 'default', stop_at: at(30) },
@@ -694,7 +763,13 @@ describe('createApp API responses', () => {
       expect(await (await lookup({ values: [] })).json()).toEqual({ decisions: [] });
       expect((await lookup({ values: '198.51.100.1' })).status).toBe(400);
       expect((await lookup({ values: [42] })).status).toBe(400);
-      expect((await lookup({ values: Array.from({ length: 501 }, (_, index) => `10.0.${Math.floor(index / 256)}.${index % 256}`) })).status).toBe(400);
+      expect(
+        (
+          await lookup({
+            values: Array.from({ length: 501 }, (_, index) => `10.0.${Math.floor(index / 256)}.${index % 256}`),
+          })
+        ).status,
+      ).toBe(400);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -709,20 +784,30 @@ describe('createApp API responses', () => {
     try {
       await lapiClient.login();
       const configResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
-      expect(((await configResponse.json()) as ConfigResponse).instances?.map((instance) => instance.manual_decision_scenarios))
-        .toEqual([['manual/web-ui', 'custom/abuse-report']]);
+      expect(
+        ((await configResponse.json()) as ConfigResponse).instances?.map(
+          (instance) => instance.manual_decision_scenarios,
+        ),
+      ).toEqual([['manual/web-ui', 'custom/abuse-report']]);
 
-      const postDecision = (body: Record<string, unknown>) => controller.fetch(new Request('http://localhost/crowdsec/api/decisions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }));
-      const postedAlerts = () => fetchCalls
-        .filter((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST')
-        .map((call) => (call.body as Array<Record<string, unknown>>)[0]);
+      const postDecision = (body: Record<string, unknown>) =>
+        controller.fetch(
+          new Request('http://localhost/crowdsec/api/decisions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }),
+        );
+      const postedAlerts = () =>
+        fetchCalls
+          .filter((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST')
+          .map((call) => (call.body as Array<Record<string, unknown>>)[0]);
 
       expect((await postDecision({ ip: '5.6.7.8', duration: '4h' })).status).toBe(200);
-      expect((await postDecision({ ip: '5.6.7.9', duration: '1h', type: 'captcha', scenario: '  custom/other-process  ' })).status).toBe(200);
+      expect(
+        (await postDecision({ ip: '5.6.7.9', duration: '1h', type: 'captcha', scenario: '  custom/other-process  ' }))
+          .status,
+      ).toBe(200);
       expect(postedAlerts()).toEqual([
         expect.objectContaining({
           scenario: 'manual/web-ui',
@@ -736,7 +821,13 @@ describe('createApp API responses', () => {
         }),
       ]);
 
-      for (const scenario of ['no-slash', 'custom/with space', `custom/${'a'.repeat(256)}`, 42, ['custom/abuse-report']]) {
+      for (const scenario of [
+        'no-slash',
+        'custom/with space',
+        `custom/${'a'.repeat(256)}`,
+        42,
+        ['custom/abuse-report'],
+      ]) {
         const response = await postDecision({ ip: '5.6.7.10', scenario });
         expect(response.status).toBe(400);
         expect(await response.json()).toEqual({ error: 'Invalid scenario format. Use e.g. "manual/web-ui"' });
@@ -754,35 +845,52 @@ describe('createApp API responses', () => {
       env: { CONFIG_CROWDSEC_MANUAL_DECISIONS_SCENARIOS: '[custom/abuse-report]' },
     });
     try {
-      const putScenarios = (body: unknown) => controller.fetch(new Request('http://localhost/crowdsec/api/config/manual-decision-scenarios', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      }));
-      const readConfig = async () => (await (await controller.fetch(new Request('http://localhost/crowdsec/api/config'))).json()) as ConfigResponse;
+      const putScenarios = (body: unknown) =>
+        controller.fetch(
+          new Request('http://localhost/crowdsec/api/config/manual-decision-scenarios', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }),
+        );
+      const readConfig = async () =>
+        (await (await controller.fetch(new Request('http://localhost/crowdsec/api/config'))).json()) as ConfigResponse;
 
-      expect((await readConfig()).manual_decision_scenario_settings).toEqual({ configured: ['custom/abuse-report'], custom: [] });
+      expect((await readConfig()).manual_decision_scenario_settings).toEqual({
+        configured: ['custom/abuse-report'],
+        custom: [],
+      });
 
       for (const body of [{}, { scenarios: 'custom/x' }, { scenarios: [42] }, { scenarios: ['no-slash'] }]) {
         expect((await putScenarios(body)).status).toBe(400);
       }
 
-      const update = await putScenarios({ scenarios: [' custom/scanner ', 'custom/scanner', 'manual/web-ui', 'custom/abuse-report', 'custom/spam'] });
+      const update = await putScenarios({
+        scenarios: [' custom/scanner ', 'custom/scanner', 'manual/web-ui', 'custom/abuse-report', 'custom/spam'],
+      });
       expect(update.status).toBe(200);
       expect(await update.json()).toEqual({
         success: true,
-        manual_decision_scenario_settings: { configured: ['custom/abuse-report'], custom: ['custom/scanner', 'custom/spam'] },
+        manual_decision_scenario_settings: {
+          configured: ['custom/abuse-report'],
+          custom: ['custom/scanner', 'custom/spam'],
+        },
       });
-      expect(JSON.parse(database.getMeta('manual_decision_scenarios')?.value || '[]')).toEqual(['custom/scanner', 'custom/spam']);
+      expect(JSON.parse(database.getMeta('manual_decision_scenarios')?.value || '[]')).toEqual([
+        'custom/scanner',
+        'custom/spam',
+      ]);
 
       const config = await readConfig();
       expect(config.manual_decision_scenario_settings?.custom).toEqual(['custom/scanner', 'custom/spam']);
-      expect(config.instances?.map((instance) => instance.manual_decision_scenarios))
-        .toEqual([['manual/web-ui', 'custom/abuse-report', 'custom/scanner', 'custom/spam']]);
+      expect(config.instances?.map((instance) => instance.manual_decision_scenarios)).toEqual([
+        ['manual/web-ui', 'custom/abuse-report', 'custom/scanner', 'custom/spam'],
+      ]);
 
       expect((await putScenarios({ scenarios: [] })).status).toBe(200);
-      expect((await readConfig()).instances?.map((instance) => instance.manual_decision_scenarios))
-        .toEqual([['manual/web-ui', 'custom/abuse-report']]);
+      expect((await readConfig()).instances?.map((instance) => instance.manual_decision_scenarios)).toEqual([
+        ['manual/web-ui', 'custom/abuse-report'],
+      ]);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -816,7 +924,11 @@ describe('createApp API responses', () => {
 
     const configResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
     expect(configResponse.status).toBe(200);
-    expect((await configResponse.json()) as { permissions?: { mode: string; can_manage_enforcement: boolean; can_manage_settings: boolean } }).toEqual(
+    expect(
+      (await configResponse.json()) as {
+        permissions?: { mode: string; can_manage_enforcement: boolean; can_manage_settings: boolean };
+      },
+    ).toEqual(
       expect.objectContaining({
         permissions: {
           mode: 'read-only',
@@ -910,11 +1022,14 @@ describe('createApp API responses', () => {
     expect(database.countAlerts()).toBe(1);
     expect(database.countDecisions()).toBe(1);
     expect(database.getDecisionById('10')).not.toBeNull();
-    expect(fetchCalls.filter((call) =>
-      (call.url.endsWith('/v1/alerts') && call.method === 'POST') ||
-      (/\/v1\/alerts\/\d+$/.test(call.url) && call.method === 'DELETE') ||
-      (/\/v1\/decisions\/\d+$/.test(call.url) && call.method === 'DELETE')
-    )).toEqual([]);
+    expect(
+      fetchCalls.filter(
+        (call) =>
+          (call.url.endsWith('/v1/alerts') && call.method === 'POST') ||
+          (/\/v1\/alerts\/\d+$/.test(call.url) && call.method === 'DELETE') ||
+          (/\/v1\/decisions\/\d+$/.test(call.url) && call.method === 'DELETE'),
+      ),
+    ).toEqual([]);
 
     const languageUpdate = await controller.fetch(
       new Request('http://localhost/crowdsec/api/config/language', {
@@ -925,13 +1040,17 @@ describe('createApp API responses', () => {
     );
     expect(languageUpdate.status).toBe(200);
 
-    const markRead = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications/notif-1/read', { method: 'POST' }));
+    const markRead = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/notifications/notif-1/read', { method: 'POST' }),
+    );
     expect(markRead.status).toBe(200);
-    const bulkRead = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications/bulk-read', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ['notif-1'] }),
-    }));
+    const bulkRead = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/notifications/bulk-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ['notif-1'] }),
+      }),
+    );
     expect(bulkRead.status).toBe(200);
     expect(database.countNotifications()).toBe(1);
 
@@ -939,5 +1058,4 @@ describe('createApp API responses', () => {
     database.close();
     destroyTempDir();
   });
-
- });
+});

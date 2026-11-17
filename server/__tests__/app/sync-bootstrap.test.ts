@@ -1,23 +1,16 @@
-import { describe, expect, test, vi } from 'vitest';
 import path from 'path';
-import { CrowdsecDatabase } from '../../database';
+
+import { describe, expect, test, vi } from 'vitest';
+
 import type { CreateAppOptions } from '../../app';
+import { CrowdsecDatabase } from '../../database';
 import { DatabaseSyncWorker } from '../../sync-worker-client';
-import { parseGoDuration } from '../../utils/duration';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleImplicitSimulatedAlert,
-  sampleRangeAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { createController, destroyTempDir, sampleAlert, seedAlert, tempDir } from './harness';
 
 describe('createApp synchronization bootstrap', () => {
   test('reports index setup failures and allows a later bootstrap to recover', async () => {
-    const beginIndexes = vi.spyOn(DatabaseSyncWorker.prototype, 'beginDeferredSearchIndexUpdates')
+    const beginIndexes = vi
+      .spyOn(DatabaseSyncWorker.prototype, 'beginDeferredSearchIndexUpdates')
       .mockRejectedValueOnce(new Error('Index setup failed'));
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { controller, database, lapiClient } = createController();
@@ -26,10 +19,12 @@ describe('createApp synchronization bootstrap', () => {
     try {
       await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
 
-      expect(controller.getSyncStatus()).toEqual(expect.objectContaining({
-        state: 'failed',
-        errors: ['Index setup failed'],
-      }));
+      expect(controller.getSyncStatus()).toEqual(
+        expect.objectContaining({
+          state: 'failed',
+          errors: ['Index setup failed'],
+        }),
+      );
       expect(errorSpy).toHaveBeenCalledWith('Failed to initialize cache:', 'Index setup failed');
 
       const retry = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'));
@@ -121,19 +116,21 @@ describe('createApp synchronization bootstrap', () => {
   });
 
   test('bounds sync transactions by decision volume so interactive writes can run between them', async () => {
-    const alerts = Array.from({ length: 4 }, (_, alertIndex) => sampleAlert({
-      id: 100 + alertIndex,
-      uuid: `alert-${100 + alertIndex}`,
-      decisions: Array.from({ length: 300 }, (_, decisionIndex) => ({
-        id: `${alertIndex}-${decisionIndex}`,
-        type: 'ban',
-        value: `10.${alertIndex}.${Math.floor(decisionIndex / 255)}.${decisionIndex % 255}`,
-        duration: '30m',
-        stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
-        origin: 'crowdsec',
-        simulated: false,
-      })),
-    }));
+    const alerts = Array.from({ length: 4 }, (_, alertIndex) =>
+      sampleAlert({
+        id: 100 + alertIndex,
+        uuid: `alert-${100 + alertIndex}`,
+        decisions: Array.from({ length: 300 }, (_, decisionIndex) => ({
+          id: `${alertIndex}-${decisionIndex}`,
+          type: 'ban',
+          value: `10.${alertIndex}.${Math.floor(decisionIndex / 255)}.${decisionIndex % 255}`,
+          duration: '30m',
+          stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+          origin: 'crowdsec',
+          simulated: false,
+        })),
+      }),
+    );
     const syncWorker: NonNullable<CreateAppOptions['syncWorker']> = {
       persistAlerts: vi.fn(async () => ({ changed: false })),
       deleteAlertsMissingBetween: vi.fn(async () => ({ alerts: 0, decisions: 0 })),
@@ -162,9 +159,11 @@ describe('createApp synchronization bootstrap', () => {
 
       const batches = vi.mocked(syncWorker.persistAlerts).mock.calls.map(([mutations]) => mutations);
       expect(batches).toHaveLength(4);
-      expect(batches.every((mutations) =>
-        mutations.reduce((total, mutation) => total + mutation.decisions.length, 0) <= 500,
-      )).toBe(true);
+      expect(
+        batches.every(
+          (mutations) => mutations.reduce((total, mutation) => total + mutation.decisions.length, 0) <= 500,
+        ),
+      ).toBe(true);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -216,15 +215,17 @@ describe('createApp synchronization bootstrap', () => {
 
       const batches = vi.mocked(syncWorker.persistAlerts).mock.calls.map(([mutations]) => mutations);
       expect(batches).toHaveLength(3);
-      expect(batches.map((mutations) =>
-        mutations.reduce((total, mutation) => total + mutation.decisions.length, 0),
-      )).toEqual([500, 500, 201]);
+      expect(
+        batches.map((mutations) => mutations.reduce((total, mutation) => total + mutation.decisions.length, 0)),
+      ).toEqual([500, 500, 201]);
 
       const fragments = batches.flat();
       expect(fragments.filter((mutation) => mutation.alert)).toHaveLength(1);
-      expect(fragments.slice(0, -1).every((mutation) =>
-        mutation.reconcileDecisions === false && mutation.keepDecisionIds.length === 0,
-      )).toBe(true);
+      expect(
+        fragments
+          .slice(0, -1)
+          .every((mutation) => mutation.reconcileDecisions === false && mutation.keepDecisionIds.length === 0),
+      ).toBe(true);
       expect(fragments.at(-1)).toMatchObject({
         alertId: 200,
         reconcileDecisions: false,
@@ -414,9 +415,13 @@ describe('createApp synchronization bootstrap', () => {
         decisionIds: largeDeltaAlert.decisions?.map((decision) => String(decision.id)),
       });
       expect(vi.mocked(syncWorker.persistAlerts).mock.calls).toHaveLength(21);
-      expect(vi.mocked(syncWorker.persistAlerts).mock.calls.every(([mutations]) =>
-        mutations.reduce((total, mutation) => total + mutation.decisions.length, 0) <= 500,
-      )).toBe(true);
+      expect(
+        vi
+          .mocked(syncWorker.persistAlerts)
+          .mock.calls.every(
+            ([mutations]) => mutations.reduce((total, mutation) => total + mutation.decisions.length, 0) <= 500,
+          ),
+      ).toBe(true);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -528,12 +533,16 @@ describe('createApp synchronization bootstrap', () => {
       const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10'));
       expect(response.status).toBe(200);
       expect(syncWorker.persistAlerts).toHaveBeenCalled();
-      expect(vi.mocked(syncWorker.persistAlerts).mock.calls.flatMap(([mutations]) => mutations).flatMap((mutation) => mutation.decisions)).toHaveLength(1);
+      expect(
+        vi
+          .mocked(syncWorker.persistAlerts)
+          .mock.calls.flatMap(([mutations]) => mutations)
+          .flatMap((mutation) => mutation.decisions),
+      ).toHaveLength(1);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
       destroyTempDir();
     }
   });
-
- });
+});

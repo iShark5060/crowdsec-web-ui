@@ -19,12 +19,12 @@ The workflow seeds the source database, builds the frontend, imports through the
 
 ### Authentication
 
-| Setting | Value |
-| --- | --- |
-| Username | `load` |
-| Password | `test` |
-| Authentication | Enabled; set `CONFIG_AUTH_ENABLED=false` to disable |
-| Passkey | Dummy credential for exercising the button and request; authentication is expected to fail |
+| Setting        | Value                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| Username       | `load`                                                                                     |
+| Password       | `test`                                                                                     |
+| Authentication | Enabled; set `CONFIG_AUTH_ENABLED=false` to disable                                        |
+| Passkey        | Dummy credential for exercising the button and request; authentication is expected to fail |
 
 Load-test mode logs seed timings, synchronization progress, `/api` requests, and event-loop stalls of at least `100ms`.
 
@@ -44,19 +44,19 @@ Load-test mode logs seed timings, synchronization progress, `/api` requests, and
 ./run.sh loadtest statistics-multi
 ```
 
-| Profile | Initial workload | Main use |
-| --- | --- | --- |
-| `default` | 300,000 alerts, 300,000 decisions, one 100,000-decision blocklist | General bootstrap, dashboard, filtering, paging, and refresh baseline |
-| `blocklist` | 7,582 alerts, 410,463 decisions, 199,069-decision blocklist, 53,500-decision refreshes | Concentrated CAPI/LISTS workload |
-| `blocklists-mixed` | 10,000 alerts, 500,000 decisions; blocklists of 125,000, 100,000, and 60,000 | Empty, expired, expiring, and large delta-blocklist cases |
-| `multi-instance` | Primary 25k/25k, Secondary 15k/15k, Edge 10k/10k alerts/decisions | Quick multi-instance and colliding upstream-ID checks |
-| `multi-instance-medium` | Three instances with 100,000 alerts and 100,000 decisions each | Medium multi-instance benchmarking |
-| `allowlists` | `multi-instance` alert workload plus five allowlists of 50,000, 25,000, 10,000, 5,000, and 1,000 entries per instance | Allowlists page, cross-instance differences, IP checks, and the manual-decision allowlist guard |
-| `metrics-fleet` | 10,000 alerts, 10,000 decisions; one central LAPI metrics endpoint with 40 remediation components, 45 log processors, and per-agent parser, AppSec, whitelist, and scenario metrics | Metrics page lists beyond their collapsed size, filtering, Show all, and totals |
-| `alert-sessions` | 300,000 alerts and decisions: 20-alert bursts from 5,000 repeat IPs, plus a 60,000-alert burst from one IP in the newest 20 minutes | Grouped Alerts paging, including the longest session read |
-| `alert-sessions-multi` | Primary 25k/25k, Secondary 15k/15k, Edge 10k/10k alerts/decisions: 20-alert bursts from 500 IPs shared by all instances, plus a 3,000-alert burst from one IP on each instance | Hands-on testing of grouped Alerts per instance and in the Combined view |
-| `statistics` | 40,000 shaped alerts and up to 40,000 decisions (including a 10,000-decision blocklist) in the cache, plus about 90,000 archived alerts covering the rest of 90 days; long-term statistics enabled | Statistics page queries, findings, finding details, and capture of the cache window |
-| `statistics-multi` | Primary 6k, Secondary 4k, Edge 2k shaped alerts (each including a small blocklist) in the cache, plus about 33,000 archived alerts at 200, 133, and 67 alerts per day covering the rest of 90 days; long-term statistics enabled | Statistics page per instance and in the Combined view, with attackers shared across instances |
+| Profile                 | Initial workload                                                                                                                                                                                                                 | Main use                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `default`               | 300,000 alerts, 300,000 decisions, one 100,000-decision blocklist                                                                                                                                                                | General bootstrap, dashboard, filtering, paging, and refresh baseline                           |
+| `blocklist`             | 7,582 alerts, 410,463 decisions, 199,069-decision blocklist, 53,500-decision refreshes                                                                                                                                           | Concentrated CAPI/LISTS workload                                                                |
+| `blocklists-mixed`      | 10,000 alerts, 500,000 decisions; blocklists of 125,000, 100,000, and 60,000                                                                                                                                                     | Empty, expired, expiring, and large delta-blocklist cases                                       |
+| `multi-instance`        | Primary 25k/25k, Secondary 15k/15k, Edge 10k/10k alerts/decisions                                                                                                                                                                | Quick multi-instance and colliding upstream-ID checks                                           |
+| `multi-instance-medium` | Three instances with 100,000 alerts and 100,000 decisions each                                                                                                                                                                   | Medium multi-instance benchmarking                                                              |
+| `allowlists`            | `multi-instance` alert workload plus five allowlists of 50,000, 25,000, 10,000, 5,000, and 1,000 entries per instance                                                                                                            | Allowlists page, cross-instance differences, IP checks, and the manual-decision allowlist guard |
+| `metrics-fleet`         | 10,000 alerts, 10,000 decisions; one central LAPI metrics endpoint with 40 remediation components, 45 log processors, and per-agent parser, AppSec, whitelist, and scenario metrics                                              | Metrics page lists beyond their collapsed size, filtering, Show all, and totals                 |
+| `alert-sessions`        | 300,000 alerts and decisions: 20-alert bursts from 5,000 repeat IPs, plus a 60,000-alert burst from one IP in the newest 20 minutes                                                                                              | Grouped Alerts paging, including the longest session read                                       |
+| `alert-sessions-multi`  | Primary 25k/25k, Secondary 15k/15k, Edge 10k/10k alerts/decisions: 20-alert bursts from 500 IPs shared by all instances, plus a 3,000-alert burst from one IP on each instance                                                   | Hands-on testing of grouped Alerts per instance and in the Combined view                        |
+| `statistics`            | 40,000 shaped alerts and up to 40,000 decisions (including a 10,000-decision blocklist) in the cache, plus about 90,000 archived alerts covering the rest of 90 days; long-term statistics enabled                               | Statistics page queries, findings, finding details, and capture of the cache window             |
+| `statistics-multi`      | Primary 6k, Secondary 4k, Edge 2k shaped alerts (each including a small blocklist) in the cache, plus about 33,000 archived alerts at 200, 133, and 67 alerts per day covering the rest of 90 days; long-term statistics enabled | Statistics page per instance and in the Combined view, with attackers shared across instances   |
 
 ### Profile details
 
@@ -97,17 +97,17 @@ LOADTEST_BENCHMARK_INSTANCE=primary pnpm run loadtest:benchmark:multi
 
 The benchmark measures cold and warm low-cardinality, alert-decision-state, and IP facets, then reports Alerts, Decisions, search, Dashboard, and facet p50/p95 latency separately over three runs. It also runs list pagination and advanced search concurrently with an uncached IP facet. Facet responses are checked for the 50-value hard bound.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `LOADTEST_BASE_URL` | `http://127.0.0.1:3133` | Backend benchmark target. |
-| `LOADTEST_BENCHMARK_INSTANCE` | `default` | Instance used for scoped measurements; use `primary` with multi-instance profiles. |
-| `LOADTEST_BENCHMARK_SAMPLES` | `5` | Samples collected per run. |
-| `LOADTEST_ALERTS_BASELINE_P95_MS` | unset | Existing no-facet Alerts p95; when set, fail above a 10% regression. |
-| `LOADTEST_SEARCH_BASELINE_P95_MS` | unset | Existing no-facet search p95; when set, fail above a 10% regression. |
-| `LOADTEST_FILTERED_ALERTS_COLD_LIMIT_MS` | `2000` | Maximum cold filtered Alerts page latency, including exact totals. |
-| `LOADTEST_FILTERED_ALERTS_WARM_PAGE_LIMIT_MS` | `500` | Maximum latency for Alerts pages 2–4 served from the bounded ID window. |
-| `LOADTEST_FILTERED_DECISIONS_COLD_LIMIT_MS` | `5000` | Maximum cold date-filtered Decisions page latency, including exact totals and duplicate promotion. |
-| `LOADTEST_FILTERED_DECISIONS_WARM_PAGE_LIMIT_MS` | `500` | Maximum latency for pages 2–4 served from the bounded filtered-page window. |
+| Variable                                         | Default                 | Purpose                                                                                            |
+| ------------------------------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `LOADTEST_BASE_URL`                              | `http://127.0.0.1:3133` | Backend benchmark target.                                                                          |
+| `LOADTEST_BENCHMARK_INSTANCE`                    | `default`               | Instance used for scoped measurements; use `primary` with multi-instance profiles.                 |
+| `LOADTEST_BENCHMARK_SAMPLES`                     | `5`                     | Samples collected per run.                                                                         |
+| `LOADTEST_ALERTS_BASELINE_P95_MS`                | unset                   | Existing no-facet Alerts p95; when set, fail above a 10% regression.                               |
+| `LOADTEST_SEARCH_BASELINE_P95_MS`                | unset                   | Existing no-facet search p95; when set, fail above a 10% regression.                               |
+| `LOADTEST_FILTERED_ALERTS_COLD_LIMIT_MS`         | `2000`                  | Maximum cold filtered Alerts page latency, including exact totals.                                 |
+| `LOADTEST_FILTERED_ALERTS_WARM_PAGE_LIMIT_MS`    | `500`                   | Maximum latency for Alerts pages 2–4 served from the bounded ID window.                            |
+| `LOADTEST_FILTERED_DECISIONS_COLD_LIMIT_MS`      | `5000`                  | Maximum cold date-filtered Decisions page latency, including exact totals and duplicate promotion. |
+| `LOADTEST_FILTERED_DECISIONS_WARM_PAGE_LIMIT_MS` | `500`                   | Maximum latency for pages 2–4 served from the bounded filtered-page window.                        |
 
 Warm facets fail above 500ms, cold facets fail above two seconds, and list/search fail when one concurrent facet raises p95 by more than 25%. Filtered Alerts fail when the cold ID window exceeds two seconds or cached pages 2–4 exceed 500ms. Date-filtered Decisions fail when the cold ranking window exceeds five seconds, cached pages 2–4 exceed 500ms, or concurrent Dashboard analytics pushes paging beyond the cold limit. Grouped Alerts fail when a cold session window exceeds the filtered Alerts cold limit, cached pages 2–4 exceed the warm page limit, or a concurrent cold session window raises list p95 by more than 25%. Run them with `./run.sh loadtest alert-sessions` for realistic groups, because the other profiles generate almost no repeat IPs. Set the two historical baseline variables to enforce the no-facet 10% regression gates. Compare Primary-only results, bootstrap logs, and process RSS with the existing 300k baseline; the script deliberately does not combine them into one score.
 
@@ -119,44 +119,44 @@ Warm facets fail above 500ms, cold facets fail above two seconds, and list/searc
 LOADTEST_ALERTS=1000 LOADTEST_DECISIONS=1000 ./run.sh loadtest
 ```
 
-| Variable | Default profile value | Purpose |
-| --- | --- | --- |
-| `LOADTEST_PROFILE` | `default` | Container profile name. |
-| `LOADTEST_ALERTS` | `300000` | Primary/default initial alerts. |
-| `LOADTEST_DECISIONS` | `300000` | Primary/default initial decisions. |
-| `LOADTEST_SEED` | `1337` | Deterministic generator seed. |
-| `LOADTEST_DB_DIR` | `/tmp/crowdsec-web-ui-load-test` | Synthetic database directory. |
-| `LOADTEST_BACKEND_PORT` | `3000` | Local load-test server port. |
-| `LOADTEST_ACTIVE_DECISION_RATIO` | `0.7` | Fraction of generated decisions that are active. |
-| `LOADTEST_SIMULATION_RATIO` | `0.1` | Fraction of generated simulated records. |
-| `LOADTEST_DUPLICATE_VALUE_RATIO` | `0.15` | Fraction of duplicate decision values. |
-| `LOADTEST_BLOCKLIST_DECISIONS` | `100000` | Decisions concentrated in one blocklist alert. |
-| `LOADTEST_BLOCKLIST_SIZES` | Empty | Comma-separated blocklist sizes; overrides `LOADTEST_BLOCKLIST_DECISIONS`. |
-| `LOADTEST_EMPTY_ALERTS` | `0` | Trailing alerts with no decisions. |
-| `LOADTEST_EXPIRED_ALERTS` | `0` | Preceding decision-bearing alerts containing only expired decisions. |
-| `LOADTEST_EXPIRING_SOON_DECISIONS` | `0` | Decisions expiring 5–15 minutes after the seed timestamp. |
-| `LOADTEST_ALERT_SESSION_SIZE` | `1` | Consecutive alerts generated as one burst from one IP. Values above `1` leave out list origins, which have no address to group by. |
-| `LOADTEST_ALERT_SOURCE_IPS` | `0` | Size of the IP pool bursts draw from, shared by all instances; `0` gives each burst its own IP. When set, refresh alerts come from five IPs of the pool. |
-| `LOADTEST_ALERT_BURST_SIZE` | `0` | Alerts from one IP in the newest 20 minutes, the longest read for grouped Alerts. In multi-instance profiles, every instance gets this burst from the same IP. |
-| `LOADTEST_REFRESH_ALERTS` | `100` | Alerts added in each due head refresh. |
-| `LOADTEST_REFRESH_DECISIONS` | `100` | Decisions added in each normal refresh. |
-| `LOADTEST_REFRESH_DECISIONS_MIN_PER_ALERT` | `0` | Minimum decisions per refresh alert in blocklist mode. |
-| `LOADTEST_REFRESH_DECISIONS_MAX_PER_ALERT` | `0` | Maximum decisions per refresh alert; values above zero enable blocklist mode. |
-| `LOADTEST_REFRESH_DECISION_ORIGINS` | Empty (`mixed`) | Comma-separated origins used by refresh decisions. |
-| `LOADTEST_MULTI_INSTANCE` | `false` | Enables Primary, Secondary, and Edge fake LAPIs. |
-| `LOADTEST_FAILING_LAPI` | `false` | Makes Edge return failures in multi-instance mode. |
-| `LOADTEST_SECONDARY_ALERTS` | `100000` | Secondary initial alerts when not set by a profile. |
-| `LOADTEST_SECONDARY_DECISIONS` | `100000` | Secondary initial decisions when not set by a profile. |
-| `LOADTEST_SECONDARY_BLOCKLIST_DECISIONS` | `25000` | Secondary concentrated blocklist size. |
-| `LOADTEST_EDGE_ALERTS` | `25000` | Edge initial alerts when not set by a profile. |
-| `LOADTEST_EDGE_DECISIONS` | `50000` | Edge initial decisions when not set by a profile. |
-| `LOADTEST_EDGE_BLOCKLIST_DECISIONS` | `10000` | Edge concentrated blocklist size. |
-| `LOADTEST_ALLOWLIST_SIZES` | Empty | Comma-separated entry counts, one allowlist per value; works with every profile. |
-| `LOADTEST_METRICS_BOUNCERS` | `0` | Synthetic remediation components added to the metrics scrape. |
-| `LOADTEST_METRICS_MACHINES` | `0` | Synthetic log processors added to the metrics scrape. |
-| `LOADTEST_STATISTICS` | `false` | Shapes alerts for the Statistics page, seeds the archive before the cache window, and enables collection. Single-instance profiles only. |
-| `LOADTEST_STATISTICS_HISTORY_DAYS` | `90` | Days of statistics history, including the cache window; retention is at least the 90-day default. |
-| `LOADTEST_STATISTICS_DAILY_ALERTS` | `0` | Archived alerts per day; `0` uses the cache's daily rate. In multi-instance profiles it sets Primary's rate and scales the others by their alert counts. |
+| Variable                                   | Default profile value            | Purpose                                                                                                                                                        |
+| ------------------------------------------ | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LOADTEST_PROFILE`                         | `default`                        | Container profile name.                                                                                                                                        |
+| `LOADTEST_ALERTS`                          | `300000`                         | Primary/default initial alerts.                                                                                                                                |
+| `LOADTEST_DECISIONS`                       | `300000`                         | Primary/default initial decisions.                                                                                                                             |
+| `LOADTEST_SEED`                            | `1337`                           | Deterministic generator seed.                                                                                                                                  |
+| `LOADTEST_DB_DIR`                          | `/tmp/crowdsec-web-ui-load-test` | Synthetic database directory.                                                                                                                                  |
+| `LOADTEST_BACKEND_PORT`                    | `3000`                           | Local load-test server port.                                                                                                                                   |
+| `LOADTEST_ACTIVE_DECISION_RATIO`           | `0.7`                            | Fraction of generated decisions that are active.                                                                                                               |
+| `LOADTEST_SIMULATION_RATIO`                | `0.1`                            | Fraction of generated simulated records.                                                                                                                       |
+| `LOADTEST_DUPLICATE_VALUE_RATIO`           | `0.15`                           | Fraction of duplicate decision values.                                                                                                                         |
+| `LOADTEST_BLOCKLIST_DECISIONS`             | `100000`                         | Decisions concentrated in one blocklist alert.                                                                                                                 |
+| `LOADTEST_BLOCKLIST_SIZES`                 | Empty                            | Comma-separated blocklist sizes; overrides `LOADTEST_BLOCKLIST_DECISIONS`.                                                                                     |
+| `LOADTEST_EMPTY_ALERTS`                    | `0`                              | Trailing alerts with no decisions.                                                                                                                             |
+| `LOADTEST_EXPIRED_ALERTS`                  | `0`                              | Preceding decision-bearing alerts containing only expired decisions.                                                                                           |
+| `LOADTEST_EXPIRING_SOON_DECISIONS`         | `0`                              | Decisions expiring 5–15 minutes after the seed timestamp.                                                                                                      |
+| `LOADTEST_ALERT_SESSION_SIZE`              | `1`                              | Consecutive alerts generated as one burst from one IP. Values above `1` leave out list origins, which have no address to group by.                             |
+| `LOADTEST_ALERT_SOURCE_IPS`                | `0`                              | Size of the IP pool bursts draw from, shared by all instances; `0` gives each burst its own IP. When set, refresh alerts come from five IPs of the pool.       |
+| `LOADTEST_ALERT_BURST_SIZE`                | `0`                              | Alerts from one IP in the newest 20 minutes, the longest read for grouped Alerts. In multi-instance profiles, every instance gets this burst from the same IP. |
+| `LOADTEST_REFRESH_ALERTS`                  | `100`                            | Alerts added in each due head refresh.                                                                                                                         |
+| `LOADTEST_REFRESH_DECISIONS`               | `100`                            | Decisions added in each normal refresh.                                                                                                                        |
+| `LOADTEST_REFRESH_DECISIONS_MIN_PER_ALERT` | `0`                              | Minimum decisions per refresh alert in blocklist mode.                                                                                                         |
+| `LOADTEST_REFRESH_DECISIONS_MAX_PER_ALERT` | `0`                              | Maximum decisions per refresh alert; values above zero enable blocklist mode.                                                                                  |
+| `LOADTEST_REFRESH_DECISION_ORIGINS`        | Empty (`mixed`)                  | Comma-separated origins used by refresh decisions.                                                                                                             |
+| `LOADTEST_MULTI_INSTANCE`                  | `false`                          | Enables Primary, Secondary, and Edge fake LAPIs.                                                                                                               |
+| `LOADTEST_FAILING_LAPI`                    | `false`                          | Makes Edge return failures in multi-instance mode.                                                                                                             |
+| `LOADTEST_SECONDARY_ALERTS`                | `100000`                         | Secondary initial alerts when not set by a profile.                                                                                                            |
+| `LOADTEST_SECONDARY_DECISIONS`             | `100000`                         | Secondary initial decisions when not set by a profile.                                                                                                         |
+| `LOADTEST_SECONDARY_BLOCKLIST_DECISIONS`   | `25000`                          | Secondary concentrated blocklist size.                                                                                                                         |
+| `LOADTEST_EDGE_ALERTS`                     | `25000`                          | Edge initial alerts when not set by a profile.                                                                                                                 |
+| `LOADTEST_EDGE_DECISIONS`                  | `50000`                          | Edge initial decisions when not set by a profile.                                                                                                              |
+| `LOADTEST_EDGE_BLOCKLIST_DECISIONS`        | `10000`                          | Edge concentrated blocklist size.                                                                                                                              |
+| `LOADTEST_ALLOWLIST_SIZES`                 | Empty                            | Comma-separated entry counts, one allowlist per value; works with every profile.                                                                               |
+| `LOADTEST_METRICS_BOUNCERS`                | `0`                              | Synthetic remediation components added to the metrics scrape.                                                                                                  |
+| `LOADTEST_METRICS_MACHINES`                | `0`                              | Synthetic log processors added to the metrics scrape.                                                                                                          |
+| `LOADTEST_STATISTICS`                      | `false`                          | Shapes alerts for the Statistics page, seeds the archive before the cache window, and enables collection. Single-instance profiles only.                       |
+| `LOADTEST_STATISTICS_HISTORY_DAYS`         | `90`                             | Days of statistics history, including the cache window; retention is at least the 90-day default.                                                              |
+| `LOADTEST_STATISTICS_DAILY_ALERTS`         | `0`                              | Archived alerts per day; `0` uses the cache's daily rate. In multi-instance profiles it sets Primary's rate and scales the others by their alert counts.       |
 
 ### Application configuration
 
@@ -177,14 +177,14 @@ Application behavior uses the normal `CONFIG_*` variables.
 
 ## Containerized Load Test
 
-The development workflow publishes `ghcr.io/theduffman85/crowdsec-web-ui:loadtest`. It is a drop-in replacement for the regular image: retain the ports, authentication environment, OIDC environment, and `/app/data` volume; change the tag and select a profile.
+`ghcr.io/theduffman85/crowdsec-web-ui:loadtest` is a drop-in replacement for the regular image: retain the ports, authentication environment, OIDC environment, and `/app/data` volume; change the tag and select a profile.
 
 ```yaml
 services:
   crowdsec-web-ui:
     image: ghcr.io/theduffman85/crowdsec-web-ui:loadtest
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
       - ./data:/app/data
     environment:

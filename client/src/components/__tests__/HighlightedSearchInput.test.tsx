@@ -1,16 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
+
 import { HighlightedSearchInput } from '../HighlightedSearchInput';
 
 describe('HighlightedSearchInput', () => {
   test('renders SQL-like token highlighting for advanced queries', () => {
-    render(
-      <HighlightedSearchInput
-        searchPage="alerts"
-        value={'country:"germany" AND ssh'}
-        onChange={() => {}}
-      />,
-    );
+    render(<HighlightedSearchInput searchPage="alerts" value={'country:"germany" AND ssh'} onChange={() => {}} />);
 
     const highlightLayer = document.querySelector('[data-search-highlight-layer="true"]');
     expect(highlightLayer).not.toBeNull();
@@ -58,12 +53,7 @@ describe('HighlightedSearchInput', () => {
     );
 
     const input = screen.getByPlaceholderText('Filter alerts...');
-    expect(input).toHaveClass(
-      'h-11',
-      'py-0',
-      'selection:bg-primary-500/20',
-      'dark:selection:bg-primary-900/60',
-    );
+    expect(input).toHaveClass('h-11', 'py-0', 'selection:bg-primary-500/20', 'dark:selection:bg-primary-900/60');
     expect(input.parentElement).toHaveClass('h-11');
     const highlightLayer = document.querySelector('[data-search-highlight-layer="true"]');
     expect(highlightLayer?.parentElement).toHaveClass('flex', 'items-center');

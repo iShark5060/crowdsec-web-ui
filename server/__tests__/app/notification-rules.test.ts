@@ -1,40 +1,47 @@
-import { describe, expect, test, vi } from 'vitest';
-import path from 'path';
-import { CrowdsecDatabase } from '../../database';
-import type { MqttPublishConfig } from '../../notifications/mqtt-client';
-import {
-  createController,
-  destroyTempDir,
-  sampleAlert,
-  sampleManualWebUiAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { describe, expect, test } from 'vitest';
+
+import { createController, destroyTempDir } from './harness';
 
 describe('createApp notification rules', () => {
   test('sends a rule test through the API and reports a sample without storing a notification', async () => {
     const { controller, database } = createController({
       env: { CROWDSEC_REFRESH_INTERVAL: '0' },
-      notificationFetchResolver: (url) => url.includes('ntfy.sh') ? Response.json({ id: 'sent' }) : undefined,
+      notificationFetchResolver: (url) => (url.includes('ntfy.sh') ? Response.json({ id: 'sent' }) : undefined),
     });
     try {
-      const channelResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/notification-channels', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Ops ntfy', type: 'ntfy', enabled: true, config: { topic: 'rule-tests' } }),
-      }));
+      const channelResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/notification-channels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Ops ntfy', type: 'ntfy', enabled: true, config: { topic: 'rule-tests' } }),
+        }),
+      );
       expect(channelResponse.status).toBe(201);
-      const channel = await channelResponse.json() as { id: string };
-      const ruleResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/notification-rules', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Admin bans', type: 'ip-ban', enabled: false, severity: 'warning', channel_ids: [channel.id], config: { window_minutes: 60 } }),
-      }));
+      const channel = (await channelResponse.json()) as { id: string };
+      const ruleResponse = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/notification-rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'Admin bans',
+            type: 'ip-ban',
+            enabled: false,
+            severity: 'warning',
+            channel_ids: [channel.id],
+            config: { window_minutes: 60 },
+          }),
+        }),
+      );
       expect(ruleResponse.status).toBe(201);
-      const rule = await ruleResponse.json() as { id: string };
+      const rule = (await ruleResponse.json()) as { id: string };
 
-      const response = await controller.fetch(new Request(`http://localhost/crowdsec/api/notification-rules/${rule.id}/test`, { method: 'POST' }));
+      const response = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/notification-rules/${rule.id}/test`, { method: 'POST' }),
+      );
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
-        source: 'sample', title: '[TEST] Admin bans: IP banned',
+        source: 'sample',
+        title: '[TEST] Admin bans: IP banned',
         deliveries: [expect.objectContaining({ status: 'delivered', channel_id: channel.id })],
       });
       expect(database.countNotifications()).toBe(0);
@@ -82,7 +89,7 @@ describe('createApp notification rules', () => {
       }),
     );
     expect(createChannel.status).toBe(201);
-    const channelPayload = await createChannel.json() as { id: string };
+    const channelPayload = (await createChannel.json()) as { id: string };
 
     const createRule = await controller.fetch(
       new Request('http://localhost/crowdsec/api/notification-rules', {
@@ -105,17 +112,21 @@ describe('createApp notification rules', () => {
 
     const notifications = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications'));
     expect(notifications.status).toBe(200);
-    expect((await notifications.json()) as {
-      data: Array<{ rule_type: string; title: string; metadata: { remote_version?: string | null } }>;
-    }).toEqual(expect.objectContaining({
-      data: [
-        expect.objectContaining({
-          rule_type: 'application-update',
-          title: 'App updates: application update available',
-          metadata: expect.objectContaining({ remote_version: '2.0.0' }),
-        }),
-      ],
-    }));
+    expect(
+      (await notifications.json()) as {
+        data: Array<{ rule_type: string; title: string; metadata: { remote_version?: string | null } }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            rule_type: 'application-update',
+            title: 'App updates: application update available',
+            metadata: expect.objectContaining({ remote_version: '2.0.0' }),
+          }),
+        ],
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -130,41 +141,47 @@ describe('createApp notification rules', () => {
         if (url.includes('/v1/alerts?')) return Response.json([]);
         return undefined;
       },
-      crowdsecUpdateChecker: async () => [{
-        instanceId: 'edge',
-        instanceName: 'Edge',
-        endpointId: 'metrics',
-        endpointName: 'Metrics',
-        currentVersion: 'v1.7.8',
-        remoteVersion: 'v1.8.0',
-        releaseUrl: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.0',
-        updateAvailable: true,
-      }],
+      crowdsecUpdateChecker: async () => [
+        {
+          instanceId: 'edge',
+          instanceName: 'Edge',
+          endpointId: 'metrics',
+          endpointName: 'Metrics',
+          currentVersion: 'v1.7.8',
+          remoteVersion: 'v1.8.0',
+          releaseUrl: 'https://github.com/crowdsecurity/crowdsec/releases/tag/v1.8.0',
+          updateAvailable: true,
+        },
+      ],
     });
 
     try {
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/notification-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'CrowdSec updates',
-          type: 'crowdsec-update',
-          enabled: true,
-          severity: 'info',
-          channel_ids: [],
-          config: {},
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/notification-rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: 'CrowdSec updates',
+            type: 'crowdsec-update',
+            enabled: true,
+            severity: 'info',
+            channel_ids: [],
+            config: {},
+          }),
         }),
-      }));
+      );
       expect(response.status).toBe(201);
       expect(await response.json()).toMatchObject({ type: 'crowdsec-update', config: {} });
 
       expect((await controller.fetch(new Request('http://localhost/crowdsec/api/alerts'))).status).toBe(200);
       const notifications = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications'));
       expect(await notifications.json()).toMatchObject({
-        data: [expect.objectContaining({
-          rule_type: 'crowdsec-update',
-          metadata: expect.objectContaining({ endpoint_id: 'metrics', remote_version: 'v1.8.0' }),
-        })],
+        data: [
+          expect.objectContaining({
+            rule_type: 'crowdsec-update',
+            metadata: expect.objectContaining({ endpoint_id: 'metrics', remote_version: 'v1.8.0' }),
+          }),
+        ],
       });
     } finally {
       controller.stopBackgroundTasks();
@@ -224,21 +241,30 @@ describe('createApp notification rules', () => {
 
     const notifications = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications'));
     expect(notifications.status).toBe(200);
-    expect((await notifications.json()) as {
-      data: Array<{ rule_type: string; title: string; severity: string; metadata: { offline_since?: string; last_error?: string } }>;
-    }).toEqual(expect.objectContaining({
-      data: [
-        expect.objectContaining({
-          rule_type: 'lapi-availability',
-          title: 'LAPI health: LAPI unavailable',
-          severity: 'critical',
-          metadata: expect.objectContaining({
-            offline_since: offlineSince,
-            last_error: 'LAPI offline',
+    expect(
+      (await notifications.json()) as {
+        data: Array<{
+          rule_type: string;
+          title: string;
+          severity: string;
+          metadata: { offline_since?: string; last_error?: string };
+        }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            rule_type: 'lapi-availability',
+            title: 'LAPI health: LAPI unavailable',
+            severity: 'critical',
+            metadata: expect.objectContaining({
+              offline_since: offlineSince,
+              last_error: 'LAPI offline',
+            }),
           }),
-        }),
-      ],
-    }));
+        ],
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -294,7 +320,11 @@ describe('createApp notification rules', () => {
 
     const configAfterFailure = await controller.fetch(new Request('http://localhost/crowdsec/api/config'));
     expect(configAfterFailure.status).toBe(200);
-    expect((await configAfterFailure.json()) as { lapi_status: { isConnected: boolean; offline_since: string | null; lastError: string | null } }).toEqual(
+    expect(
+      (await configAfterFailure.json()) as {
+        lapi_status: { isConnected: boolean; offline_since: string | null; lastError: string | null };
+      },
+    ).toEqual(
       expect.objectContaining({
         lapi_status: expect.objectContaining({
           isConnected: false,
@@ -312,21 +342,30 @@ describe('createApp notification rules', () => {
 
     const notifications = await controller.fetch(new Request('http://localhost/crowdsec/api/notifications'));
     expect(notifications.status).toBe(200);
-    expect((await notifications.json()) as {
-      data: Array<{ rule_type: string; title: string; severity: string; metadata: { offline_since?: string; last_error?: string } }>;
-    }).toEqual(expect.objectContaining({
-      data: [
-        expect.objectContaining({
-          rule_type: 'lapi-availability',
-          title: 'LAPI health: LAPI unavailable',
-          severity: 'critical',
-          metadata: expect.objectContaining({
-            offline_since: offlineSince,
-            last_error: 'fetch failed',
+    expect(
+      (await notifications.json()) as {
+        data: Array<{
+          rule_type: string;
+          title: string;
+          severity: string;
+          metadata: { offline_since?: string; last_error?: string };
+        }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            rule_type: 'lapi-availability',
+            title: 'LAPI health: LAPI unavailable',
+            severity: 'critical',
+            metadata: expect.objectContaining({
+              offline_since: offlineSince,
+              last_error: 'fetch failed',
+            }),
           }),
-        }),
-      ],
-    }));
+        ],
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();

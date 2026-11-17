@@ -1,6 +1,7 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
+
 import type { LapiStatus } from '../../../shared/contracts';
-import { createAlert, createDecision, createService, insertAlert, insertDecision } from './harness';
+import { createService } from './harness';
 
 describe('LAPI availability notifications', () => {
   test('lapi availability rules wait for the threshold, dedupe outages, and resolve silently by default', async () => {
@@ -85,14 +86,16 @@ describe('LAPI availability notifications', () => {
     };
     await service.evaluateRules(new Date('2026-03-28T12:05:10.000Z'));
     expect(service.listNotifications().data).toHaveLength(2);
-    expect(service.listNotifications().data[0]).toEqual(expect.objectContaining({
-      rule_type: 'lapi-availability',
-      title: 'LAPI health: LAPI unavailable',
-      metadata: expect.objectContaining({
-        offline_since: '2026-03-28T12:04:00.000Z',
-        outage_duration_seconds: 70,
+    expect(service.listNotifications().data[0]).toEqual(
+      expect.objectContaining({
+        rule_type: 'lapi-availability',
+        title: 'LAPI health: LAPI unavailable',
+        metadata: expect.objectContaining({
+          offline_since: '2026-03-28T12:04:00.000Z',
+          outage_duration_seconds: 70,
+        }),
       }),
-    }));
+    );
 
     database.close();
   });
@@ -111,11 +114,12 @@ describe('LAPI availability notifications', () => {
     const { database, service } = createService({
       instanceAware: true,
       instances,
-      getLapiStatuses: () => instances.map((instance) => ({
-        instanceId: instance.id,
-        instanceName: instance.name,
-        status: offlineStatus,
-      })),
+      getLapiStatuses: () =>
+        instances.map((instance) => ({
+          instanceId: instance.id,
+          instanceName: instance.name,
+          status: offlineStatus,
+        })),
     });
     await service.createRule({
       name: 'LAPI health',
@@ -131,16 +135,18 @@ describe('LAPI availability notifications', () => {
 
     await service.evaluateRules(new Date('2026-03-28T12:00:00.000Z'));
 
-    expect(service.listNotifications().data).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        title: '[Primary] LAPI health: LAPI unavailable',
-        metadata: expect.objectContaining({ instance_id: 'primary', instance_name: 'Primary' }),
-      }),
-      expect.objectContaining({
-        title: '[Edge] LAPI health: LAPI unavailable',
-        metadata: expect.objectContaining({ instance_id: 'edge', instance_name: 'Edge' }),
-      }),
-    ]));
+    expect(service.listNotifications().data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: '[Primary] LAPI health: LAPI unavailable',
+          metadata: expect.objectContaining({ instance_id: 'primary', instance_name: 'Primary' }),
+        }),
+        expect.objectContaining({
+          title: '[Edge] LAPI health: LAPI unavailable',
+          metadata: expect.objectContaining({ instance_id: 'edge', instance_name: 'Edge' }),
+        }),
+      ]),
+    );
     expect(service.listNotifications().data).toHaveLength(2);
 
     database.close();
@@ -181,20 +187,24 @@ describe('LAPI availability notifications', () => {
     await service.evaluateRules(new Date('2026-03-28T12:11:30.000Z'));
 
     expect(service.listNotifications().data).toHaveLength(2);
-    expect(service.listNotifications().data[0]).toEqual(expect.objectContaining({
-      rule_type: 'lapi-availability',
-      severity: 'info',
-      title: 'LAPI health: LAPI recovered',
-      metadata: expect.objectContaining({
-        offline_since: '2026-03-28T12:08:30.000Z',
-        recovered_at: '2026-03-28T12:11:00.000Z',
-        outage_duration_seconds: 150,
+    expect(service.listNotifications().data[0]).toEqual(
+      expect.objectContaining({
+        rule_type: 'lapi-availability',
+        severity: 'info',
+        title: 'LAPI health: LAPI recovered',
+        metadata: expect.objectContaining({
+          offline_since: '2026-03-28T12:08:30.000Z',
+          recovered_at: '2026-03-28T12:11:00.000Z',
+          outage_duration_seconds: 150,
+        }),
       }),
-    }));
-    expect(service.listNotifications().data[1]).toEqual(expect.objectContaining({
-      severity: 'critical',
-      title: 'LAPI health: LAPI unavailable',
-    }));
+    );
+    expect(service.listNotifications().data[1]).toEqual(
+      expect.objectContaining({
+        severity: 'critical',
+        title: 'LAPI health: LAPI unavailable',
+      }),
+    );
 
     database.close();
   });

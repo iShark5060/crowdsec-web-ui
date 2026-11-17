@@ -50,181 +50,217 @@ let activeFetchImplementation: typeof fetch | null = null;
 const RECENT_GET_CACHE_MS = 500;
 
 function resetRequestCachesIfFetchChanged(): void {
-    if (activeFetchImplementation === globalThis.fetch) {
-        return;
-    }
-    activeFetchImplementation = globalThis.fetch;
-    inFlightGetRequests.clear();
-    recentGetResponses.clear();
+  if (activeFetchImplementation === globalThis.fetch) {
+    return;
+  }
+  activeFetchImplementation = globalThis.fetch;
+  inFlightGetRequests.clear();
+  recentGetResponses.clear();
 }
 
 function clearGetCaches(): void {
-    inFlightGetRequests.clear();
-    recentGetResponses.clear();
+  inFlightGetRequests.clear();
+  recentGetResponses.clear();
 }
 
-async function requestJson<T>(url: string, init: RequestInit | undefined, defaultMsg: string | undefined): Promise<T> {
-    const response = await sessionFetch(url, init);
-    if (!response.ok) {
-        throw new Error(defaultMsg || 'Request failed');
-    }
-    return response.json() as Promise<T>;
+async function requestJson<T>(
+  url: string,
+  init: RequestInit | undefined,
+  defaultMsg: string | undefined,
+): Promise<T> {
+  const response = await sessionFetch(url, init);
+  if (!response.ok) {
+    throw new Error(defaultMsg || 'Request failed');
+  }
+  return response.json() as Promise<T>;
 }
 
 async function fetchJson<T>(input: string, init?: RequestInit, defaultMsg?: string): Promise<T> {
-    resetRequestCachesIfFetchChanged();
-    const url = apiUrl(input);
-    if (init === undefined) {
-        const recentResponse = recentGetResponses.get(url);
-        if (recentResponse && recentResponse.expiresAt > Date.now()) {
-            return recentResponse.value as T;
-        }
-        if (recentResponse) {
-            recentGetResponses.delete(url);
-        }
-
-        const inFlightRequest = inFlightGetRequests.get(url);
-        if (inFlightRequest) {
-            return inFlightRequest as Promise<T>;
-        }
-
-        const request = requestJson<T>(url, init, defaultMsg).then((value) => {
-            recentGetResponses.set(url, {
-                expiresAt: Date.now() + RECENT_GET_CACHE_MS,
-                value,
-            });
-            return value;
-        }).finally(() => {
-            if (inFlightGetRequests.get(url) === request) {
-                inFlightGetRequests.delete(url);
-            }
-        });
-        inFlightGetRequests.set(url, request);
-        return request;
+  resetRequestCachesIfFetchChanged();
+  const url = apiUrl(input);
+  if (init === undefined) {
+    const recentResponse = recentGetResponses.get(url);
+    if (recentResponse && recentResponse.expiresAt > Date.now()) {
+      return recentResponse.value as T;
+    }
+    if (recentResponse) {
+      recentGetResponses.delete(url);
     }
 
-    return requestJson<T>(url, init, defaultMsg);
+    const inFlightRequest = inFlightGetRequests.get(url);
+    if (inFlightRequest) {
+      return inFlightRequest as Promise<T>;
+    }
+
+    const request = requestJson<T>(url, init, defaultMsg)
+      .then((value) => {
+        recentGetResponses.set(url, {
+          expiresAt: Date.now() + RECENT_GET_CACHE_MS,
+          value,
+        });
+        return value;
+      })
+      .finally(() => {
+        if (inFlightGetRequests.get(url) === request) {
+          inFlightGetRequests.delete(url);
+        }
+      });
+    inFlightGetRequests.set(url, request);
+    return request;
+  }
+
+  return requestJson<T>(url, init, defaultMsg);
 }
 
 export async function fetchAlerts(): Promise<SlimAlert[]> {
-    return fetchJson<SlimAlert[]>('/api/alerts', undefined, 'Failed to fetch alerts');
+  return fetchJson<SlimAlert[]>('/api/alerts', undefined, 'Failed to fetch alerts');
 }
 
 export async function fetchAlertsPaginated(
-    page: number,
-    pageSize = 50,
-    filters?: Record<string, string>,
+  page: number,
+  pageSize = 50,
+  filters?: Record<string, string>,
 ): Promise<PaginatedResponse<SlimAlert>> {
-    const params = new URLSearchParams({
-        page: String(page),
-        page_size: String(pageSize),
-        include_decisions: 'false',
-    });
-    for (const [key, value] of Object.entries(filters ?? {})) {
-        if (value) params.set(key, value);
-    }
-    return fetchJson<PaginatedResponse<SlimAlert>>(`/api/alerts?${params.toString()}`, undefined, 'Failed to fetch alerts');
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    include_decisions: 'false',
+  });
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) params.set(key, value);
+  }
+  return fetchJson<PaginatedResponse<SlimAlert>>(
+    `/api/alerts?${params.toString()}`,
+    undefined,
+    'Failed to fetch alerts',
+  );
 }
 
 export async function fetchAlertSessionsPaginated(
-    page: number,
-    pageSize = 50,
-    filters?: Record<string, string>,
+  page: number,
+  pageSize = 50,
+  filters?: Record<string, string>,
 ): Promise<AlertSessionsResponse> {
-    const params = new URLSearchParams({
-        page: String(page),
-        page_size: String(pageSize),
-    });
-    for (const [key, value] of Object.entries(filters ?? {})) {
-        if (value) params.set(key, value);
-    }
-    return fetchJson<AlertSessionsResponse>(`/api/alerts/sessions?${params.toString()}`, undefined, 'Failed to fetch alert sessions');
+  const params = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) params.set(key, value);
+  }
+  return fetchJson<AlertSessionsResponse>(
+    `/api/alerts/sessions?${params.toString()}`,
+    undefined,
+    'Failed to fetch alert sessions',
+  );
 }
 
 export async function fetchAlert(id: string | number, instanceId?: string): Promise<AlertRecord> {
-    const path = instanceId
-        ? `/api/instances/${encodeURIComponent(instanceId)}/alerts/${encodeURIComponent(String(id))}`
-        : `/api/alerts/${encodeURIComponent(String(id))}?include_decisions=false`;
-    const payload = await fetchJson<AlertRecord | AlertRecord[]>(path, undefined, 'Failed to fetch alert');
-    if (Array.isArray(payload)) {
-        const alert = payload[0];
-        if (!alert) {
-            throw new Error('Failed to fetch alert');
-        }
-        return alert;
+  const path = instanceId
+    ? `/api/instances/${encodeURIComponent(instanceId)}/alerts/${encodeURIComponent(String(id))}`
+    : `/api/alerts/${encodeURIComponent(String(id))}?include_decisions=false`;
+  const payload = await fetchJson<AlertRecord | AlertRecord[]>(
+    path,
+    undefined,
+    'Failed to fetch alert',
+  );
+  if (Array.isArray(payload)) {
+    const alert = payload[0];
+    if (!alert) {
+      throw new Error('Failed to fetch alert');
     }
-    return payload;
+    return alert;
+  }
+  return payload;
 }
 
 export async function fetchDecisions(): Promise<DecisionListItem[]> {
-    return fetchJson<DecisionListItem[]>('/api/decisions', undefined, 'Failed to fetch decisions');
+  return fetchJson<DecisionListItem[]>('/api/decisions', undefined, 'Failed to fetch decisions');
 }
 
 export async function fetchDecisionsPaginated(
-    page: number,
-    pageSize = 50,
-    filters?: Record<string, string>,
+  page: number,
+  pageSize = 50,
+  filters?: Record<string, string>,
 ): Promise<PaginatedResponse<DecisionListItem>> {
-    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-    for (const [key, value] of Object.entries(filters ?? {})) {
-        if (value) params.set(key, value);
-    }
-    return fetchJson<PaginatedResponse<DecisionListItem>>(`/api/decisions?${params.toString()}`, undefined, 'Failed to fetch decisions');
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) params.set(key, value);
+  }
+  return fetchJson<PaginatedResponse<DecisionListItem>>(
+    `/api/decisions?${params.toString()}`,
+    undefined,
+    'Failed to fetch decisions',
+  );
 }
 
 export async function fetchFacet(
-    page: 'alerts' | 'decisions',
-    field: FacetField,
-    filters?: Record<string, string>,
-    options: { search?: string; searchValues?: string[]; offset?: number; limit?: number; signal?: AbortSignal } = {},
+  page: 'alerts' | 'decisions',
+  field: FacetField,
+  filters?: Record<string, string>,
+  options: {
+    search?: string;
+    searchValues?: string[];
+    offset?: number;
+    limit?: number;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<FacetResponse> {
-    const params = new URLSearchParams({
-        field,
-        offset: String(options.offset ?? 0),
-        limit: String(options.limit ?? 10),
-    });
-    if (options.search) params.set('search', options.search);
-    if (options.searchValues?.length) {
-        params.set('search_values', JSON.stringify(options.searchValues));
-    }
-    for (const [key, value] of Object.entries(filters ?? {})) {
-        if (value) params.set(key, value);
-    }
-    return fetchJson<FacetResponse>(
-        `/api/${page}/facets?${params.toString()}`,
-        { signal: options.signal },
-        `Failed to fetch ${page} facets`,
-    );
+  const params = new URLSearchParams({
+    field,
+    offset: String(options.offset ?? 0),
+    limit: String(options.limit ?? 10),
+  });
+  if (options.search) params.set('search', options.search);
+  if (options.searchValues?.length) {
+    params.set('search_values', JSON.stringify(options.searchValues));
+  }
+  for (const [key, value] of Object.entries(filters ?? {})) {
+    if (value) params.set(key, value);
+  }
+  return fetchJson<FacetResponse>(
+    `/api/${page}/facets?${params.toString()}`,
+    { signal: options.signal },
+    `Failed to fetch ${page} facets`,
+  );
 }
 
 async function parseErrorPayload(res: Response): Promise<{ error?: string; code?: string }> {
-    try {
-        return await res.clone().json() as { error?: string; code?: string };
-    } catch {
-        return {};
-    }
+  try {
+    return (await res.clone().json()) as { error?: string; code?: string };
+  } catch {
+    return {};
+  }
 }
 
 // Helper to handle API errors with specific 403 guidance
-async function handleApiError(res: Response, defaultMsg: string, operationName = 'Delete Operations'): Promise<void> {
-    if (!res.ok) {
-        if (res.status === 403) {
-            const payload = await parseErrorPayload(res);
-            if (payload.code === 'READ_ONLY') {
-                throw new Error(payload.error || 'Read-only mode is enabled');
-            }
+async function handleApiError(
+  res: Response,
+  defaultMsg: string,
+  operationName = 'Delete Operations',
+): Promise<void> {
+  if (!res.ok) {
+    if (res.status === 403) {
+      const payload = await parseErrorPayload(res);
+      if (payload.code === 'READ_ONLY') {
+        throw new Error(payload.error || 'Read-only mode is enabled');
+      }
 
-            const repoUrl = import.meta.env.VITE_REPO_URL || 'https://github.com/TheDuffman85/crowdsec-web-ui';
-            const error = new Error('Permission denied.') as ApiPermissionError;
-            error.helpLink = `${repoUrl}#trusted-ips-for-delete-operations-optional`;
-            error.helpText = `Trusted IPs for ${operationName}`;
-            throw error;
-        }
-        throw new Error(defaultMsg);
+      const repoUrl =
+        import.meta.env.VITE_REPO_URL || 'https://github.com/TheDuffman85/crowdsec-web-ui';
+      const error = new Error('Permission denied.') as ApiPermissionError;
+      error.helpLink = `${repoUrl}#trusted-ips-for-delete-operations-optional`;
+      error.helpText = `Trusted IPs for ${operationName}`;
+      throw error;
     }
+    throw new Error(defaultMsg);
+  }
 }
 
-export async function deleteAlert(id: string | number, instanceId?: string): Promise<BulkDeleteResult | null> {
+export async function deleteAlert(
+  id: string | number,
+  instanceId?: string,
+): Promise<BulkDeleteResult | null> {
   const path = instanceId
     ? `/api/instances/${encodeURIComponent(instanceId)}/alerts/${encodeURIComponent(String(id))}`
     : `/api/alerts/${encodeURIComponent(String(id))}`;
@@ -235,33 +271,49 @@ export async function deleteAlert(id: string | number, instanceId?: string): Pro
   return res.json() as Promise<BulkDeleteResult>;
 }
 
-async function postDestructiveJson<TResponse, TBody>(input: string, body: TBody, defaultMsg: string): Promise<TResponse> {
+async function postDestructiveJson<TResponse, TBody>(
+  input: string,
+  body: TBody,
+  defaultMsg: string,
+): Promise<TResponse> {
   const res = await sessionFetch(apiUrl(input), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   await handleApiError(res, defaultMsg);
-  const payload = await res.json() as TResponse;
+  const payload = (await res.json()) as TResponse;
   clearGetCaches();
   return payload;
 }
 
-export async function bulkDeleteAlerts(refsOrIds: InstanceEntityRef[] | Array<string | number>): Promise<BulkDeleteResult> {
+export async function bulkDeleteAlerts(
+  refsOrIds: InstanceEntityRef[] | Array<string | number>,
+): Promise<BulkDeleteResult> {
   const usesRefs = typeof refsOrIds[0] === 'object';
   return postDestructiveJson<BulkDeleteResult, BulkDeleteRequest>(
     '/api/alerts/bulk-delete',
-    usesRefs ? { refs: refsOrIds as InstanceEntityRef[] } : { ids: refsOrIds as Array<string | number> },
+    usesRefs
+      ? { refs: refsOrIds as InstanceEntityRef[] }
+      : { ids: refsOrIds as Array<string | number> },
     'Failed to delete selected alerts',
   );
 }
 
 export async function fetchDecisionsForStats(): Promise<StatsDecision[]> {
-  return fetchJson<StatsDecision[]>('/api/stats/decisions', undefined, 'Failed to fetch decision statistics');
+  return fetchJson<StatsDecision[]>(
+    '/api/stats/decisions',
+    undefined,
+    'Failed to fetch decision statistics',
+  );
 }
 
 export async function fetchAlertsForStats(): Promise<StatsAlert[]> {
-    return fetchJson<StatsAlert[]>('/api/stats/alerts', undefined, 'Failed to fetch alert statistics');
+  return fetchJson<StatsAlert[]>(
+    '/api/stats/alerts',
+    undefined,
+    'Failed to fetch alert statistics',
+  );
 }
 
 export async function fetchDashboardStats(
@@ -291,22 +343,25 @@ export async function deleteDecision(id: string | number, instanceId?: string): 
   return res.json();
 }
 
-export async function bulkDeleteDecisions(refsOrIds: InstanceEntityRef[] | Array<string | number>): Promise<BulkDeleteResult> {
+export async function bulkDeleteDecisions(
+  refsOrIds: InstanceEntityRef[] | Array<string | number>,
+): Promise<BulkDeleteResult> {
   const usesRefs = typeof refsOrIds[0] === 'object';
   return postDestructiveJson<BulkDeleteResult, BulkDeleteRequest>(
     '/api/decisions/bulk-delete',
-    usesRefs ? { refs: refsOrIds as InstanceEntityRef[] } : { ids: refsOrIds as Array<string | number> },
+    usesRefs
+      ? { refs: refsOrIds as InstanceEntityRef[] }
+      : { ids: refsOrIds as Array<string | number> },
     'Failed to delete selected decisions',
   );
 }
 
 export async function cleanupByIp(request: CleanupByIpRequest | string): Promise<BulkDeleteResult> {
   const data: CleanupByIpRequest = typeof request === 'string' ? { ip: request } : request;
-  const payload = await postDestructiveJson<BulkDeleteResult | MultiInstanceOperationResponse, CleanupByIpRequest>(
-    '/api/cleanup/by-ip',
-    data,
-    'Failed to delete entries for this IP',
-  );
+  const payload = await postDestructiveJson<
+    BulkDeleteResult | MultiInstanceOperationResponse,
+    CleanupByIpRequest
+  >('/api/cleanup/by-ip', data, 'Failed to delete entries for this IP');
   if (!('results' in payload)) return payload;
   const combined: BulkDeleteResult = {
     requested_alerts: 0,
@@ -319,7 +374,11 @@ export async function cleanupByIp(request: CleanupByIpRequest | string): Promise
   };
   for (const operation of payload.results) {
     if (!operation.success) {
-      combined.failed.push({ kind: 'alert', id: data.ip, error: `${operation.instance_name}: ${operation.error || 'Failed'}` });
+      combined.failed.push({
+        kind: 'alert',
+        id: data.ip,
+        error: `${operation.instance_name}: ${operation.error || 'Failed'}`,
+      });
       continue;
     }
     const result = operation.result as BulkDeleteResult | undefined;
@@ -328,298 +387,437 @@ export async function cleanupByIp(request: CleanupByIpRequest | string): Promise
     combined.requested_decisions += result.requested_decisions;
     combined.deleted_alerts += result.deleted_alerts;
     combined.deleted_decisions += result.deleted_decisions;
-    combined.failed.push(...result.failed.map((failure) => ({
-      ...failure,
-      error: `${operation.instance_name}: ${failure.error}`,
-    })));
+    combined.failed.push(
+      ...result.failed.map((failure) => ({
+        ...failure,
+        error: `${operation.instance_name}: ${failure.error}`,
+      })),
+    );
   }
   return combined;
 }
 
 export async function addDecision(data: AddDecisionRequest): Promise<unknown> {
-    const res = await sessionFetch(apiUrl('/api/decisions'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    const payload = await res.clone().json().catch(() => null) as MultiInstanceOperationResponse | unknown;
-    if (res.status === 409 && (payload as Partial<AllowlistedDecisionResponse> | null)?.code === 'ALLOWLISTED') {
-        const { error, allowlisted } = payload as AllowlistedDecisionResponse;
-        throw Object.assign(new Error(error), { code: 'ALLOWLISTED', allowlisted }) as AllowlistedDecisionError;
-    }
-    if (!res.ok && (!payload || typeof payload !== 'object' || !('results' in payload))) {
-        await handleApiError(res, 'Failed to add decision', 'Write Operations');
-    }
-    clearGetCaches();
-    return payload;
+  const res = await sessionFetch(apiUrl('/api/decisions'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const payload = (await res
+    .clone()
+    .json()
+    .catch(() => null)) as MultiInstanceOperationResponse | unknown;
+  if (
+    res.status === 409 &&
+    (payload as Partial<AllowlistedDecisionResponse> | null)?.code === 'ALLOWLISTED'
+  ) {
+    const { error, allowlisted } = payload as AllowlistedDecisionResponse;
+    throw Object.assign(new Error(error), {
+      code: 'ALLOWLISTED',
+      allowlisted,
+    }) as AllowlistedDecisionError;
+  }
+  if (!res.ok && (!payload || typeof payload !== 'object' || !('results' in payload))) {
+    await handleApiError(res, 'Failed to add decision', 'Write Operations');
+  }
+  clearGetCaches();
+  return payload;
 }
 
 /** Adds one decision per value. Allowlisted values are skipped and returned unless `bypass_allowlist` is set. */
 export async function addDecisions(data: BulkAddDecisionRequest): Promise<BulkAddDecisionResponse> {
-    const res = await sessionFetch(apiUrl('/api/decisions/bulk-add'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    });
-    const payload = await res.clone().json().catch(() => null) as BulkAddDecisionResponse | null;
-    if (!res.ok && (!payload || typeof payload !== 'object' || !Array.isArray(payload.results))) {
-        await handleApiError(res, 'Failed to add decisions', 'Write Operations');
-    }
-    clearGetCaches();
-    return payload as BulkAddDecisionResponse;
+  const res = await sessionFetch(apiUrl('/api/decisions/bulk-add'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  const payload = (await res
+    .clone()
+    .json()
+    .catch(() => null)) as BulkAddDecisionResponse | null;
+  if (!res.ok && (!payload || typeof payload !== 'object' || !Array.isArray(payload.results))) {
+    await handleApiError(res, 'Failed to add decisions', 'Write Operations');
+  }
+  clearGetCaches();
+  return payload as BulkAddDecisionResponse;
 }
 
 /** Returns the active manual decisions for the given values, at most `MANUAL_DECISION_LOOKUP_MAX`. */
-export async function lookupManualDecisions(values: string[], signal?: AbortSignal): Promise<ManualDecisionLookupResponse> {
-    const res = await sessionFetch(apiUrl('/api/decisions/manual-lookup'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values }),
-        signal,
-    });
-    if (!res.ok) throw new Error('Failed to look up manual decisions');
-    return await res.json() as ManualDecisionLookupResponse;
+export async function lookupManualDecisions(
+  values: string[],
+  signal?: AbortSignal,
+): Promise<ManualDecisionLookupResponse> {
+  const res = await sessionFetch(apiUrl('/api/decisions/manual-lookup'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+    signal,
+  });
+  if (!res.ok) throw new Error('Failed to look up manual decisions');
+  return (await res.json()) as ManualDecisionLookupResponse;
 }
 
-export async function fetchAllowlists(instanceScope: string, query = ''): Promise<AllowlistsResponse> {
-    const params = new URLSearchParams({ instance: instanceScope });
-    if (query) params.set('q', query);
-    return fetchJson<AllowlistsResponse>(`/api/allowlists?${params.toString()}`, undefined, 'Failed to fetch allowlists');
+export async function fetchAllowlists(
+  instanceScope: string,
+  query = '',
+): Promise<AllowlistsResponse> {
+  const params = new URLSearchParams({ instance: instanceScope });
+  if (query) params.set('q', query);
+  return fetchJson<AllowlistsResponse>(
+    `/api/allowlists?${params.toString()}`,
+    undefined,
+    'Failed to fetch allowlists',
+  );
 }
 
 export async function fetchAllowlistEntries(
-    name: string,
-    instanceScope: string,
-    page: number,
-    pageSize = 50,
-    query = '',
+  name: string,
+  instanceScope: string,
+  page: number,
+  pageSize = 50,
+  query = '',
 ): Promise<AllowlistEntriesResponse> {
-    const params = new URLSearchParams({ instance: instanceScope, page: String(page), page_size: String(pageSize) });
-    if (query) params.set('q', query);
-    return fetchJson<AllowlistEntriesResponse>(
-        `/api/allowlists/${encodeURIComponent(name)}/entries?${params.toString()}`,
-        undefined,
-        'Failed to fetch allowlist entries',
-    );
+  const params = new URLSearchParams({
+    instance: instanceScope,
+    page: String(page),
+    page_size: String(pageSize),
+  });
+  if (query) params.set('q', query);
+  return fetchJson<AllowlistEntriesResponse>(
+    `/api/allowlists/${encodeURIComponent(name)}/entries?${params.toString()}`,
+    undefined,
+    'Failed to fetch allowlist entries',
+  );
 }
 
-export async function checkAllowlist(value: string, instanceScope: string): Promise<AllowlistCheckResponse> {
-    return fetchJson<AllowlistCheckResponse>(
-        `/api/allowlists/check?value=${encodeURIComponent(value)}&instance=${encodeURIComponent(instanceScope)}`,
-        undefined,
-        'Failed to check allowlists',
-    );
+export async function checkAllowlist(
+  value: string,
+  instanceScope: string,
+): Promise<AllowlistCheckResponse> {
+  return fetchJson<AllowlistCheckResponse>(
+    `/api/allowlists/check?value=${encodeURIComponent(value)}&instance=${encodeURIComponent(instanceScope)}`,
+    undefined,
+    'Failed to check allowlists',
+  );
 }
 
 export async function fetchConfig(): Promise<ConfigResponse> {
-    return fetchJson<ConfigResponse>('/api/config', undefined, 'Failed to fetch config');
+  return fetchJson<ConfigResponse>('/api/config', undefined, 'Failed to fetch config');
 }
 
-export async function fetchCrowdsecMetrics(instanceId?: string, endpointId?: string): Promise<CrowdsecMetricsResponse> {
-    const path = instanceId && endpointId
-        ? `/api/instances/${encodeURIComponent(instanceId)}/metrics/${encodeURIComponent(endpointId)}`
-        : '/api/metrics/crowdsec';
-    return fetchJson<CrowdsecMetricsResponse>(path, undefined, 'Failed to fetch CrowdSec metrics');
+export async function fetchCrowdsecMetrics(
+  instanceId?: string,
+  endpointId?: string,
+): Promise<CrowdsecMetricsResponse> {
+  const path =
+    instanceId && endpointId
+      ? `/api/instances/${encodeURIComponent(instanceId)}/metrics/${encodeURIComponent(endpointId)}`
+      : '/api/metrics/crowdsec';
+  return fetchJson<CrowdsecMetricsResponse>(path, undefined, 'Failed to fetch CrowdSec metrics');
 }
 
-export async function fetchCombinedCrowdsecMetrics(instanceScope: string): Promise<CrowdsecMetricsResponse> {
-    return fetchJson<CrowdsecMetricsResponse>(
-        `/api/metrics/crowdsec/combined?instance=${encodeURIComponent(instanceScope)}`,
-        undefined,
-        'Failed to fetch combined CrowdSec metrics',
-    );
+export async function fetchCombinedCrowdsecMetrics(
+  instanceScope: string,
+): Promise<CrowdsecMetricsResponse> {
+  return fetchJson<CrowdsecMetricsResponse>(
+    `/api/metrics/crowdsec/combined?instance=${encodeURIComponent(instanceScope)}`,
+    undefined,
+    'Failed to fetch combined CrowdSec metrics',
+  );
 }
 
-export async function updateAllowlistsSidebarPreference(data: UpdateAllowlistsSidebarPreferenceRequest): Promise<{
-    success: boolean;
-    allowlists_sidebar_visible: boolean;
+export async function updateAllowlistsSidebarPreference(
+  data: UpdateAllowlistsSidebarPreferenceRequest,
+): Promise<{
+  success: boolean;
+  allowlists_sidebar_visible: boolean;
 }> {
-    return sendJson('/api/config/allowlists-sidebar', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to update allowlists sidebar preference');
+  return sendJson(
+    '/api/config/allowlists-sidebar',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to update allowlists sidebar preference',
+  );
 }
 
-export async function updateStatisticsSidebarPreference(data: UpdateStatisticsSidebarPreferenceRequest): Promise<{
-    success: boolean;
-    statistics_sidebar_visible: boolean;
+export async function updateStatisticsSidebarPreference(
+  data: UpdateStatisticsSidebarPreferenceRequest,
+): Promise<{
+  success: boolean;
+  statistics_sidebar_visible: boolean;
 }> {
-    return sendJson('/api/config/statistics-sidebar', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to update statistics sidebar preference');
+  return sendJson(
+    '/api/config/statistics-sidebar',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to update statistics sidebar preference',
+  );
 }
 
-export async function updateMetricsSidebarPreference(data: UpdateMetricsSidebarPreferenceRequest): Promise<{
-    success: boolean;
-    metrics_sidebar_visible: boolean;
+export async function updateMetricsSidebarPreference(
+  data: UpdateMetricsSidebarPreferenceRequest,
+): Promise<{
+  success: boolean;
+  metrics_sidebar_visible: boolean;
 }> {
-    return sendJson('/api/config/metrics-sidebar', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to update metrics sidebar preference');
+  return sendJson(
+    '/api/config/metrics-sidebar',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to update metrics sidebar preference',
+  );
 }
 
 export async function updateManualRefreshSetting(data: UpdateManualRefreshSettingRequest): Promise<{
-    success: boolean;
-    manual_refresh_enabled: boolean;
+  success: boolean;
+  manual_refresh_enabled: boolean;
 }> {
-    return sendJson('/api/config/manual-refresh', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to update manual refresh setting');
+  return sendJson(
+    '/api/config/manual-refresh',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to update manual refresh setting',
+  );
 }
 
-export async function updateManualDecisionScenarios(data: UpdateManualDecisionScenariosRequest): Promise<{
-    success: boolean;
-    manual_decision_scenario_settings: ManualDecisionScenarioSettings;
+export async function updateManualDecisionScenarios(
+  data: UpdateManualDecisionScenariosRequest,
+): Promise<{
+  success: boolean;
+  manual_decision_scenario_settings: ManualDecisionScenarioSettings;
 }> {
-    return sendJson('/api/config/manual-decision-scenarios', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to update manual decision scenarios');
+  return sendJson(
+    '/api/config/manual-decision-scenarios',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to update manual decision scenarios',
+  );
 }
 
 export async function updateLanguagePreference(language: string): Promise<{
-    success: boolean;
-    language: string;
+  success: boolean;
+  language: string;
 }> {
-    return sendJson('/api/config/language', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ language }),
-    }, 'Failed to update language preference');
+  return sendJson(
+    '/api/config/language',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ language }),
+    },
+    'Failed to update language preference',
+  );
 }
 
 export async function updateFontPreference(font: string): Promise<{
-    success: boolean;
-    font: string;
+  success: boolean;
+  font: string;
 }> {
-    return sendJson('/api/config/font', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ font }),
-    }, 'Failed to update font preference');
+  return sendJson(
+    '/api/config/font',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ font }),
+    },
+    'Failed to update font preference',
+  );
 }
 
 async function sendJson<T>(input: string, init: RequestInit, defaultMsg: string): Promise<T> {
-    const response = await sessionFetch(apiUrl(input), init);
-    if (!response.ok) {
-        let errorMessage = defaultMsg;
-        try {
-            const payload = await response.json() as { error?: string };
-            if (typeof payload.error === 'string' && payload.error) {
-                errorMessage = payload.error;
-            }
-        } catch {
-            // Ignore JSON parse issues and use the default message.
-        }
-        throw new Error(errorMessage);
+  const response = await sessionFetch(apiUrl(input), init);
+  if (!response.ok) {
+    let errorMessage = defaultMsg;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (typeof payload.error === 'string' && payload.error) {
+        errorMessage = payload.error;
+      }
+    } catch {
+      // Ignore JSON parse issues and use the default message.
     }
+    throw new Error(errorMessage);
+  }
 
-    if (response.status === 204) {
-        clearGetCaches();
-        return null as T;
-    }
-
-    const payload = await response.json() as T;
+  if (response.status === 204) {
     clearGetCaches();
-    return payload;
+    return null as T;
+  }
+
+  const payload = (await response.json()) as T;
+  clearGetCaches();
+  return payload;
 }
 
 export async function fetchNotificationSettings(): Promise<NotificationSettingsResponse> {
-    return fetchJson<NotificationSettingsResponse>('/api/notifications/settings', undefined, 'Failed to fetch notification settings');
+  return fetchJson<NotificationSettingsResponse>(
+    '/api/notifications/settings',
+    undefined,
+    'Failed to fetch notification settings',
+  );
 }
 
 export async function fetchNotifications(limit = 100): Promise<NotificationListResponse> {
-    return fetchNotificationsPaginated(1, limit);
+  return fetchNotificationsPaginated(1, limit);
 }
 
 export async function fetchNotificationsPaginated(
-    page = 1,
-    pageSize = 50,
+  page = 1,
+  pageSize = 50,
 ): Promise<NotificationListResponse> {
-    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
-    return fetchJson<NotificationListResponse>(`/api/notifications?${params.toString()}`, undefined, 'Failed to fetch notifications');
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  return fetchJson<NotificationListResponse>(
+    `/api/notifications?${params.toString()}`,
+    undefined,
+    'Failed to fetch notifications',
+  );
 }
 
-export async function createNotificationChannel(data: UpsertNotificationChannelRequest): Promise<NotificationChannel> {
-    return sendJson<NotificationChannel>('/api/notification-channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to create notification channel');
+export async function createNotificationChannel(
+  data: UpsertNotificationChannelRequest,
+): Promise<NotificationChannel> {
+  return sendJson<NotificationChannel>(
+    '/api/notification-channels',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to create notification channel',
+  );
 }
 
-export async function updateNotificationChannel(id: string, data: UpsertNotificationChannelRequest): Promise<NotificationChannel> {
-    return sendJson<NotificationChannel>(`/api/notification-channels/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to update notification channel');
+export async function updateNotificationChannel(
+  id: string,
+  data: UpsertNotificationChannelRequest,
+): Promise<NotificationChannel> {
+  return sendJson<NotificationChannel>(
+    `/api/notification-channels/${id}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to update notification channel',
+  );
 }
 
 export async function deleteNotificationChannel(id: string): Promise<void> {
-    await sendJson(`/api/notification-channels/${id}`, { method: 'DELETE' }, 'Failed to delete notification channel');
+  await sendJson(
+    `/api/notification-channels/${id}`,
+    { method: 'DELETE' },
+    'Failed to delete notification channel',
+  );
 }
 
 export async function testNotificationChannel(id: string): Promise<NotificationChannelTestResult> {
-    return sendJson<NotificationChannelTestResult>(`/api/notification-channels/${id}/test`, { method: 'POST' }, 'Failed to send test notification');
+  return sendJson<NotificationChannelTestResult>(
+    `/api/notification-channels/${id}/test`,
+    { method: 'POST' },
+    'Failed to send test notification',
+  );
 }
 
-export async function createNotificationRule(data: UpsertNotificationRuleRequest): Promise<NotificationRule> {
-    return sendJson<NotificationRule>('/api/notification-rules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to create notification rule');
+export async function createNotificationRule(
+  data: UpsertNotificationRuleRequest,
+): Promise<NotificationRule> {
+  return sendJson<NotificationRule>(
+    '/api/notification-rules',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to create notification rule',
+  );
 }
 
-export async function updateNotificationRule(id: string, data: UpsertNotificationRuleRequest): Promise<NotificationRule> {
-    return sendJson<NotificationRule>(`/api/notification-rules/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-    }, 'Failed to update notification rule');
+export async function updateNotificationRule(
+  id: string,
+  data: UpsertNotificationRuleRequest,
+): Promise<NotificationRule> {
+  return sendJson<NotificationRule>(
+    `/api/notification-rules/${id}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    },
+    'Failed to update notification rule',
+  );
 }
 
 export async function deleteNotificationRule(id: string): Promise<void> {
-    await sendJson(`/api/notification-rules/${id}`, { method: 'DELETE' }, 'Failed to delete notification rule');
+  await sendJson(
+    `/api/notification-rules/${id}`,
+    { method: 'DELETE' },
+    'Failed to delete notification rule',
+  );
 }
 
 export async function testNotificationRule(id: string): Promise<NotificationRuleTestResult> {
-    return sendJson<NotificationRuleTestResult>(`/api/notification-rules/${id}/test`, { method: 'POST' }, 'Failed to send rule test');
+  return sendJson<NotificationRuleTestResult>(
+    `/api/notification-rules/${id}/test`,
+    { method: 'POST' },
+    'Failed to send rule test',
+  );
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-    await sendJson(`/api/notifications/${id}/read`, { method: 'POST' }, 'Failed to mark notification as read');
+  await sendJson(
+    `/api/notifications/${id}/read`,
+    { method: 'POST' },
+    'Failed to mark notification as read',
+  );
 }
 
 export async function markNotificationsRead(ids: BulkDeleteRequest['ids']): Promise<void> {
-    await sendJson('/api/notifications/bulk-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-    }, 'Failed to mark selected notifications as read');
+  await sendJson(
+    '/api/notifications/bulk-read',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    },
+    'Failed to mark selected notifications as read',
+  );
 }
 
 export async function deleteNotification(id: string): Promise<void> {
-    await sendJson(`/api/notifications/${id}`, { method: 'DELETE' }, 'Failed to delete notification');
+  await sendJson(`/api/notifications/${id}`, { method: 'DELETE' }, 'Failed to delete notification');
 }
 
 export async function bulkDeleteNotifications(ids: BulkDeleteRequest['ids']): Promise<void> {
-    await sendJson('/api/notifications/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-    }, 'Failed to delete selected notifications');
+  await sendJson(
+    '/api/notifications/bulk-delete',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    },
+    'Failed to delete selected notifications',
+  );
 }
 
 export async function deleteReadNotifications(): Promise<void> {
-    await sendJson('/api/notifications/delete-read', { method: 'POST' }, 'Failed to delete read notifications');
+  await sendJson(
+    '/api/notifications/delete-read',
+    { method: 'POST' },
+    'Failed to delete read notifications',
+  );
 }

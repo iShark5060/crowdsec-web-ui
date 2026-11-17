@@ -1,10 +1,13 @@
-import { serve } from '@hono/node-server';
 import path from 'node:path';
+
+import { serve } from '@hono/node-server';
+
 import { createApp } from '../server/app';
 import { createRuntimeConfig } from '../server/config';
 import { CrowdsecDatabase } from '../server/database';
 
-const dbDir = process.env.DB_DIR || path.join(process.env.TMPDIR || '/tmp', 'crowdsec-web-ui-screenshots');
+const dbDir =
+  process.env.DB_DIR || path.join(process.env.TMPDIR || '/tmp', 'crowdsec-web-ui-screenshots');
 const configFile = path.join(dbDir, 'screenshot-config.yaml');
 const port = Number(process.env.CROWDSEC_SCREENSHOT_BACKEND_PORT || process.env.PORT || 3001);
 const demoHeartbeatTimestamp = Math.floor(Date.now() / 1_000);
@@ -57,21 +60,25 @@ cs_parsing_time_seconds_count{source="/var/log/nginx/access.log",type="nginx"} 9
 cs_parsing_time_seconds_sum{source="/var/log/nginx/access.log",type="nginx"} 13.812
 `;
 
-const config = createRuntimeConfig({
-  ...process.env,
-  PORT: String(port),
-  CROWDSEC_USER: 'screenshot-machine',
-  CROWDSEC_PASSWORD: 'screenshot-password',
-  CROWDSEC_REFRESH_INTERVAL: process.env.CROWDSEC_REFRESH_INTERVAL || '5m',
-  CROWDSEC_LOOKBACK_PERIOD: process.env.CROWDSEC_LOOKBACK_PERIOD || '6h',
-  CROWDSEC_HEARTBEAT_INTERVAL: '0',
-  CROWDSEC_BOOTSTRAP_RETRY_ENABLED: 'false',
-  CROWDSEC_SIMULATIONS_ENABLED: 'true',
-  CROWDSEC_PROMETHEUS_URL: process.env.CROWDSEC_PROMETHEUS_URL || 'http://screenshot-demo.local/metrics',
-  VITE_VERSION: process.env.VITE_VERSION || '2026.06.05',
-  VITE_BRANCH: process.env.VITE_BRANCH || 'main',
-  VITE_COMMIT_HASH: process.env.VITE_COMMIT_HASH || 'screenshot',
-}, { defaultConfigFile: configFile });
+const config = createRuntimeConfig(
+  {
+    ...process.env,
+    PORT: String(port),
+    CROWDSEC_USER: 'screenshot-machine',
+    CROWDSEC_PASSWORD: 'screenshot-password',
+    CROWDSEC_REFRESH_INTERVAL: process.env.CROWDSEC_REFRESH_INTERVAL || '5m',
+    CROWDSEC_LOOKBACK_PERIOD: process.env.CROWDSEC_LOOKBACK_PERIOD || '6h',
+    CROWDSEC_HEARTBEAT_INTERVAL: '0',
+    CROWDSEC_BOOTSTRAP_RETRY_ENABLED: 'false',
+    CROWDSEC_SIMULATIONS_ENABLED: 'true',
+    CROWDSEC_PROMETHEUS_URL:
+      process.env.CROWDSEC_PROMETHEUS_URL || 'http://screenshot-demo.local/metrics',
+    VITE_VERSION: process.env.VITE_VERSION || '2026.06.05',
+    VITE_BRANCH: process.env.VITE_BRANCH || 'main',
+    VITE_COMMIT_HASH: process.env.VITE_COMMIT_HASH || 'screenshot',
+  },
+  { defaultConfigFile: configFile },
+);
 const database = new CrowdsecDatabase({
   dataDir: dbDir,
   walEnabled: config.sqliteWalEnabled,
@@ -118,12 +125,16 @@ function createDemoAllowlists(instanceId: string) {
       items: [
         { value: '198.51.100.0/24', description: 'Head office', created_at: createdAt },
         { value: '203.0.113.17', description: 'VPN gateway', created_at: createdAt },
-        ...(instanceId === 'edge' ? [] : [{
-          value: '192.0.2.44',
-          description: 'Contractor access',
-          created_at: createdAt,
-          expiration: new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
-        }]),
+        ...(instanceId === 'edge'
+          ? []
+          : [
+              {
+                value: '192.0.2.44',
+                description: 'Contractor access',
+                created_at: createdAt,
+                expiration: new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
+              },
+            ]),
       ],
     },
   ];
@@ -134,7 +145,9 @@ function createDemoAllowlists(instanceId: string) {
       created_at: createdAt,
       updated_at: createdAt,
       console_managed: true,
-      items: [{ value: '2001:db8:4::/48', description: 'Monitoring provider', created_at: createdAt }],
+      items: [
+        { value: '2001:db8:4::/48', description: 'Monitoring provider', created_at: createdAt },
+      ],
     });
   }
   return allowlists;
@@ -154,9 +167,11 @@ function createFakeLapiClient(instanceId: string) {
     }),
     heartbeat: async () => {},
     sendUsageMetrics: async () => {},
-    fetchAlerts: async () => database.getAllAlerts()
-      .map((row) => JSON.parse(row.raw_data) as { instance_id?: string })
-      .filter((alert) => alert.instance_id === instanceId),
+    fetchAlerts: async () =>
+      database
+        .getAllAlerts()
+        .map((row) => JSON.parse(row.raw_data) as { instance_id?: string })
+        .filter((alert) => alert.instance_id === instanceId),
     getAlertById: async (alertId: string | number) => {
       const alert = database
         .getAllAlerts()
@@ -168,20 +183,23 @@ function createFakeLapiClient(instanceId: string) {
     fetchAllowlists: async () => createDemoAllowlists(instanceId),
     // Exact matches are enough for the demo; LAPI also matches addresses inside ranges.
     checkAllowlist: async (value: string) => {
-      const reasons = createDemoAllowlists(instanceId).flatMap((allowlist) => allowlist.items
-        .filter((item) => item.value === value)
-        .map((item) => `${item.value} from ${allowlist.name} (${item.description})`));
-      return reasons.length > 0 ? { allowlisted: true, reason: reasons.join(', ') } : { allowlisted: false };
+      const reasons = createDemoAllowlists(instanceId).flatMap((allowlist) =>
+        allowlist.items
+          .filter((item) => item.value === value)
+          .map((item) => `${item.value} from ${allowlist.name} (${item.description})`),
+      );
+      return reasons.length > 0
+        ? { allowlisted: true, reason: reasons.join(', ') }
+        : { allowlisted: false };
     },
     deleteDecision: async () => ({ message: 'Decision deleted for screenshot demo' }),
     deleteAlert: async () => ({ message: 'Alert deleted for screenshot demo' }),
   };
-};
+}
 
-const fakeLapiClients = new Map(config.instances.map((instance) => [
-  instance.id,
-  createFakeLapiClient(instance.id),
-]));
+const fakeLapiClients = new Map(
+  config.instances.map((instance) => [instance.id, createFakeLapiClient(instance.id)]),
+);
 
 const updateChecker = async () => ({
   update_available: true,
@@ -203,9 +221,10 @@ const controller = createApp({
   },
   startBackgroundTasks: false,
   updateChecker,
-  metricsFetchImpl: async () => new Response(demoPrometheusMetrics, {
-    headers: { 'content-type': 'text/plain; version=0.0.4' },
-  }),
+  metricsFetchImpl: async () =>
+    new Response(demoPrometheusMetrics, {
+      headers: { 'content-type': 'text/plain; version=0.0.4' },
+    }),
   notificationFetchImpl: async () => new Response('ok', { status: 200 }),
   mqttPublishImpl: async () => {},
 });

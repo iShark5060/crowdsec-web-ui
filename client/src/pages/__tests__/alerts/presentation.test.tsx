@@ -1,12 +1,20 @@
-import { chineseI18nValue, createDefaultConfigResponse, getVisibleColumnHeaderNames, toPaginatedAlerts } from './harness';
-import { describe, expect, test, vi } from 'vitest';
+import './harness';
+
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, test, vi } from 'vitest';
+
 import * as api from '../../../lib/api';
-import { Alerts } from '../../Alerts';
 import { I18nContext } from '../../../lib/i18n';
 import { type SlimAlert } from '../../../types';
+import { Alerts } from '../../Alerts';
+import {
+  chineseI18nValue,
+  createDefaultConfigResponse,
+  getVisibleColumnHeaderNames,
+  toPaginatedAlerts,
+} from './harness';
 
 describe('Alerts page presentation and columns', () => {
   test('hides enforcement actions in read-only mode', async () => {
@@ -126,9 +134,12 @@ describe('Alerts page presentation and columns', () => {
   });
 
   test('uses saved alert column order', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: ['source', 'time', 'decisions', 'scenario'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: ['source', 'time', 'decisions', 'scenario'],
+      }),
+    );
 
     render(
       <MemoryRouter initialEntries={['/alerts']}>
@@ -190,9 +201,35 @@ describe('Alerts page presentation and columns', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(getVisibleColumnHeaderNames()).toEqual(['Time', 'Scenario', 'Country', 'AS', 'IP / Range', 'Target', 'Decisions', 'Actions']));
-    expect(JSON.parse(window.localStorage.getItem('crowdsec-web-ui:alerts:table-column-order') || '[]'))
-      .toEqual(['id', 'instance', 'time', 'scenario', 'message', 'kind', 'country', 'region', 'city', 'as', 'source', 'target', 'machine', 'origin', 'decisions']);
+    await waitFor(() =>
+      expect(getVisibleColumnHeaderNames()).toEqual([
+        'Time',
+        'Scenario',
+        'Country',
+        'AS',
+        'IP / Range',
+        'Target',
+        'Decisions',
+        'Actions',
+      ]),
+    );
+    expect(JSON.parse(window.localStorage.getItem('crowdsec-web-ui:alerts:table-column-order') || '[]')).toEqual([
+      'id',
+      'instance',
+      'time',
+      'scenario',
+      'message',
+      'kind',
+      'country',
+      'region',
+      'city',
+      'as',
+      'source',
+      'target',
+      'machine',
+      'origin',
+      'decisions',
+    ]);
   });
 
   test('resets custom column widths from the columns modal when saved', async () => {
@@ -246,29 +283,38 @@ describe('Alerts page presentation and columns', () => {
   });
 
   test('shows the alert message when the message column is enabled', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: ['time', 'scenario', 'message', 'source', 'decisions'],
-    }));
-    vi.mocked(api.fetchAlertsPaginated).mockImplementationOnce(async (page, pageSize) => toPaginatedAlerts([
-      {
-        id: 401,
-        created_at: '2026-11-10T15:52:18.000Z',
-        scenario: 'manual/web-ui',
-        message: 'Manual decision from Web UI: noisy scanner',
-        source: { ip: '198.51.100.40', value: '198.51.100.40', scope: 'Ip' },
-        meta_search: '',
-        decisions: [],
-      },
-      {
-        id: 402,
-        created_at: '2026-11-10T15:50:00.000Z',
-        scenario: 'crowdsecurity/ssh-bf',
-        message: "Ip 198.51.100.41 performed 'crowdsecurity/ssh-bf' (6 events over 2s)",
-        source: { ip: '198.51.100.41', value: '198.51.100.41', scope: 'Ip' },
-        meta_search: '',
-        decisions: [],
-      },
-    ], page, pageSize));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: ['time', 'scenario', 'message', 'source', 'decisions'],
+      }),
+    );
+    vi.mocked(api.fetchAlertsPaginated).mockImplementationOnce(async (page, pageSize) =>
+      toPaginatedAlerts(
+        [
+          {
+            id: 401,
+            created_at: '2026-11-10T15:52:18.000Z',
+            scenario: 'manual/web-ui',
+            message: 'Manual decision from Web UI: noisy scanner',
+            source: { ip: '198.51.100.40', value: '198.51.100.40', scope: 'Ip' },
+            meta_search: '',
+            decisions: [],
+          },
+          {
+            id: 402,
+            created_at: '2026-11-10T15:50:00.000Z',
+            scenario: 'crowdsecurity/ssh-bf',
+            message: "Ip 198.51.100.41 performed 'crowdsecurity/ssh-bf' (6 events over 2s)",
+            source: { ip: '198.51.100.41', value: '198.51.100.41', scope: 'Ip' },
+            meta_search: '',
+            decisions: [],
+          },
+        ],
+        page,
+        pageSize,
+      ),
+    );
 
     render(
       <MemoryRouter initialEntries={['/alerts']}>
@@ -279,22 +325,38 @@ describe('Alerts page presentation and columns', () => {
     await waitFor(() => expect(screen.getByText('noisy scanner')).toBeInTheDocument());
     expect(screen.getByText('noisy scanner')).toHaveAttribute('title', 'noisy scanner');
     expect(screen.queryByText(/Manual decision from Web UI/)).not.toBeInTheDocument();
-    expect(screen.getByText("Ip 198.51.100.41 performed 'crowdsecurity/ssh-bf' (6 events over 2s)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ip 198.51.100.41 performed 'crowdsecurity/ssh-bf' (6 events over 2s)"),
+    ).toBeInTheDocument();
     const headers = getVisibleColumnHeaderNames();
     expect(headers.indexOf('Message')).toBe(headers.indexOf('Scenario') + 1);
   });
 
   test('shows blocklist alerts with a placeholder source as an aggregate without IP actions', async () => {
-    vi.mocked(api.fetchAlertsPaginated).mockImplementationOnce(async (page, pageSize) => toPaginatedAlerts([{
-      id: 323,
-      created_at: '2026-11-10T15:52:18.000Z',
-      scenario: 'external/blocklist (AbuseIPDB)',
-      source: { ip: '0.0.0.0', value: '0.0.0.0', scope: 'Ip' },
-      target: 'blocklist (AbuseIPDB)',
-      meta_search: '',
-      decisions: [],
-      decision_summary: { origins: ['cscli'], active_count: 54, expired_count: 0, simulated_active_count: 0, simulated_expired_count: 0 },
-    }], page, pageSize));
+    vi.mocked(api.fetchAlertsPaginated).mockImplementationOnce(async (page, pageSize) =>
+      toPaginatedAlerts(
+        [
+          {
+            id: 323,
+            created_at: '2026-11-10T15:52:18.000Z',
+            scenario: 'external/blocklist (AbuseIPDB)',
+            source: { ip: '0.0.0.0', value: '0.0.0.0', scope: 'Ip' },
+            target: 'blocklist (AbuseIPDB)',
+            meta_search: '',
+            decisions: [],
+            decision_summary: {
+              origins: ['cscli'],
+              active_count: 54,
+              expired_count: 0,
+              simulated_active_count: 0,
+              simulated_expired_count: 0,
+            },
+          },
+        ],
+        page,
+        pageSize,
+      ),
+    );
     vi.mocked(api.fetchAlert).mockResolvedValueOnce({
       id: 323,
       created_at: '2026-11-10T15:52:18.000Z',
@@ -327,16 +389,24 @@ describe('Alerts page presentation and columns', () => {
   });
 
   test('shows the primary target, distinct target count, and target detail card', async () => {
-    vi.mocked(api.fetchAlertsPaginated).mockImplementationOnce(async (page, pageSize) => toPaginatedAlerts([{
-      id: 91,
-      created_at: '2026-03-23T10:00:00.000Z',
-      scenario: 'crowdsecurity/http-probing',
-      source: { ip: '203.0.113.91', cn: 'DE' },
-      target: 'api.example.test',
-      target_count: 3,
-      meta_search: '',
-      decisions: [],
-    }], page, pageSize));
+    vi.mocked(api.fetchAlertsPaginated).mockImplementationOnce(async (page, pageSize) =>
+      toPaginatedAlerts(
+        [
+          {
+            id: 91,
+            created_at: '2026-03-23T10:00:00.000Z',
+            scenario: 'crowdsecurity/http-probing',
+            source: { ip: '203.0.113.91', cn: 'DE' },
+            target: 'api.example.test',
+            target_count: 3,
+            meta_search: '',
+            decisions: [],
+          },
+        ],
+        page,
+        pageSize,
+      ),
+    );
     vi.mocked(api.fetchAlert).mockResolvedValueOnce({
       id: 91,
       created_at: '2026-03-23T10:00:00.000Z',
@@ -399,15 +469,18 @@ describe('Alerts page presentation and columns', () => {
   });
 
   test('migrates legacy split alert column preferences to one layout', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: {
-        desktop: ['id', 'source'],
-        mobile: ['id', 'source'],
-      },
-      decisions: {
-        mobile: ['source', 'alert'],
-      },
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: {
+          desktop: ['id', 'source'],
+          mobile: ['id', 'source'],
+        },
+        decisions: {
+          mobile: ['source', 'alert'],
+        },
+      }),
+    );
 
     render(
       <MemoryRouter initialEntries={['/alerts']}>
@@ -427,9 +500,12 @@ describe('Alerts page presentation and columns', () => {
   });
 
   test('shows machine column and detail card when the column is enabled', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: ['time', 'scenario', 'country', 'as', 'source', 'machine', 'decisions'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: ['time', 'scenario', 'country', 'as', 'source', 'machine', 'decisions'],
+      }),
+    );
     vi.mocked(api.fetchConfig).mockResolvedValue({
       lookback_period: '1h',
       lookback_hours: 1,
@@ -472,8 +548,20 @@ describe('Alerts page presentation and columns', () => {
     vi.mocked(api.fetchConfig).mockResolvedValue({
       ...config,
       instances: [
-        { id: 'primary', name: 'Primary', lapi_status: config.lapi_status, sync_status: config.sync_status, prometheus: [] },
-        { id: 'branch', name: 'Branch Office', lapi_status: config.lapi_status, sync_status: config.sync_status, prometheus: [] },
+        {
+          id: 'primary',
+          name: 'Primary',
+          lapi_status: config.lapi_status,
+          sync_status: config.sync_status,
+          prometheus: [],
+        },
+        {
+          id: 'branch',
+          name: 'Branch Office',
+          lapi_status: config.lapi_status,
+          sync_status: config.sync_status,
+          prometheus: [],
+        },
       ],
     });
     vi.mocked(api.fetchAlert).mockResolvedValueOnce({
@@ -497,9 +585,24 @@ describe('Alerts page presentation and columns', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Alert Details #1' });
     expect(within(dialog).getByText('Instance')).toHaveClass('text-xs', 'text-gray-500', 'dark:text-gray-400');
-    expect(within(dialog).getByText('Branch Office')).toHaveClass('text-lg', 'font-medium', 'text-gray-900', 'dark:text-gray-100');
-    expect(within(dialog).getByText('ssh-bf')).toHaveClass('text-lg', 'font-medium', 'text-gray-900', 'dark:text-gray-100');
-    expect(within(dialog).getByRole('link', { name: '1.2.3.4' })).toHaveClass('text-lg', 'font-medium', 'text-gray-900', 'dark:text-gray-100');
+    expect(within(dialog).getByText('Branch Office')).toHaveClass(
+      'text-lg',
+      'font-medium',
+      'text-gray-900',
+      'dark:text-gray-100',
+    );
+    expect(within(dialog).getByText('ssh-bf')).toHaveClass(
+      'text-lg',
+      'font-medium',
+      'text-gray-900',
+      'dark:text-gray-100',
+    );
+    expect(within(dialog).getByRole('link', { name: '1.2.3.4' })).toHaveClass(
+      'text-lg',
+      'font-medium',
+      'text-gray-900',
+      'dark:text-gray-100',
+    );
   });
 
   test('omits the instance from alert details for a single configured instance', async () => {
@@ -507,7 +610,13 @@ describe('Alerts page presentation and columns', () => {
     vi.mocked(api.fetchConfig).mockResolvedValue({
       ...config,
       instances: [
-        { id: 'primary', name: 'Primary', lapi_status: config.lapi_status, sync_status: config.sync_status, prometheus: [] },
+        {
+          id: 'primary',
+          name: 'Primary',
+          lapi_status: config.lapi_status,
+          sync_status: config.sync_status,
+          prometheus: [],
+        },
       ],
     });
     vi.mocked(api.fetchAlert).mockResolvedValueOnce({
@@ -535,9 +644,12 @@ describe('Alerts page presentation and columns', () => {
   });
 
   test('shows origin column, renders mixed origins, and filters alerts by origin when enabled', async () => {
-    window.localStorage.setItem('crowdsec-web-ui:table-column-preferences', JSON.stringify({
-      alerts: ['time', 'scenario', 'country', 'as', 'source', 'origin', 'decisions'],
-    }));
+    window.localStorage.setItem(
+      'crowdsec-web-ui:table-column-preferences',
+      JSON.stringify({
+        alerts: ['time', 'scenario', 'country', 'as', 'source', 'origin', 'decisions'],
+      }),
+    );
     const originAlerts: SlimAlert[] = [
       {
         id: 1,
@@ -588,7 +700,9 @@ describe('Alerts page presentation and columns', () => {
     vi.mocked(api.fetchAlertsPaginated).mockImplementation(async (page, pageSize, filters) => {
       const query = (filters?.q || '').toLowerCase();
       const filteredAlerts = query
-        ? originAlerts.filter((alert) => alert.decision_summary?.origins.some((origin) => origin.toLowerCase().includes(query)))
+        ? originAlerts.filter((alert) =>
+            alert.decision_summary?.origins.some((origin) => origin.toLowerCase().includes(query)),
+          )
         : originAlerts;
       return toPaginatedAlerts(filteredAlerts, page, pageSize, originAlerts.length);
     });
@@ -610,5 +724,4 @@ describe('Alerts page presentation and columns', () => {
     await waitFor(() => expect(screen.getByText('Mixed')).toBeInTheDocument());
     await waitFor(() => expect(screen.queryByText('crowdsec')).not.toBeInTheDocument());
   });
-
 });

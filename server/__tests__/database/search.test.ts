@@ -1,25 +1,21 @@
-import Database from 'better-sqlite3';
 import { describe, expect, test } from 'vitest';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'fs';
-import { spawnSync } from 'child_process';
-import path from 'path';
-import { tmpdir } from 'os';
+
 import { CrowdsecDatabase } from '../../database';
-import { decisionFromRow } from '../../normalized-record';
-import { createLegacyDatabase, createTestDatabase, createTestDatabasePath, tempDirs } from './harness';
+import { createTestDatabase, createTestDatabasePath } from './harness';
 
 describe('CrowdsecDatabase search', () => {
   test('defers only search indexes when reconciling a populated cache', () => {
     const db = createTestDatabase();
-    const insertAlert = (id: number, message: string) => db.insertAlert({
-      $id: id,
-      $uuid: `cached-alert-${id}`,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $scenario: 'crowdsecurity/ssh-bf',
-      $source_ip: `192.0.2.${id}`,
-      $message: message,
-      $raw_data: JSON.stringify({ id, message }),
-    });
+    const insertAlert = (id: number, message: string) =>
+      db.insertAlert({
+        $id: id,
+        $uuid: `cached-alert-${id}`,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $scenario: 'crowdsecurity/ssh-bf',
+        $source_ip: `192.0.2.${id}`,
+        $message: message,
+        $raw_data: JSON.stringify({ id, message }),
+      });
 
     insertAlert(1, 'existing searchable alert');
     db.beginDeferredSearchIndexUpdates(false);
@@ -41,19 +37,20 @@ describe('CrowdsecDatabase search', () => {
 
   test('rebuilds alert search rows for colliding IDs from every instance', () => {
     const db = createTestDatabase();
-    const insertAlert = (instanceId: string, message: string) => db.insertAlert({
-      $id: 1,
-      $instance_id: instanceId,
-      $uuid: 'shared-upstream-uuid',
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $message: message,
-      $record: {
-        id: 1,
-        uuid: 'shared-upstream-uuid',
-        created_at: '2026-01-01T00:00:00.000Z',
-        message,
-      },
-    });
+    const insertAlert = (instanceId: string, message: string) =>
+      db.insertAlert({
+        $id: 1,
+        $instance_id: instanceId,
+        $uuid: 'shared-upstream-uuid',
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $message: message,
+        $record: {
+          id: 1,
+          uuid: 'shared-upstream-uuid',
+          created_at: '2026-01-01T00:00:00.000Z',
+          message,
+        },
+      });
 
     db.beginDeferredSearchIndexUpdates();
     insertAlert('default', 'primary searchable alert');
@@ -61,9 +58,21 @@ describe('CrowdsecDatabase search', () => {
     db.rebuildSearchIndexes();
 
     expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts').get() as { count: number }).count).toBe(2);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('primary') as { count: number }).count).toBe(1);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('secondary') as { count: number }).count).toBe(1);
-    expect((db.db.prepare('SELECT rowid FROM alerts_fts ORDER BY rowid').all() as Array<{ rowid: number }>)).toEqual([
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('primary') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(1);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('secondary') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(1);
+    expect(db.db.prepare('SELECT rowid FROM alerts_fts ORDER BY rowid').all() as Array<{ rowid: number }>).toEqual([
       { rowid: -1 },
       { rowid: 1 },
     ]);
@@ -73,27 +82,29 @@ describe('CrowdsecDatabase search', () => {
 
   test('rebuilds only touched search rows after a large populated-cache delta', () => {
     const db = createTestDatabase();
-    const insertAlert = (id: number, message: string) => db.insertAlert({
-      $id: id,
-      $uuid: `alert-${id}`,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $scenario: 'crowdsecurity/ssh-bf',
-      $source_ip: `192.0.2.${id}`,
-      $message: message,
-      $raw_data: JSON.stringify({ id, message }),
-    });
-    const insertDecision = (id: string, alertId: number, origin: string) => db.insertDecision({
-      $id: id,
-      $uuid: `decision-${id}`,
-      $alert_id: alertId,
-      $created_at: '2026-01-01T00:00:00.000Z',
-      $stop_at: '2027-01-01T00:00:00.000Z',
-      $value: `198.51.100.${id}`,
-      $type: 'ban',
-      $origin: origin,
-      $scenario: 'crowdsecurity/ssh-bf',
-      $raw_data: JSON.stringify({ id, alert_id: alertId, origin }),
-    });
+    const insertAlert = (id: number, message: string) =>
+      db.insertAlert({
+        $id: id,
+        $uuid: `alert-${id}`,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $scenario: 'crowdsecurity/ssh-bf',
+        $source_ip: `192.0.2.${id}`,
+        $message: message,
+        $raw_data: JSON.stringify({ id, message }),
+      });
+    const insertDecision = (id: string, alertId: number, origin: string) =>
+      db.insertDecision({
+        $id: id,
+        $uuid: `decision-${id}`,
+        $alert_id: alertId,
+        $created_at: '2026-01-01T00:00:00.000Z',
+        $stop_at: '2027-01-01T00:00:00.000Z',
+        $value: `198.51.100.${id}`,
+        $type: 'ban',
+        $origin: origin,
+        $scenario: 'crowdsecurity/ssh-bf',
+        $raw_data: JSON.stringify({ id, alert_id: alertId, origin }),
+      });
 
     insertAlert(1, 'old touched alert');
     insertAlert(2, 'preserved untouched alert');
@@ -113,19 +124,67 @@ describe('CrowdsecDatabase search', () => {
     expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts').get() as { count: number }).count).toBe(4);
     expect((db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts').get() as { count: number }).count).toBe(3);
     expect((db.db.prepare('SELECT COUNT(*) AS count FROM decision_fts_rows').get() as { count: number }).count).toBe(3);
-    expect((db.db.prepare(`
+    expect(
+      (
+        db.db
+          .prepare(`
       SELECT COUNT(*) AS count
       FROM decision_fts_rows AS search_rows
       JOIN decisions_fts ON decisions_fts.rowid = search_rows.fts_rowid
       WHERE decisions_fts.decision_id = search_rows.decision_id
-    `).get() as { count: number }).count).toBe(3);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('old') as { count: number }).count).toBe(0);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('new') as { count: number }).count).toBe(2);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('preserved') as { count: number }).count).toBe(1);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('old') as { count: number }).count).toBe(0);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('new') as { count: number }).count).toBe(2);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('preserved') as { count: number }).count).toBe(1);
-    expect((db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('removed') as { count: number }).count).toBe(0);
+    `)
+          .get() as { count: number }
+      ).count,
+    ).toBe(3);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('old') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(0);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('new') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(2);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM alerts_fts WHERE alerts_fts MATCH ?').get('preserved') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(1);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('old') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(0);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('new') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(2);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('preserved') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(1);
+    expect(
+      (
+        db.db.prepare('SELECT COUNT(*) AS count FROM decisions_fts WHERE decisions_fts MATCH ?').get('removed') as {
+          count: number;
+        }
+      ).count,
+    ).toBe(0);
 
     db.close();
   });
@@ -149,11 +208,15 @@ describe('CrowdsecDatabase search', () => {
     db.close();
 
     db = new CrowdsecDatabase({ cachePath: dbPath });
-    expect(db.db.prepare(`
+    expect(
+      db.db
+        .prepare(`
       SELECT search_rows.decision_id
       FROM decision_fts_rows AS search_rows
       JOIN decisions_fts ON decisions_fts.rowid = search_rows.fts_rowid
-    `).all()).toEqual([{ decision_id: 'legacy-search-row' }]);
+    `)
+        .all(),
+    ).toEqual([{ decision_id: 'legacy-search-row' }]);
     db.close();
   });
 });

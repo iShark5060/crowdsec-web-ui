@@ -58,7 +58,8 @@ function resolveNativeBuildEnv() {
     COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
     COREPACK_HOME: process.env.COREPACK_HOME || path.join(os.tmpdir(), 'corepack'),
     XDG_CACHE_HOME: process.env.XDG_CACHE_HOME || tempRoot,
-    PREBUILD_INSTALL_CACHE: process.env.PREBUILD_INSTALL_CACHE || path.join(tempRoot, 'prebuild-install'),
+    PREBUILD_INSTALL_CACHE:
+      process.env.PREBUILD_INSTALL_CACHE || path.join(tempRoot, 'prebuild-install'),
     npm_config_cache: process.env.npm_config_cache || path.join(tempRoot, 'npm-cache'),
     npm_config_devdir: process.env.npm_config_devdir || path.join(tempRoot, 'node-gyp'),
     npm_config_nodedir: process.env.npm_config_nodedir || currentNodeRoot,

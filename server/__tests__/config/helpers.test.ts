@@ -1,11 +1,19 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { describe, expect, test, vi } from 'vitest';
-import { parse as parseYaml } from 'yaml';
-import { createRuntimeConfig as createRuntimeConfigImpl, getIntervalName, parseBooleanEnv, parseCsvEnv, parseLookbackToMs, parseOidcScope, parseOidcUnmatchedRole, parseOptionalBooleanEnv, parseRefreshInterval, parseTimeFormat, parseTimeZone, resolveManagedSettingSource } from '../../config';
-import { ConfigurationLoadError } from '../../config-error';
-import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret, tempDirs } from './harness';
+import { describe, expect, test } from 'vitest';
+
+import {
+  getIntervalName,
+  parseBooleanEnv,
+  parseCsvEnv,
+  parseLookbackToMs,
+  parseOidcScope,
+  parseOidcUnmatchedRole,
+  parseOptionalBooleanEnv,
+  parseRefreshInterval,
+  parseTimeFormat,
+  parseTimeZone,
+  resolveManagedSettingSource,
+} from '../../config';
+import { createRuntimeConfig } from './harness';
 
 describe('config helpers', () => {
   test('resolveManagedSettingSource names the CONFIG_ variable behind a setting', () => {
@@ -15,12 +23,17 @@ describe('config helpers', () => {
       { name: 'CONFIG_CROWDSEC_SYNC_LOOKBACK', path: ['crowdsec', 'sync', 'lookback'] },
     ];
 
-    expect(resolveManagedSettingSource(overrides, 'auth.oidc.clientId')).toEqual({ path: 'auth.oidc.clientId', env: 'CONFIG_AUTH' });
+    expect(resolveManagedSettingSource(overrides, 'auth.oidc.clientId')).toEqual({
+      path: 'auth.oidc.clientId',
+      env: 'CONFIG_AUTH',
+    });
     expect(resolveManagedSettingSource(overrides, 'auth.oidc.adminGroups')).toEqual({
       path: 'auth.oidc.adminGroups',
       env: 'CONFIG_AUTH_OIDC_ADMIN_GROUPS_0',
     });
-    expect(resolveManagedSettingSource(overrides, 'crowdsec.sync.refreshInterval')).toEqual({ path: 'crowdsec.sync.refreshInterval' });
+    expect(resolveManagedSettingSource(overrides, 'crowdsec.sync.refreshInterval')).toEqual({
+      path: 'crowdsec.sync.refreshInterval',
+    });
   });
 
   test('parseRefreshInterval handles supported inputs', () => {
@@ -102,18 +115,24 @@ describe('config helpers', () => {
   });
 
   test('marks the dedicated load-test runtime mode', () => {
-    expect(createRuntimeConfig({})).toEqual(expect.objectContaining({
-      deploymentMode: 'standard',
-      loadTestProfile: null,
-    }));
-    expect(createRuntimeConfig({ CROWDSEC_WEB_UI_MODE: 'load-test' })).toEqual(expect.objectContaining({
-      deploymentMode: 'load-test',
-      loadTestProfile: 'default',
-    }));
-    expect(createRuntimeConfig({
-      CROWDSEC_WEB_UI_MODE: 'load-test',
-      LOADTEST_PROFILE: 'blocklists-mixed',
-    }).loadTestProfile).toBe('blocklists-mixed');
+    expect(createRuntimeConfig({})).toEqual(
+      expect.objectContaining({
+        deploymentMode: 'standard',
+        loadTestProfile: null,
+      }),
+    );
+    expect(createRuntimeConfig({ CROWDSEC_WEB_UI_MODE: 'load-test' })).toEqual(
+      expect.objectContaining({
+        deploymentMode: 'load-test',
+        loadTestProfile: 'default',
+      }),
+    );
+    expect(
+      createRuntimeConfig({
+        CROWDSEC_WEB_UI_MODE: 'load-test',
+        LOADTEST_PROFILE: 'blocklists-mixed',
+      }).loadTestProfile,
+    ).toBe('blocklists-mixed');
   });
 
   test('uses a configurable grace period for bouncer deletion propagation', () => {
@@ -121,7 +140,9 @@ describe('config helpers', () => {
     expect(createRuntimeConfig({ CROWDSEC_BOUNCER_PROPAGATION_DELAY: '0' }).bouncerPropagationDelayMs).toBe(0);
     expect(createRuntimeConfig({ CROWDSEC_BOUNCER_PROPAGATION_DELAY: '0s' }).bouncerPropagationDelayMs).toBe(0);
     expect(createRuntimeConfig({ CROWDSEC_BOUNCER_PROPAGATION_DELAY: '25ms' }).bouncerPropagationDelayMs).toBe(25);
-    expect(createRuntimeConfig({ CROWDSEC_BOUNCER_PROPAGATION_DELAY: 'invalid' }).bouncerPropagationDelayMs).toBe(15_000);
+    expect(createRuntimeConfig({ CROWDSEC_BOUNCER_PROPAGATION_DELAY: 'invalid' }).bouncerPropagationDelayMs).toBe(
+      15_000,
+    );
   });
 
   test('limits the lifetime of failed deletion queue entries', () => {
@@ -253,8 +274,14 @@ describe('config helpers', () => {
       oidcBackchannelLogout: false,
       oidcAutoLinkUsername: false,
       managedOidcSettings: [
-        'oidcIssuerUrl', 'oidcClientId', 'oidcClientSecret', 'oidcScope', 'oidcGroupsClaim',
-        'oidcAdminGroups', 'oidcReadOnlyGroups', 'oidcUnmatchedRole',
+        'oidcIssuerUrl',
+        'oidcClientId',
+        'oidcClientSecret',
+        'oidcScope',
+        'oidcGroupsClaim',
+        'oidcAdminGroups',
+        'oidcReadOnlyGroups',
+        'oidcUnmatchedRole',
       ],
     });
   });
@@ -304,9 +331,10 @@ describe('config helpers', () => {
   });
 
   test('createRuntimeConfig rejects OIDC scopes without openid', () => {
-    expect(() => createRuntimeConfig({
-      AUTH_OIDC_SCOPE: 'profile email groups',
-    })).toThrow(/AUTH_OIDC_SCOPE/);
+    expect(() =>
+      createRuntimeConfig({
+        AUTH_OIDC_SCOPE: 'profile email groups',
+      }),
+    ).toThrow(/AUTH_OIDC_SCOPE/);
   });
-
 });

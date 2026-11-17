@@ -1,9 +1,12 @@
 import { rmSync } from 'node:fs';
 import path from 'node:path';
+
 import { parseBooleanEnv, parseLookbackToMs } from '../server/config';
 import { DEFAULT_SQLITE_JOURNAL_SIZE_LIMIT_BYTES, parseByteSize } from '../server/config-file';
 import { CACHE_DATABASE_FILE, CrowdsecDatabase, STATE_DATABASE_FILE } from '../server/database';
 import { installTimestampedConsole } from '../server/logging';
+import { DEFAULT_STATISTICS_SETTINGS } from '../shared/statistics';
+import { createLoadTestRuntimeConfig, LOAD_TEST_MULTI_INSTANCE_IDS } from './load-test-config';
 import {
   DEFAULT_LOAD_TEST_BLOCKLIST_DECISIONS,
   getLoadTestDecisionIdsForAlertLayout,
@@ -12,9 +15,12 @@ import {
   normalizeLoadTestBlocklistDecisionCounts,
   withoutLoadTestListAlertAddress,
 } from './load-test-shape';
-import { DEFAULT_STATISTICS_SETTINGS } from '../shared/statistics';
-import { removeStatisticsDatabase, seedStatisticsArchive, statisticsAlertShape, type StatisticsAlertShape } from './load-test-statistics';
-import { createLoadTestRuntimeConfig, LOAD_TEST_MULTI_INSTANCE_IDS } from './load-test-config';
+import {
+  removeStatisticsDatabase,
+  seedStatisticsArchive,
+  statisticsAlertShape,
+  type StatisticsAlertShape,
+} from './load-test-statistics';
 
 const DEFAULT_ALERTS = 300_000;
 const DEFAULT_DECISIONS = 300_000;
@@ -113,7 +119,7 @@ const countries = [
   ['FR', 48.8566, 2.3522, 'Paris', 'Île-de-France'],
   ['GB', 51.5072, -0.1276, 'London', 'England'],
   ['BR', -23.5505, -46.6333, 'São Paulo', 'São Paulo'],
-  ['IN', 28.6139, 77.2090, 'New Delhi', 'Delhi'],
+  ['IN', 28.6139, 77.209, 'New Delhi', 'Delhi'],
   ['JP', 35.6762, 139.6503, 'Tokyo', 'Tokyo'],
   ['SG', 1.3521, 103.8198, 'Singapore', 'Singapore'],
   ['AU', -33.8688, 151.2093, 'Sydney', 'New South Wales'],
@@ -182,8 +188,9 @@ function parseIntegerListEnv(name: string): number[] | null {
 function readConfig(): LoadTestConfig {
   const alerts = parseIntegerEnv('LOADTEST_ALERTS', DEFAULT_ALERTS);
   const decisions = parseIntegerEnv('LOADTEST_DECISIONS', DEFAULT_DECISIONS);
-  const requestedBlocklistCounts = parseIntegerListEnv('LOADTEST_BLOCKLIST_SIZES')
-    ?? [parseIntegerEnv('LOADTEST_BLOCKLIST_DECISIONS', DEFAULT_LOAD_TEST_BLOCKLIST_DECISIONS)];
+  const requestedBlocklistCounts = parseIntegerListEnv('LOADTEST_BLOCKLIST_SIZES') ?? [
+    parseIntegerEnv('LOADTEST_BLOCKLIST_DECISIONS', DEFAULT_LOAD_TEST_BLOCKLIST_DECISIONS),
+  ];
   const blocklistDecisionCounts = normalizeLoadTestBlocklistDecisionCounts(
     alerts,
     decisions,
@@ -192,7 +199,10 @@ function readConfig(): LoadTestConfig {
   const blocklistDecisionTotal = blocklistDecisionCounts.reduce((total, count) => total + count, 0);
   const regularAlertCapacity = Math.max(0, alerts - blocklistDecisionCounts.length);
   const requestedEmptyAlerts = parseIntegerEnv('LOADTEST_EMPTY_ALERTS', 0);
-  const maximumEmptyAlerts = Math.max(0, regularAlertCapacity - (decisions > blocklistDecisionTotal ? 1 : 0));
+  const maximumEmptyAlerts = Math.max(
+    0,
+    regularAlertCapacity - (decisions > blocklistDecisionTotal ? 1 : 0),
+  );
   const emptyAlerts = Math.min(requestedEmptyAlerts, maximumEmptyAlerts);
   const expiredAlerts = Math.min(
     parseIntegerEnv('LOADTEST_EXPIRED_ALERTS', 0),
@@ -203,9 +213,15 @@ function readConfig(): LoadTestConfig {
     decisions,
     seed: parseIntegerEnv('LOADTEST_SEED', DEFAULT_SEED),
     dbDir: process.env.LOADTEST_DB_DIR || DEFAULT_DB_DIR,
-    activeDecisionRatio: parseRatioEnv('LOADTEST_ACTIVE_DECISION_RATIO', DEFAULT_ACTIVE_DECISION_RATIO),
+    activeDecisionRatio: parseRatioEnv(
+      'LOADTEST_ACTIVE_DECISION_RATIO',
+      DEFAULT_ACTIVE_DECISION_RATIO,
+    ),
     simulationRatio: parseRatioEnv('LOADTEST_SIMULATION_RATIO', DEFAULT_SIMULATION_RATIO),
-    duplicateValueRatio: parseRatioEnv('LOADTEST_DUPLICATE_VALUE_RATIO', DEFAULT_DUPLICATE_VALUE_RATIO),
+    duplicateValueRatio: parseRatioEnv(
+      'LOADTEST_DUPLICATE_VALUE_RATIO',
+      DEFAULT_DUPLICATE_VALUE_RATIO,
+    ),
     blocklistDecisionCounts,
     blocklistDecisionTotal,
     emptyAlerts,
@@ -221,16 +237,26 @@ function readConfig(): LoadTestConfig {
     alertIpSeed: parseIntegerEnv('LOADTEST_SEED', DEFAULT_SEED),
     lookbackMs: parseLookbackToMs(process.env.CONFIG_CROWDSEC_SYNC_LOOKBACK || '30d'),
     statistics: parseBooleanEnv(process.env.LOADTEST_STATISTICS, false),
-    statisticsHistoryDays: Math.min(3650, parseIntegerEnv('LOADTEST_STATISTICS_HISTORY_DAYS', DEFAULT_STATISTICS_SETTINGS.retentionDays)),
+    statisticsHistoryDays: Math.min(
+      3650,
+      parseIntegerEnv(
+        'LOADTEST_STATISTICS_HISTORY_DAYS',
+        DEFAULT_STATISTICS_SETTINGS.retentionDays,
+      ),
+    ),
     statisticsDailyAlerts: parseIntegerEnv('LOADTEST_STATISTICS_DAILY_ALERTS', 0),
     sqliteWalEnabled: parseBooleanEnv(process.env.CONFIG_STORAGE_WAL_ENABLED, true),
     sqliteIncrementalVacuumEnabled: parseBooleanEnv(
       process.env.CONFIG_STORAGE_INCREMENTAL_VACUUM_ENABLED,
       true,
     ),
-    sqliteJournalSizeLimitBytes: process.env.CONFIG_STORAGE_JOURNAL_SIZE_LIMIT === undefined
-      ? DEFAULT_SQLITE_JOURNAL_SIZE_LIMIT_BYTES
-      : parseByteSize(process.env.CONFIG_STORAGE_JOURNAL_SIZE_LIMIT, 'CONFIG_STORAGE_JOURNAL_SIZE_LIMIT'),
+    sqliteJournalSizeLimitBytes:
+      process.env.CONFIG_STORAGE_JOURNAL_SIZE_LIMIT === undefined
+        ? DEFAULT_SQLITE_JOURNAL_SIZE_LIMIT_BYTES
+        : parseByteSize(
+            process.env.CONFIG_STORAGE_JOURNAL_SIZE_LIMIT,
+            'CONFIG_STORAGE_JOURNAL_SIZE_LIMIT',
+          ),
   };
 }
 
@@ -272,14 +298,22 @@ function alertSessionFor(id: number, config: LoadTestConfig): { ip: string; offs
   }
 
   const sessionId = Math.floor(id / config.alertSessionSize);
-  const sessionOffsetMs = Math.floor(fraction(sessionId, config.seed, 29) * config.lookbackMs * 0.95);
+  const sessionOffsetMs = Math.floor(
+    fraction(sessionId, config.seed, 29) * config.lookbackMs * 0.95,
+  );
   return {
-    ip: config.alertSourceIps > 0
-      ? ipFor(LOAD_TEST_ALERT_SOURCE_IP_BASE + (hash32(sessionId, config.seed) % config.alertSourceIps), config.alertIpSeed)
-      : ipFor(sessionId, config.seed),
-    offsetMs: config.alertSessionSize > 1
-      ? sessionOffsetMs + Math.floor(fraction(id, config.seed, 89) * ALERT_SESSION_WINDOW_MS)
-      : sessionOffsetMs,
+    ip:
+      config.alertSourceIps > 0
+        ? ipFor(
+            LOAD_TEST_ALERT_SOURCE_IP_BASE +
+              (hash32(sessionId, config.seed) % config.alertSourceIps),
+            config.alertIpSeed,
+          )
+        : ipFor(sessionId, config.seed),
+    offsetMs:
+      config.alertSessionSize > 1
+        ? sessionOffsetMs + Math.floor(fraction(id, config.seed, 89) * ALERT_SESSION_WINDOW_MS)
+        : sessionOffsetMs,
   };
 }
 
@@ -302,13 +336,15 @@ function buildAlertTemplate(id: number, config: LoadTestConfig, nowMs: number): 
     config.blocklistDecisionCounts.length + 1,
     decisionBearingAlertEnd - config.expiredAlerts + 1,
   );
-  const isExpiredDecisionAlert = !isBlocklist
-    && config.expiredAlerts > 0
-    && id >= expiredAlertStart
-    && id <= decisionBearingAlertEnd;
-  const statisticsShape = config.statistics && !isBlocklist
-    ? statisticsAlertShape(id, Date.parse(createdAt), nowMs, config.seed, config.alertIpSeed)
-    : undefined;
+  const isExpiredDecisionAlert =
+    !isBlocklist &&
+    config.expiredAlerts > 0 &&
+    id >= expiredAlertStart &&
+    id <= decisionBearingAlertEnd;
+  const statisticsShape =
+    config.statistics && !isBlocklist
+      ? statisticsAlertShape(id, Date.parse(createdAt), nowMs, config.seed, config.alertIpSeed)
+      : undefined;
   if (statisticsShape) {
     const country = countries.find((entry) => entry[0] === statisticsShape.country) || countryTuple;
     return {
@@ -352,12 +388,16 @@ function buildAlertTemplate(id: number, config: LoadTestConfig, nowMs: number): 
     machine: isBlocklist && config.statistics ? '' : pick(machines, id, config.seed, 31),
     // List origins drop the source address, so in bursts they would only add one-alert rows.
     origin: isBlocklist
-      ? (id % 2 === 0 ? 'CAPI' : 'lists')
+      ? id % 2 === 0
+        ? 'CAPI'
+        : 'lists'
       : pick(config.alertSessionSize > 1 ? attackOrigins : origins, id, config.seed, 37),
     latitude: countryTuple[1] + (fraction(id, config.seed, 41) - 0.5) * 4,
     longitude: countryTuple[2] + (fraction(id, config.seed, 43) - 0.5) * 4,
     simulated: fraction(id, config.seed, 47) < config.simulationRatio,
-    eventsCount: isBlocklist ? blocklistDecisionCount : 1 + Math.floor(fraction(id, config.seed, 53) * 120),
+    eventsCount: isBlocklist
+      ? blocklistDecisionCount
+      : 1 + Math.floor(fraction(id, config.seed, 53) * 120),
     isBlocklist,
     blocklistDecisionCount,
     isExpiredDecisionAlert,
@@ -371,10 +411,13 @@ function buildDecisionTemplate(
   nowMs: number,
 ): DecisionTemplate {
   const regularDecisionOrdinal = id - config.blocklistDecisionTotal;
-  const expiringSoon = !alert.isExpiredDecisionAlert
-    && regularDecisionOrdinal > 0
-    && regularDecisionOrdinal <= config.expiringSoonDecisions;
-  const active = expiringSoon || (!alert.isExpiredDecisionAlert && fraction(id, config.seed, 59) < config.activeDecisionRatio);
+  const expiringSoon =
+    !alert.isExpiredDecisionAlert &&
+    regularDecisionOrdinal > 0 &&
+    regularDecisionOrdinal <= config.expiringSoonDecisions;
+  const active =
+    expiringSoon ||
+    (!alert.isExpiredDecisionAlert && fraction(id, config.seed, 59) < config.activeDecisionRatio);
   const duplicate = fraction(id, config.seed, 61) < config.duplicateValueRatio;
   const simulated = alert.simulated || fraction(id, config.seed, 67) < config.simulationRatio;
   const hours = alert.isExpiredDecisionAlert
@@ -394,7 +437,9 @@ function buildDecisionTemplate(
       : duplicate
         ? duplicateIpFor(id, config.seed)
         : alert.ip,
-    type: alert.statisticsShape?.decisionType ?? (fraction(id, config.seed, 73) < 0.08 ? 'captcha' : 'ban'),
+    type:
+      alert.statisticsShape?.decisionType ??
+      (fraction(id, config.seed, 73) < 0.08 ? 'captcha' : 'ban'),
     origin: alert.origin,
     scenario: alert.scenario,
     machine: alert.machine,
@@ -421,16 +466,18 @@ function decisionSummary(decision: DecisionTemplate) {
 }
 
 function buildEvents(alert: AlertTemplate) {
-  return [{
-    timestamp: alert.createdAt,
-    meta: [
-      { key: 'target_fqdn', value: alert.target },
-      { key: 'service', value: alert.target },
-      { key: 'log_type', value: alert.target === 'ssh' ? 'auth' : 'access' },
-      { key: 'method', value: alert.target === 'ssh' ? 'password' : 'GET' },
-      { key: 'status', value: alert.target === 'ssh' ? 'failed' : '403' },
-    ],
-  }];
+  return [
+    {
+      timestamp: alert.createdAt,
+      meta: [
+        { key: 'target_fqdn', value: alert.target },
+        { key: 'service', value: alert.target },
+        { key: 'log_type', value: alert.target === 'ssh' ? 'auth' : 'access' },
+        { key: 'method', value: alert.target === 'ssh' ? 'password' : 'GET' },
+        { key: 'status', value: alert.target === 'ssh' ? 'failed' : '403' },
+      ],
+    },
+  ];
 }
 
 function buildEmbeddedDecisions(alert: AlertTemplate, config: LoadTestConfig, nowMs: number) {
@@ -452,18 +499,21 @@ function buildEmbeddedDecisions(alert: AlertTemplate, config: LoadTestConfig, no
 function buildAlertRecord(alert: AlertTemplate, config: LoadTestConfig, nowMs: number) {
   const decisions = buildEmbeddedDecisions(alert, config, nowMs);
   const listOrigin = isLoadTestListOrigin(alert.origin);
-  const source = withoutLoadTestListAlertAddress({
-    scope: listOrigin ? `lists:load-test-blocklist-${alert.id}` : 'ip',
-    value: alert.ip,
-    ip: alert.ip,
-    cn: alert.country,
-    city: alert.city,
-    region: alert.region,
-    as_name: alert.asName,
-    as_number: alert.asNumber,
-    latitude: Number(alert.latitude.toFixed(4)),
-    longitude: Number(alert.longitude.toFixed(4)),
-  }, [alert.origin]);
+  const source = withoutLoadTestListAlertAddress(
+    {
+      scope: listOrigin ? `lists:load-test-blocklist-${alert.id}` : 'ip',
+      value: alert.ip,
+      ip: alert.ip,
+      cn: alert.country,
+      city: alert.city,
+      region: alert.region,
+      as_name: alert.asName,
+      as_number: alert.asNumber,
+      latitude: Number(alert.latitude.toFixed(4)),
+      longitude: Number(alert.longitude.toFixed(4)),
+    },
+    [alert.origin],
+  );
   return {
     id: alert.id,
     uuid: `loadtest-alert-${alert.id}`,
@@ -505,7 +555,10 @@ function formatElapsed(ms: number): string {
   return `${(ms / 1_000).toFixed(2)}s`;
 }
 
-function ensureLoadTestSourceTable(database: CrowdsecDatabase, tableName = LOADTEST_SOURCE_TABLE): void {
+function ensureLoadTestSourceTable(
+  database: CrowdsecDatabase,
+  tableName = LOADTEST_SOURCE_TABLE,
+): void {
   database.db.exec(`
     CREATE TABLE IF NOT EXISTS ${tableName} (
       id TEXT PRIMARY KEY,
@@ -536,13 +589,19 @@ const seedStartedAt = Date.now();
 console.log(`Seeding load-test database at ${dbPath}`);
 console.log(`Alerts: ${config.alerts.toLocaleString('en-US')}`);
 console.log(`Decisions: ${config.decisions.toLocaleString('en-US')}`);
-console.log(`Blocklist decision sizes: ${config.blocklistDecisionCounts.length > 0 ? config.blocklistDecisionCounts.map((count) => count.toLocaleString('en-US')).join(', ') : 'none'}`);
+console.log(
+  `Blocklist decision sizes: ${config.blocklistDecisionCounts.length > 0 ? config.blocklistDecisionCounts.map((count) => count.toLocaleString('en-US')).join(', ') : 'none'}`,
+);
 console.log(`Alerts without decisions: ${config.emptyAlerts.toLocaleString('en-US')}`);
 console.log(`Alerts with expired decisions: ${config.expiredAlerts.toLocaleString('en-US')}`);
-console.log(`Decisions expiring 5-15 minutes after seed: ${config.expiringSoonDecisions.toLocaleString('en-US')}`);
+console.log(
+  `Decisions expiring 5-15 minutes after seed: ${config.expiringSoonDecisions.toLocaleString('en-US')}`,
+);
 console.log(`Seed: ${config.seed}`);
 if (config.alerts === 0 && config.decisions > 0) {
-  console.log('Warning: LOADTEST_DECISIONS requires alerts in CrowdSec alert payloads; no decisions will be generated when LOADTEST_ALERTS=0.');
+  console.log(
+    'Warning: LOADTEST_DECISIONS requires alerts in CrowdSec alert payloads; no decisions will be generated when LOADTEST_ALERTS=0.',
+  );
 }
 
 removeExistingDatabase(config.dbDir);
@@ -557,28 +616,38 @@ const multiInstance = process.env.LOADTEST_MULTI_INSTANCE === 'true';
 const instanceSeeds: Array<{ table: string; name: string; config: LoadTestConfig }> = multiInstance
   ? [
       { table: LOADTEST_SOURCE_TABLE, name: 'Primary', config },
-      { table: `${LOADTEST_SOURCE_TABLE}_secondary`, name: 'Secondary', config: {
-        ...config,
-        alerts: parseIntegerEnv('LOADTEST_SECONDARY_ALERTS', 100_000),
-        decisions: parseIntegerEnv('LOADTEST_SECONDARY_DECISIONS', 100_000),
-        seed: config.seed + 1,
-        blocklistDecisionCounts: [parseIntegerEnv('LOADTEST_SECONDARY_BLOCKLIST_DECISIONS', 25_000)],
-        blocklistDecisionTotal: parseIntegerEnv('LOADTEST_SECONDARY_BLOCKLIST_DECISIONS', 25_000),
-        emptyAlerts: 0,
-        expiredAlerts: 0,
-        expiringSoonDecisions: 0,
-      } },
-      { table: `${LOADTEST_SOURCE_TABLE}_edge`, name: 'Edge', config: {
-        ...config,
-        alerts: parseIntegerEnv('LOADTEST_EDGE_ALERTS', 25_000),
-        decisions: parseIntegerEnv('LOADTEST_EDGE_DECISIONS', 50_000),
-        seed: config.seed + 2,
-        blocklistDecisionCounts: [parseIntegerEnv('LOADTEST_EDGE_BLOCKLIST_DECISIONS', 10_000)],
-        blocklistDecisionTotal: parseIntegerEnv('LOADTEST_EDGE_BLOCKLIST_DECISIONS', 10_000),
-        emptyAlerts: 0,
-        expiredAlerts: 0,
-        expiringSoonDecisions: 0,
-      } },
+      {
+        table: `${LOADTEST_SOURCE_TABLE}_secondary`,
+        name: 'Secondary',
+        config: {
+          ...config,
+          alerts: parseIntegerEnv('LOADTEST_SECONDARY_ALERTS', 100_000),
+          decisions: parseIntegerEnv('LOADTEST_SECONDARY_DECISIONS', 100_000),
+          seed: config.seed + 1,
+          blocklistDecisionCounts: [
+            parseIntegerEnv('LOADTEST_SECONDARY_BLOCKLIST_DECISIONS', 25_000),
+          ],
+          blocklistDecisionTotal: parseIntegerEnv('LOADTEST_SECONDARY_BLOCKLIST_DECISIONS', 25_000),
+          emptyAlerts: 0,
+          expiredAlerts: 0,
+          expiringSoonDecisions: 0,
+        },
+      },
+      {
+        table: `${LOADTEST_SOURCE_TABLE}_edge`,
+        name: 'Edge',
+        config: {
+          ...config,
+          alerts: parseIntegerEnv('LOADTEST_EDGE_ALERTS', 25_000),
+          decisions: parseIntegerEnv('LOADTEST_EDGE_DECISIONS', 50_000),
+          seed: config.seed + 2,
+          blocklistDecisionCounts: [parseIntegerEnv('LOADTEST_EDGE_BLOCKLIST_DECISIONS', 10_000)],
+          blocklistDecisionTotal: parseIntegerEnv('LOADTEST_EDGE_BLOCKLIST_DECISIONS', 10_000),
+          emptyAlerts: 0,
+          expiredAlerts: 0,
+          expiringSoonDecisions: 0,
+        },
+      },
     ]
   : [{ table: LOADTEST_SOURCE_TABLE, name: 'Default', config }];
 
@@ -595,7 +664,13 @@ for (const instanceSeed of instanceSeeds) {
       const alert = buildAlertTemplate(id, seedConfig, nowMs);
       const record = buildAlertRecord(alert, seedConfig, nowMs);
       embeddedDecisions += record.decisions.length;
-      insertSourceAlert.run(String(alert.id), alert.createdAt, record.scenario || null, sourceOrigins(record), JSON.stringify(record));
+      insertSourceAlert.run(
+        String(alert.id),
+        alert.createdAt,
+        record.scenario || null,
+        sourceOrigins(record),
+        JSON.stringify(record),
+      );
     }
     return embeddedDecisions;
   });
@@ -607,45 +682,81 @@ for (const instanceSeed of instanceSeeds) {
     embeddedDecisionCount += insertSourceAlertsBatch(start, end) as number;
     logProgress(`${instanceSeed.name} source alerts`, end, seedConfig.alerts);
   }
-  console.log(`${instanceSeed.name} source seeding completed in ${formatElapsed(Date.now() - alertSeedStartedAt)}.`);
-  console.log(`${instanceSeed.name} embedded decisions: ${embeddedDecisionCount.toLocaleString('en-US')}/${seedConfig.decisions.toLocaleString('en-US')}`);
+  console.log(
+    `${instanceSeed.name} source seeding completed in ${formatElapsed(Date.now() - alertSeedStartedAt)}.`,
+  );
+  console.log(
+    `${instanceSeed.name} embedded decisions: ${embeddedDecisionCount.toLocaleString('en-US')}/${seedConfig.decisions.toLocaleString('en-US')}`,
+  );
 }
 if (config.statistics) {
   const lookbackDays = config.lookbackMs / 86_400_000;
   // Cached alerts span 95% of the lookback; the archive continues at their daily rate.
   const cacheStartMs = nowMs - config.lookbackMs * 0.95;
-  const regularAlerts = (seedConfig: LoadTestConfig) => Math.max(0, seedConfig.alerts - seedConfig.blocklistDecisionCounts.length);
+  const regularAlerts = (seedConfig: LoadTestConfig) =>
+    Math.max(0, seedConfig.alerts - seedConfig.blocklistDecisionCounts.length);
   const primaryAlerts = regularAlerts(config);
   // A configured rate applies to the primary instance; the others keep their share of the cache volume.
-  const dailyAlertsFor = (seedConfig: LoadTestConfig) => config.statisticsDailyAlerts
-    ? Math.round(config.statisticsDailyAlerts * (primaryAlerts > 0 ? regularAlerts(seedConfig) / primaryAlerts : 1))
-    : Math.round(regularAlerts(seedConfig) / (lookbackDays * 0.95));
-  const retentionDays = Math.max(DEFAULT_STATISTICS_SETTINGS.retentionDays, config.statisticsHistoryDays);
+  const dailyAlertsFor = (seedConfig: LoadTestConfig) =>
+    config.statisticsDailyAlerts
+      ? Math.round(
+          config.statisticsDailyAlerts *
+            (primaryAlerts > 0 ? regularAlerts(seedConfig) / primaryAlerts : 1),
+        )
+      : Math.round(regularAlerts(seedConfig) / (lookbackDays * 0.95));
+  const retentionDays = Math.max(
+    DEFAULT_STATISTICS_SETTINGS.retentionDays,
+    config.statisticsHistoryDays,
+  );
   // Saved like a Settings change, so the controls stay editable and CONFIG_STATISTICS_* still override.
-  database.setMeta('statistics_settings', JSON.stringify({ enabled: true, retentionDays, jobInterval: '5m', jobTimeBudget: '60s' }));
+  database.setMeta(
+    'statistics_settings',
+    JSON.stringify({ enabled: true, retentionDays, jobInterval: '5m', jobTimeBudget: '60s' }),
+  );
   // The archive must use the server's instance IDs, or its coverage and cells
   // would belong to instances the page never queries.
   const instanceIds: readonly string[] = multiInstance
     ? LOAD_TEST_MULTI_INSTANCE_IDS
     : [createLoadTestRuntimeConfig(process.env, config.dbDir).instances[0].id];
   const archiveDays = Math.max(0, config.statisticsHistoryDays - lookbackDays * 0.95);
-  const estimatedAlerts = Math.round(instanceSeeds.reduce((sum, instanceSeed) => sum + dailyAlertsFor(instanceSeed.config), 0) * archiveDays);
-  console.log(`Statistics archive: ${config.statisticsHistoryDays} days of history for ${instanceSeeds.length} instance(s) at about ${instanceSeeds.map((instanceSeed) => dailyAlertsFor(instanceSeed.config).toLocaleString('en-US')).join(' / ')} alerts per day before the cache window`);
+  const estimatedAlerts = Math.round(
+    instanceSeeds.reduce((sum, instanceSeed) => sum + dailyAlertsFor(instanceSeed.config), 0) *
+      archiveDays,
+  );
+  console.log(
+    `Statistics archive: ${config.statisticsHistoryDays} days of history for ${instanceSeeds.length} instance(s) at about ${instanceSeeds.map((instanceSeed) => dailyAlertsFor(instanceSeed.config).toLocaleString('en-US')).join(' / ')} alerts per day before the cache window`,
+  );
   // Measured: about 10,000 archived alerts per second and 1.5 KB per alert.
-  const estimatedMegabytes = estimatedAlerts * 1.5 / 1024;
-  const estimatedSize = estimatedMegabytes >= 1024 ? `${(estimatedMegabytes / 1024).toFixed(1)} GB` : `${Math.ceil(estimatedMegabytes)} MB`;
-  console.log(`Statistics archive: about ${estimatedAlerts.toLocaleString('en-US')} alerts, ${estimatedSize}, ${Math.ceil(estimatedAlerts / 10_000)} s`);
+  const estimatedMegabytes = (estimatedAlerts * 1.5) / 1024;
+  const estimatedSize =
+    estimatedMegabytes >= 1024
+      ? `${(estimatedMegabytes / 1024).toFixed(1)} GB`
+      : `${Math.ceil(estimatedMegabytes)} MB`;
+  console.log(
+    `Statistics archive: about ${estimatedAlerts.toLocaleString('en-US')} alerts, ${estimatedSize}, ${Math.ceil(estimatedAlerts / 10_000)} s`,
+  );
   if (estimatedAlerts > 1_000_000) {
-    console.log(`Warning: the ${Math.round(lookbackDays)}-day cache window gives ${dailyAlertsFor(config).toLocaleString('en-US')} alerts per day. Set CONFIG_CROWDSEC_SYNC_LOOKBACK=30d or LOADTEST_STATISTICS_DAILY_ALERTS to seed a smaller archive.`);
+    console.log(
+      `Warning: the ${Math.round(lookbackDays)}-day cache window gives ${dailyAlertsFor(config).toLocaleString('en-US')} alerts per day. Set CONFIG_CROWDSEC_SYNC_LOOKBACK=30d or LOADTEST_STATISTICS_DAILY_ALERTS to seed a smaller archive.`,
+    );
   }
   instanceSeeds.forEach((instanceSeed, index) => {
     const archiveStartedAt = Date.now();
     const archive = seedStatisticsArchive({
-      dbDir: config.dbDir, instanceId: instanceIds[index], seed: instanceSeed.config.seed, sourceSeed: instanceSeed.config.alertIpSeed, nowMs,
-      historyDays: config.statisticsHistoryDays, cacheStartMs, dailyAlerts: dailyAlertsFor(instanceSeed.config), retentionDays,
+      dbDir: config.dbDir,
+      instanceId: instanceIds[index],
+      seed: instanceSeed.config.seed,
+      sourceSeed: instanceSeed.config.alertIpSeed,
+      nowMs,
+      historyDays: config.statisticsHistoryDays,
+      cacheStartMs,
+      dailyAlerts: dailyAlertsFor(instanceSeed.config),
+      retentionDays,
       log: (message) => console.log(`${instanceSeed.name} ${message}`),
     });
-    console.log(`${instanceSeed.name} statistics archive: ${archive.alerts.toLocaleString('en-US')} alerts and ${archive.decisions.toLocaleString('en-US')} decisions in ${formatElapsed(Date.now() - archiveStartedAt)}.`);
+    console.log(
+      `${instanceSeed.name} statistics archive: ${archive.alerts.toLocaleString('en-US')} alerts and ${archive.decisions.toLocaleString('en-US')} decisions in ${formatElapsed(Date.now() - archiveStartedAt)}.`,
+    );
   });
 }
 database.close();

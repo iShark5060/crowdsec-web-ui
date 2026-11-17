@@ -1,9 +1,10 @@
 import { act, screen } from '@testing-library/react';
 import { afterEach, beforeEach, vi } from 'vitest';
-import type { ConfigResponse, DecisionListItem, PaginatedResponse } from '../../../types';
-import * as api from '../../../lib/api';
+
 import { compileDecisionSearch } from '../../../../../shared/search';
-import { I18nContext, type I18nContextValue } from '../../../lib/i18n';
+import * as api from '../../../lib/api';
+import { type I18nContextValue } from '../../../lib/i18n';
+import type { ConfigResponse, DecisionListItem, PaginatedResponse } from '../../../types';
 
 const setLastUpdatedMock = vi.fn();
 let refreshSignalMock = 0;
@@ -51,9 +52,7 @@ function toPaginatedDecisions(
       total_pages: Math.ceil(decisions.length / pageSize),
       unfiltered_total: unfilteredTotal,
     },
-    selectable_ids: decisions
-      .filter((decision) => !decision.expired)
-      .map((decision) => decision.id),
+    selectable_ids: decisions.filter((decision) => !decision.expired).map((decision) => decision.id),
   };
 }
 
@@ -120,19 +119,24 @@ vi.mock('../../../lib/api', () => {
       total_pages: Math.ceil(decisions.length / pageSize),
       unfiltered_total: unfilteredTotal,
     },
-    selectable_ids: decisions
-      .filter((decision) => !decision.expired)
-      .map((decision) => decision.id),
+    selectable_ids: decisions.filter((decision) => !decision.expired).map((decision) => decision.id),
   });
 
   return {
     fetchFacet: vi.fn(async (_page: string, field: string) => ({
       field,
-      values: field === 'status'
-        ? [{ value: 'active', count: 1 }, { value: 'expired', count: 1 }]
-        : field === 'country'
-          ? [{ value: 'DE', count: 1 }, { value: 'US', count: 1 }]
-          : [],
+      values:
+        field === 'status'
+          ? [
+              { value: 'active', count: 1 },
+              { value: 'expired', count: 1 },
+            ]
+          : field === 'country'
+            ? [
+                { value: 'DE', count: 1 },
+                { value: 'US', count: 1 },
+              ]
+            : [],
       offset: 0,
       has_more: false,
     })),
@@ -176,68 +180,70 @@ vi.mock('../../../lib/api', () => {
 
 beforeEach(() => {
   vi.mocked(api.fetchConfig).mockResolvedValue(createDefaultConfigResponse());
-  vi.mocked(api.fetchDecisionsPaginated).mockImplementation(async (page: number, pageSize = 50, filters?: Record<string, string>) => {
-    let decisions: DecisionListItem[] = [
-      {
-        id: 10,
-        created_at: '2026-03-23T10:00:00.000Z',
-        machine: 'host-a',
-        kind: 'crowdsec',
-        value: '1.2.3.4',
-        expired: false,
-        is_duplicate: false,
-        simulated: false,
-        detail: {
-          origin: 'manual',
-          reason: 'crowdsecurity/ssh-bf',
-          country: 'DE',
-          city: 'Berlin',
-          region: 'State of Berlin',
-          as: 'Hetzner',
-          action: 'ban',
-          duration: '4h',
-          alert_id: 1,
-          target: 'ssh',
+  vi.mocked(api.fetchDecisionsPaginated).mockImplementation(
+    async (page: number, pageSize = 50, filters?: Record<string, string>) => {
+      let decisions: DecisionListItem[] = [
+        {
+          id: 10,
+          created_at: '2026-03-23T10:00:00.000Z',
+          machine: 'host-a',
+          kind: 'crowdsec',
+          value: '1.2.3.4',
+          expired: false,
+          is_duplicate: false,
+          simulated: false,
+          detail: {
+            origin: 'manual',
+            reason: 'crowdsecurity/ssh-bf',
+            country: 'DE',
+            city: 'Berlin',
+            region: 'State of Berlin',
+            as: 'Hetzner',
+            action: 'ban',
+            duration: '4h',
+            alert_id: 1,
+            target: 'ssh',
+          },
         },
-      },
-      {
-        id: 20,
-        created_at: '2026-03-24T11:00:00.000Z',
-        machine: 'machine-2',
-        kind: 'waf',
-        value: '5.6.7.8',
-        expired: false,
-        is_duplicate: false,
-        simulated: true,
-        detail: {
-          origin: 'CAPI',
-          reason: 'crowdsecurity/nginx-bf',
-          country: 'US',
-          as: 'AWS',
-          action: 'ban',
-          duration: '4h',
-          alert_id: 2,
-          target: 'nginx',
+        {
+          id: 20,
+          created_at: '2026-03-24T11:00:00.000Z',
+          machine: 'machine-2',
+          kind: 'waf',
+          value: '5.6.7.8',
+          expired: false,
+          is_duplicate: false,
+          simulated: true,
+          detail: {
+            origin: 'CAPI',
+            reason: 'crowdsecurity/nginx-bf',
+            country: 'US',
+            as: 'AWS',
+            action: 'ban',
+            duration: '4h',
+            alert_id: 2,
+            target: 'nginx',
+          },
         },
-      },
-    ];
+      ];
 
-    if (filters?.simulation === 'simulated') {
-      decisions = decisions.filter((decision) => decision.simulated === true);
-    }
-    if (filters?.q) {
-      const compiledSearch = compileDecisionSearch(filters.q, {
-        machineEnabled: true,
-        originEnabled: true,
-      });
-      if (!compiledSearch.ok) {
-        throw new Error(compiledSearch.error.message);
+      if (filters?.simulation === 'simulated') {
+        decisions = decisions.filter((decision) => decision.simulated === true);
       }
-      decisions = decisions.filter(compiledSearch.predicate);
-    }
+      if (filters?.q) {
+        const compiledSearch = compileDecisionSearch(filters.q, {
+          machineEnabled: true,
+          originEnabled: true,
+        });
+        if (!compiledSearch.ok) {
+          throw new Error(compiledSearch.error.message);
+        }
+        decisions = decisions.filter(compiledSearch.predicate);
+      }
 
-    return toPaginatedDecisions(decisions, page, pageSize, 2);
-  });
+      return toPaginatedDecisions(decisions, page, pageSize, 2);
+    },
+  );
 });
 
 afterEach(() => {
@@ -251,20 +257,23 @@ afterEach(() => {
 function installControlledIntersectionObserver() {
   const callbacks: Array<() => void> = [];
 
-  vi.stubGlobal('IntersectionObserver', class {
-    constructor(callback: IntersectionObserverCallback) {
-      callbacks.push(() => {
-        callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
-      });
-    }
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(() => {
+          callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+        });
+      }
 
-    observe(): void {}
-    disconnect(): void {}
-    unobserve(): void {}
-    takeRecords(): IntersectionObserverEntry[] {
-      return [];
-    }
-  });
+      observe(): void {}
+      disconnect(): void {}
+      unobserve(): void {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    },
+  );
 
   return () => callbacks.forEach((callback) => callback());
 }
@@ -288,14 +297,25 @@ async function flushDecisionSearchDebounce(): Promise<void> {
 }
 
 function getVisibleColumnHeaderNames(): string[] {
-  return screen.getAllByRole('columnheader')
+  return screen
+    .getAllByRole('columnheader')
     .map((header) => header.textContent?.trim() || '')
     .filter(Boolean);
 }
-
 
 function setRefreshSignalMock(value: number): void {
   refreshSignalMock = value;
 }
 
-export { setLastUpdatedMock, refreshSignalMock, createDefaultConfigResponse, chineseI18nValue, toPaginatedDecisions, installControlledIntersectionObserver, createDeferred, flushDecisionSearchDebounce, getVisibleColumnHeaderNames, setRefreshSignalMock };
+export {
+  setLastUpdatedMock,
+  refreshSignalMock,
+  createDefaultConfigResponse,
+  chineseI18nValue,
+  toPaginatedDecisions,
+  installControlledIntersectionObserver,
+  createDeferred,
+  flushDecisionSearchDebounce,
+  getVisibleColumnHeaderNames,
+  setRefreshSignalMock,
+};

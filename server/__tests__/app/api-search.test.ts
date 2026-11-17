@@ -1,22 +1,7 @@
-import { describe, expect, test, vi } from 'vitest';
-import path from 'path';
-import type {
-  AlertRecord,
-  DashboardStatsResponse,
-  DecisionListItem,
-  PaginatedResponse,
-  SlimAlert,
-} from '../../../shared/contracts';
-import { CrowdsecDatabase } from '../../database';
-import {
-  createController,
-  dashboardDateKey,
-  destroyTempDir,
-  sampleAlert,
-  sampleSimulatedAlert,
-  seedAlert,
-  tempDir,
-} from './harness';
+import { describe, expect, test } from 'vitest';
+
+import type { DecisionListItem, PaginatedResponse, SlimAlert } from '../../../shared/contracts';
+import { createController, destroyTempDir, sampleAlert, seedAlert } from './harness';
 
 describe('createApp search API', () => {
   test('matches free-text alert searches against alert context values', async () => {
@@ -32,22 +17,22 @@ describe('createApp search API', () => {
       meta: [{ key: 'host', value: 'other.example.test' }],
     });
     const { controller, database } = createController({
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([matchingAlert, otherAlert])
-        : undefined,
+      fetchResolver: (url) => (url.includes('/v1/alerts?') ? Response.json([matchingAlert, otherAlert]) : undefined),
     });
     seedAlert(database, matchingAlert);
     seedAlert(database, otherAlert);
 
-    const response = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=protected.example.test',
-    ));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=protected.example.test'),
+    );
 
     expect(response.status).toBe(200);
-    expect((await response.json()) as PaginatedResponse<SlimAlert>).toEqual(expect.objectContaining({
-      data: [expect.objectContaining({ id: 1, meta_search: expect.stringContaining('protected.example.test') })],
-      pagination: expect.objectContaining({ total: 1 }),
-    }));
+    expect((await response.json()) as PaginatedResponse<SlimAlert>).toEqual(
+      expect.objectContaining({
+        data: [expect.objectContaining({ id: 1, meta_search: expect.stringContaining('protected.example.test') })],
+        pagination: expect.objectContaining({ total: 1 }),
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -75,36 +60,42 @@ describe('createApp search API', () => {
     seedAlert(database, crowdsecAlert);
 
     for (const query of ['kind=waf', 'waf']) {
-      const response = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${encodeURIComponent(query)}`,
-      ));
+      const response = await controller.fetch(
+        new Request(`http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${encodeURIComponent(query)}`),
+      );
       expect(response.status).toBe(200);
-      expect((await response.json()) as PaginatedResponse<SlimAlert>).toEqual(expect.objectContaining({
-        data: [expect.objectContaining({ id: 1, kind: 'waf' })],
-        pagination: expect.objectContaining({ total: 1 }),
-      }));
+      expect((await response.json()) as PaginatedResponse<SlimAlert>).toEqual(
+        expect.objectContaining({
+          data: [expect.objectContaining({ id: 1, kind: 'waf' })],
+          pagination: expect.objectContaining({ total: 1 }),
+        }),
+      );
     }
 
-    const decisionsResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/decisions?page=1&page_size=10&hide_duplicates=false&q=kind%3Dwaf',
-    ));
+    const decisionsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&hide_duplicates=false&q=kind%3Dwaf'),
+    );
     expect(decisionsResponse.status).toBe(200);
-    expect((await decisionsResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(expect.objectContaining({
-      data: [expect.objectContaining({ id: 10, kind: 'waf' })],
-      pagination: expect.objectContaining({ total: 1 }),
-    }));
+    expect((await decisionsResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(
+      expect.objectContaining({
+        data: [expect.objectContaining({ id: 10, kind: 'waf' })],
+        pagination: expect.objectContaining({ total: 1 }),
+      }),
+    );
 
-    const decisionFacetResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/decisions/facets?field=kind&hide_duplicates=false',
-    ));
+    const decisionFacetResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions/facets?field=kind&hide_duplicates=false'),
+    );
     expect(decisionFacetResponse.status).toBe(200);
-    expect(await decisionFacetResponse.json()).toEqual(expect.objectContaining({
-      field: 'kind',
-      values: [
-        { value: 'crowdsec', count: 1 },
-        { value: 'waf', count: 1 },
-      ],
-    }));
+    expect(await decisionFacetResponse.json()).toEqual(
+      expect.objectContaining({
+        field: 'kind',
+        values: [
+          { value: 'crowdsec', count: 1 },
+          { value: 'waf', count: 1 },
+        ],
+      }),
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -112,7 +103,11 @@ describe('createApp search API', () => {
   });
 
   test('returns and matches decisions by their linked alert message', async () => {
-    const manualAlert = sampleAlert({ id: 1, uuid: 'message-manual', message: 'Manual decision from Web UI: noisy scanner' });
+    const manualAlert = sampleAlert({
+      id: 1,
+      uuid: 'message-manual',
+      message: 'Manual decision from Web UI: noisy scanner',
+    });
     const silentAlert = sampleAlert({
       id: 2,
       uuid: 'message-empty',
@@ -130,55 +125,73 @@ describe('createApp search API', () => {
     seedAlert(database, manualAlert);
     seedAlert(database, silentAlert);
 
-    const listResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/decisions?page=1&page_size=10&hide_duplicates=false',
-    ));
+    const listResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&hide_duplicates=false'),
+    );
     expect(listResponse.status).toBe(200);
     const list = (await listResponse.json()) as PaginatedResponse<DecisionListItem>;
-    expect(list.data.find((decision) => decision.id === 10)?.message).toBe('Manual decision from Web UI: noisy scanner');
+    expect(list.data.find((decision) => decision.id === 10)?.message).toBe(
+      'Manual decision from Web UI: noisy scanner',
+    );
     expect(list.data.find((decision) => decision.id === 20)?.message).toBeUndefined();
 
     // With duplicates hidden, fielded searches page through the promoted-row query.
     for (const suffix of ['&hide_duplicates=false', '']) {
-      const matchResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent('message:NOISY')}`,
-      ));
+      const matchResponse = await controller.fetch(
+        new Request(
+          `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent('message:NOISY')}`,
+        ),
+      );
       expect(matchResponse.status).toBe(200);
-      expect((await matchResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(expect.objectContaining({
-        data: [expect.objectContaining({ id: 10, message: 'Manual decision from Web UI: noisy scanner' })],
-        pagination: expect.objectContaining({ total: 1 }),
-      }));
+      expect((await matchResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(
+        expect.objectContaining({
+          data: [expect.objectContaining({ id: 10, message: 'Manual decision from Web UI: noisy scanner' })],
+          pagination: expect.objectContaining({ total: 1 }),
+        }),
+      );
 
-      const emptyResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent('message:""')}`,
-      ));
+      const emptyResponse = await controller.fetch(
+        new Request(
+          `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent('message:""')}`,
+        ),
+      );
       expect(emptyResponse.status).toBe(200);
-      expect((await emptyResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(expect.objectContaining({
-        data: [expect.objectContaining({ id: 20 })],
-        pagination: expect.objectContaining({ total: 1 }),
-      }));
+      expect((await emptyResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(
+        expect.objectContaining({
+          data: [expect.objectContaining({ id: 20 })],
+          pagination: expect.objectContaining({ total: 1 }),
+        }),
+      );
 
       // Free text matches the linked alert message as well. `oi` is shorter than the
       // trigram index allows, so it exercises the unindexed path.
       for (const query of ['"noisy scanner"', 'noisy scanner', 'oi', 'NOISY 1.2.3.4']) {
-        const freeTextResponse = await controller.fetch(new Request(
-          `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent(query)}`,
-        ));
+        const freeTextResponse = await controller.fetch(
+          new Request(
+            `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent(query)}`,
+          ),
+        );
         expect(freeTextResponse.status).toBe(200);
-        expect((await freeTextResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(expect.objectContaining({
-          data: [expect.objectContaining({ id: 10 })],
-          pagination: expect.objectContaining({ total: 1 }),
-        }));
+        expect((await freeTextResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(
+          expect.objectContaining({
+            data: [expect.objectContaining({ id: 10 })],
+            pagination: expect.objectContaining({ total: 1 }),
+          }),
+        );
       }
 
-      const excludedResponse = await controller.fetch(new Request(
-        `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent('-scanner')}`,
-      ));
+      const excludedResponse = await controller.fetch(
+        new Request(
+          `http://localhost/crowdsec/api/decisions?page=1&page_size=10${suffix}&q=${encodeURIComponent('-scanner')}`,
+        ),
+      );
       expect(excludedResponse.status).toBe(200);
-      expect((await excludedResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(expect.objectContaining({
-        data: [expect.objectContaining({ id: 20 })],
-        pagination: expect.objectContaining({ total: 1 }),
-      }));
+      expect((await excludedResponse.json()) as PaginatedResponse<DecisionListItem>).toEqual(
+        expect.objectContaining({
+          data: [expect.objectContaining({ id: 20 })],
+          pagination: expect.objectContaining({ total: 1 }),
+        }),
+      );
     }
 
     controller.stopBackgroundTasks();
@@ -189,18 +202,41 @@ describe('createApp search API', () => {
   test('matches alert search queries against decision origins', async () => {
     const searchAlerts = [
       sampleAlert({
-      id: 1,
-      uuid: 'alert-1',
-      decisions: [
-        { id: 10, value: '1.2.3.4', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'manual', simulated: false },
-        { id: 11, value: '1.2.3.4', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'CAPI', simulated: false },
-      ],
+        id: 1,
+        uuid: 'alert-1',
+        decisions: [
+          {
+            id: 10,
+            value: '1.2.3.4',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'manual',
+            simulated: false,
+          },
+          {
+            id: 11,
+            value: '1.2.3.4',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'CAPI',
+            simulated: false,
+          },
+        ],
       }),
       sampleAlert({
-      id: 2,
-      uuid: 'alert-2',
-      source: { ip: '5.6.7.8', value: '5.6.7.8', cn: 'US', as_name: 'AWS' },
-      decisions: [{ id: 20, value: '5.6.7.8', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'crowdsec', simulated: false }],
+        id: 2,
+        uuid: 'alert-2',
+        source: { ip: '5.6.7.8', value: '5.6.7.8', cn: 'US', as_name: 'AWS' },
+        decisions: [
+          {
+            id: 20,
+            value: '5.6.7.8',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'crowdsec',
+            simulated: false,
+          },
+        ],
       }),
     ];
     const { controller, database } = createController({
@@ -216,7 +252,9 @@ describe('createApp search API', () => {
       seedAlert(database, alert);
     }
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=capi'));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=capi'),
+    );
     expect(response.status).toBe(200);
     expect((await response.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -234,14 +272,16 @@ describe('createApp search API', () => {
     const alertWithOrigin = sampleAlert({
       id: 1,
       uuid: 'alert-1',
-      decisions: [{
-        id: 10,
-        value: '1.2.3.4',
-        stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
-        type: 'ban',
-        origin: 'manual',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 10,
+          value: '1.2.3.4',
+          stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+          type: 'ban',
+          origin: 'manual',
+          simulated: false,
+        },
+      ],
     });
     const alertWithoutOrigin = sampleAlert({
       id: 2,
@@ -250,9 +290,8 @@ describe('createApp search API', () => {
       decisions: [],
     });
     const { controller, database } = createController({
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([alertWithOrigin, alertWithoutOrigin])
-        : undefined,
+      fetchResolver: (url) =>
+        url.includes('/v1/alerts?') ? Response.json([alertWithOrigin, alertWithoutOrigin]) : undefined,
     });
     seedAlert(database, alertWithOrigin);
     seedAlert(database, alertWithoutOrigin);
@@ -291,13 +330,31 @@ describe('createApp search API', () => {
         uuid: 'alert-1',
         machine_id: 'machine-1',
         machine_alias: 'host-a',
-        decisions: [{ id: 10, value: '1.2.3.4', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'manual', simulated: false }],
+        decisions: [
+          {
+            id: 10,
+            value: '1.2.3.4',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'manual',
+            simulated: false,
+          },
+        ],
       }),
       sampleAlert({
         id: 2,
         uuid: 'alert-2',
         source: { ip: '5.6.7.8', value: '5.6.7.8', cn: 'US', as_name: 'AWS' },
-        decisions: [{ id: 20, value: '5.6.7.8', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'crowdsec', simulated: false }],
+        decisions: [
+          {
+            id: 20,
+            value: '5.6.7.8',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'crowdsec',
+            simulated: false,
+          },
+        ],
       }),
     ];
     const { controller, database } = createController({
@@ -313,7 +370,9 @@ describe('createApp search API', () => {
       seedAlert(database, alert);
     }
 
-    const machineResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=host-a'));
+    const machineResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=host-a'),
+    );
     expect(machineResponse.status).toBe(200);
     expect((await machineResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -322,7 +381,9 @@ describe('createApp search API', () => {
       }),
     );
 
-    const originResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=manual'));
+    const originResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=manual'),
+    );
     expect(originResponse.status).toBe(200);
     expect((await originResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -378,7 +439,9 @@ describe('createApp search API', () => {
     });
     seedAlert(database, duplicateAlert);
 
-    const defaultResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10'));
+    const defaultResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10'),
+    );
     expect(defaultResponse.status).toBe(200);
     expect((await defaultResponse.json()) as { data: Array<{ id: number; detail: { reason: string } }> }).toEqual(
       expect.objectContaining({
@@ -391,35 +454,49 @@ describe('createApp search API', () => {
       }),
     );
 
-    const filteredResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=scenario%3Dcrowdsecurity%2Fappsec-native',
-    ));
+    const filteredResponse = await controller.fetch(
+      new Request(
+        'http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=scenario%3Dcrowdsecurity%2Fappsec-native',
+      ),
+    );
     expect(filteredResponse.status).toBe(200);
-    expect((await filteredResponse.json()) as {
-      data: Array<{ id: number; is_duplicate: boolean; detail: { reason: string } }>;
-      pagination: { total: number };
-    }).toEqual(expect.objectContaining({
-      data: [
-        expect.objectContaining({
-          id: 10,
-          is_duplicate: false,
-          detail: expect.objectContaining({ reason: 'crowdsecurity/appsec-native' }),
-        }),
-      ],
-      pagination: expect.objectContaining({ total: 1 }),
-    }));
+    expect(
+      (await filteredResponse.json()) as {
+        data: Array<{ id: number; is_duplicate: boolean; detail: { reason: string } }>;
+        pagination: { total: number };
+      },
+    ).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            id: 10,
+            is_duplicate: false,
+            detail: expect.objectContaining({ reason: 'crowdsecurity/appsec-native' }),
+          }),
+        ],
+        pagination: expect.objectContaining({ total: 1 }),
+      }),
+    );
 
-    const filteredFacetResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/decisions/facets?field=action&q=scenario%3Dcrowdsecurity%2Fappsec-native',
-    ));
+    const filteredFacetResponse = await controller.fetch(
+      new Request(
+        'http://localhost/crowdsec/api/decisions/facets?field=action&q=scenario%3Dcrowdsecurity%2Fappsec-native',
+      ),
+    );
     expect(filteredFacetResponse.status).toBe(200);
-    expect((await filteredFacetResponse.json()) as {
-      values: Array<{ value: string; count: number }>;
-    }).toEqual(expect.objectContaining({
-      values: [expect.objectContaining({ value: 'ban', count: 1 })],
-    }));
+    expect(
+      (await filteredFacetResponse.json()) as {
+        values: Array<{ value: string; count: number }>;
+      },
+    ).toEqual(
+      expect.objectContaining({
+        values: [expect.objectContaining({ value: 'ban', count: 1 })],
+      }),
+    );
 
-    const duplicatesResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&hide_duplicates=false'));
+    const duplicatesResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&hide_duplicates=false'),
+    );
     expect(duplicatesResponse.status).toBe(200);
     expect((await duplicatesResponse.json()) as { data: Array<{ id: number; is_duplicate: boolean }> }).toEqual(
       expect.objectContaining({
@@ -454,16 +531,18 @@ describe('createApp search API', () => {
         as_name: 'Hetzner Online',
       },
       target: 'ssh',
-      decisions: [{
-        id: 9101,
-        value,
-        created_at: createdAt,
-        stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'lists',
-        scenario: 'crowdsecurity/combined-match',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9101,
+          value,
+          created_at: createdAt,
+          stop_at: new Date(Date.now() + 30 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'lists',
+          scenario: 'crowdsecurity/combined-match',
+          simulated: false,
+        },
+      ],
     });
     const excludedPrimaryAlert = sampleAlert({
       id: 911,
@@ -480,16 +559,18 @@ describe('createApp search API', () => {
         as_name: 'Other Network',
       },
       target: 'http',
-      decisions: [{
-        id: 9111,
-        value,
-        created_at: createdAt,
-        stop_at: new Date(Date.now() + 60 * 60_000).toISOString(),
-        type: 'ban',
-        origin: 'crowdsec',
-        scenario: 'crowdsecurity/excluded-primary',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 9111,
+          value,
+          created_at: createdAt,
+          stop_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+          type: 'ban',
+          origin: 'crowdsec',
+          scenario: 'crowdsecurity/excluded-primary',
+          simulated: false,
+        },
+      ],
     });
     const { controller, database } = createController({
       initialCacheState: {
@@ -521,21 +602,23 @@ describe('createApp search API', () => {
       'machine:host-combined',
       'origin:lists',
     ].join(' AND ');
-    const response = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=${encodeURIComponent(query)}`,
-    ));
+    const response = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=${encodeURIComponent(query)}`),
+    );
     expect(response.status).toBe(200);
-    expect((await response.json()) as PaginatedResponse<DecisionListItem>).toEqual(expect.objectContaining({
-      data: [
-        expect.objectContaining({
-          id: 9101,
-          is_duplicate: false,
+    expect((await response.json()) as PaginatedResponse<DecisionListItem>).toEqual(
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            id: 9101,
+            is_duplicate: false,
+          }),
+        ],
+        pagination: expect.objectContaining({
+          total: 1,
         }),
-      ],
-      pagination: expect.objectContaining({
-        total: 1,
       }),
-    }));
+    );
 
     controller.stopBackgroundTasks();
     database.close();
@@ -551,8 +634,22 @@ describe('createApp search API', () => {
         machine_alias: 'host-a',
         source: { ip: '1.2.3.4', value: '1.2.3.4', cn: 'DE', as_name: 'Hetzner' },
         decisions: [
-          { id: 10, value: '1.2.3.4', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'manual', simulated: false },
-          { id: 11, value: '1.2.3.4', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'CAPI', simulated: false },
+          {
+            id: 10,
+            value: '1.2.3.4',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'manual',
+            simulated: false,
+          },
+          {
+            id: 11,
+            value: '1.2.3.4',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'CAPI',
+            simulated: false,
+          },
         ],
       }),
       sampleAlert({
@@ -561,7 +658,16 @@ describe('createApp search API', () => {
         machine_id: 'machine-2',
         machine_alias: 'host-b',
         source: { ip: '5.6.7.8', value: '5.6.7.8', cn: 'US', as_name: 'AWS' },
-        decisions: [{ id: 20, value: '5.6.7.8', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'crowdsec', simulated: true }],
+        decisions: [
+          {
+            id: 20,
+            value: '5.6.7.8',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'crowdsec',
+            simulated: true,
+          },
+        ],
         simulated: true,
       }),
     ];
@@ -578,7 +684,11 @@ describe('createApp search API', () => {
       seedAlert(database, alert);
     }
 
-    const alertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=origin:(manual%20OR%20CAPI)%20AND%20-country:us'));
+    const alertsResponse = await controller.fetch(
+      new Request(
+        'http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=origin:(manual%20OR%20CAPI)%20AND%20-country:us',
+      ),
+    );
     expect(alertsResponse.status).toBe(200);
     expect((await alertsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -587,7 +697,9 @@ describe('createApp search API', () => {
       }),
     );
 
-    const liveAlertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=sim<>simulated'));
+    const liveAlertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=sim<>simulated'),
+    );
     expect(liveAlertsResponse.status).toBe(200);
     expect((await liveAlertsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -596,7 +708,9 @@ describe('createApp search API', () => {
       }),
     );
 
-    const typoAlertsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=sim<>simulatd'));
+    const typoAlertsResponse = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=sim<>simulatd'),
+    );
     expect(typoAlertsResponse.status).toBe(200);
     expect((await typoAlertsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -605,7 +719,11 @@ describe('createApp search API', () => {
       }),
     );
 
-    const decisionsResponse = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=status:active%20AND%20alert:1%20AND%20duplicate:false'));
+    const decisionsResponse = await controller.fetch(
+      new Request(
+        'http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=status:active%20AND%20alert:1%20AND%20duplicate:false',
+      ),
+    );
     expect(decisionsResponse.status).toBe(200);
     expect((await decisionsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -625,43 +743,46 @@ describe('createApp search API', () => {
       uuid: 'alert-1',
       scenario: 'crowdsecurity/netgear_rce',
       source: { ip: '1.2.3.4', value: '1.2.3.4' },
-      decisions: [{
-        id: 10,
-        value: '1.2.3.4',
-        stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
-        type: 'ban',
-        origin: 'crowdsec',
-        scenario: 'crowdsecurity/netgear_rce',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 10,
+          value: '1.2.3.4',
+          stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+          type: 'ban',
+          origin: 'crowdsec',
+          scenario: 'crowdsecurity/netgear_rce',
+          simulated: false,
+        },
+      ],
     });
     const wildcardLookalike = sampleAlert({
       id: 2,
       uuid: 'alert-2',
       scenario: 'crowdsecurity/netgearXrce',
       source: { ip: '5.6.7.8', value: '5.6.7.8' },
-      decisions: [{
-        id: 20,
-        value: '5.6.7.8',
-        stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
-        type: 'ban',
-        origin: 'crowdsec',
-        scenario: 'crowdsecurity/netgearXrce',
-        simulated: false,
-      }],
+      decisions: [
+        {
+          id: 20,
+          value: '5.6.7.8',
+          stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+          type: 'ban',
+          origin: 'crowdsec',
+          scenario: 'crowdsecurity/netgearXrce',
+          simulated: false,
+        },
+      ],
     });
     const { controller, database } = createController({
-      fetchResolver: (url) => url.includes('/v1/alerts?')
-        ? Response.json([matchingAlert, wildcardLookalike])
-        : undefined,
+      fetchResolver: (url) =>
+        url.includes('/v1/alerts?') ? Response.json([matchingAlert, wildcardLookalike]) : undefined,
     });
     seedAlert(database, matchingAlert);
     seedAlert(database, wildcardLookalike);
 
     const query = encodeURIComponent('scenario:crowdsecurity/netgear_rce');
-    const alertsResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${query}`,
-    ));
+    const alertsResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${query}`),
+    );
     expect(alertsResponse.status).toBe(200);
     expect((await alertsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -670,9 +791,9 @@ describe('createApp search API', () => {
       }),
     );
 
-    const decisionsResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=${query}`,
-    ));
+    const decisionsResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=${query}`),
+    );
     expect(decisionsResponse.status).toBe(200);
     expect((await decisionsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -682,22 +803,26 @@ describe('createApp search API', () => {
     );
 
     const exactQuery = encodeURIComponent('scenario=crowdsecurity/netgear_rce');
-    const exactAlertsResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${exactQuery}`,
-    ));
+    const exactAlertsResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${exactQuery}`),
+    );
     expect(exactAlertsResponse.status).toBe(200);
-    expect((await exactAlertsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
+    expect(
+      (await exactAlertsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } },
+    ).toEqual(
       expect.objectContaining({
         data: [expect.objectContaining({ id: 1 })],
         pagination: expect.objectContaining({ total: 1 }),
       }),
     );
 
-    const exactDecisionsResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=${exactQuery}`,
-    ));
+    const exactDecisionsResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=${exactQuery}`),
+    );
     expect(exactDecisionsResponse.status).toBe(200);
-    expect((await exactDecisionsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
+    expect(
+      (await exactDecisionsResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } },
+    ).toEqual(
       expect.objectContaining({
         data: [expect.objectContaining({ id: 10 })],
         pagination: expect.objectContaining({ total: 1 }),
@@ -705,18 +830,18 @@ describe('createApp search API', () => {
     );
 
     const exactPrefixQuery = encodeURIComponent('scenario=crowdsecurity/netgear');
-    const exactPrefixResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${exactPrefixQuery}`,
-    ));
+    const exactPrefixResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${exactPrefixQuery}`),
+    );
     expect(exactPrefixResponse.status).toBe(200);
     expect((await exactPrefixResponse.json()) as { data: unknown[]; pagination: { total: number } }).toEqual(
       expect.objectContaining({ data: [], pagination: expect.objectContaining({ total: 0 }) }),
     );
 
     const notExactQuery = encodeURIComponent('scenario<>crowdsecurity/netgear_rce');
-    const notExactResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${notExactQuery}`,
-    ));
+    const notExactResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${notExactQuery}`),
+    );
     expect(notExactResponse.status).toBe(200);
     expect((await notExactResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -726,9 +851,9 @@ describe('createApp search API', () => {
     );
 
     const substringQuery = encodeURIComponent('gear_r');
-    const substringResponse = await controller.fetch(new Request(
-      `http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${substringQuery}`,
-    ));
+    const substringResponse = await controller.fetch(
+      new Request(`http://localhost/crowdsec/api/alerts?page=1&page_size=10&q=${substringQuery}`),
+    );
     expect(substringResponse.status).toBe(200);
     expect((await substringResponse.json()) as { data: Array<{ id: number }>; pagination: { total: number } }).toEqual(
       expect.objectContaining({
@@ -755,7 +880,8 @@ describe('createApp search API', () => {
     });
     const now = Date.now();
     const seedLargeCache = database.db.transaction(() => {
-      database.db.prepare(`
+      database.db
+        .prepare(`
         WITH RECURSIVE row_numbers(value) AS (
           VALUES(1)
           UNION ALL
@@ -785,26 +911,33 @@ describe('createApp search API', () => {
           0,
           'perf scenario 10.42.0.1 germany ssh'
         FROM row_numbers
-      `).run(new Date(now).toISOString());
-      database.db.prepare(`
+      `)
+        .run(new Date(now).toISOString());
+      database.db
+        .prepare(`
         INSERT INTO alerts_fts(rowid, alert_id, search_text)
         SELECT id, CAST(id AS TEXT), search_text FROM alerts
-      `).run();
+      `)
+        .run();
     });
     seedLargeCache();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50&q=perf'));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts?page=1&page_size=50&q=perf'),
+    );
     expect(response.status).toBe(200);
-    const payload = await response.json() as PaginatedResponse<SlimAlert>;
+    const payload = (await response.json()) as PaginatedResponse<SlimAlert>;
     expect(payload.data).toHaveLength(50);
     expect(payload.pagination.total).toBe(100_000);
     expect(payload.selectable_ids).toHaveLength(50);
 
-    const cityResponse = await controller.fetch(new Request(
-      'http://localhost/crowdsec/api/alerts?page=1&page_size=50&q=city:Berlin%20AND%20region:%22State%20of%20Berlin%22',
-    ));
+    const cityResponse = await controller.fetch(
+      new Request(
+        'http://localhost/crowdsec/api/alerts?page=1&page_size=50&q=city:Berlin%20AND%20region:%22State%20of%20Berlin%22',
+      ),
+    );
     expect(cityResponse.status).toBe(200);
-    const cityPayload = await cityResponse.json() as PaginatedResponse<SlimAlert>;
+    const cityPayload = (await cityResponse.json()) as PaginatedResponse<SlimAlert>;
     expect(cityPayload.data).toHaveLength(50);
     expect(cityPayload.pagination.total).toBe(100_000);
     expect(cityPayload.data[0]?.source).toMatchObject({ city: 'Berlin', region: 'State of Berlin' });
@@ -817,13 +950,27 @@ describe('createApp search API', () => {
   test('returns a 400 for invalid advanced search queries', async () => {
     const { controller, database } = createController();
 
-    seedAlert(database, sampleAlert({
-      id: 1,
-      uuid: 'alert-1',
-      decisions: [{ id: 10, value: '1.2.3.4', stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(), type: 'ban', origin: 'manual', simulated: false }],
-    }));
+    seedAlert(
+      database,
+      sampleAlert({
+        id: 1,
+        uuid: 'alert-1',
+        decisions: [
+          {
+            id: 10,
+            value: '1.2.3.4',
+            stop_at: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+            type: 'ban',
+            origin: 'manual',
+            simulated: false,
+          },
+        ],
+      }),
+    );
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=origin:(manual%20OR'));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions?page=1&page_size=10&q=origin:(manual%20OR'),
+    );
     expect(response.status).toBe(400);
     expect((await response.json()) as { error: string; details: { position: number } }).toEqual(
       expect.objectContaining({
@@ -846,28 +993,36 @@ describe('createApp search API', () => {
     const badAlertId = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/not-a-number'));
     expect(badAlertId.status).toBe(400);
 
-    const badDecisionId = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/not-a-number', { method: 'DELETE' }));
+    const badDecisionId = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions/not-a-number', { method: 'DELETE' }),
+    );
     expect(badDecisionId.status).toBe(400);
 
-    const badBulkAlerts = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ['oops'] }),
-    }));
+    const badBulkAlerts = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ['oops'] }),
+      }),
+    );
     expect(badBulkAlerts.status).toBe(400);
 
-    const badBulkDecisions = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ['oops'] }),
-    }));
+    const badBulkDecisions = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ['oops'] }),
+      }),
+    );
     expect(badBulkDecisions.status).toBe(400);
 
-    const badCleanupIp = await controller.fetch(new Request('http://localhost/crowdsec/api/cleanup/by-ip', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: 'bad-ip' }),
-    }));
+    const badCleanupIp = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/cleanup/by-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: 'bad-ip' }),
+      }),
+    );
     expect(badCleanupIp.status).toBe(400);
 
     const badInterval = await controller.fetch(
@@ -892,4 +1047,4 @@ describe('createApp search API', () => {
     database.close();
     destroyTempDir();
   });
- });
+});

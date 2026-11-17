@@ -2,8 +2,10 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { connect, type AddressInfo, type Socket } from 'node:net';
 import { setImmediate } from 'node:timers/promises';
+
 import { afterEach, expect, test, vi } from 'vitest';
 import { WebSocket } from 'ws';
+
 import type { AppController } from '../app';
 import { attachCacheUpdateWebSocket } from '../cache-update-websocket';
 
@@ -40,17 +42,21 @@ async function startServer(fetch = vi.fn<AppController['fetch']>().mockResolvedV
 
 async function connectRaw(port: number) {
   const client = connect(port, '127.0.0.1');
-  cleanups.push(async () => { client.destroy(); });
+  cleanups.push(async () => {
+    client.destroy();
+  });
   await once(client, 'connect');
-  client.write([
-    'GET /api/cache-updates HTTP/1.1',
-    `Host: 127.0.0.1:${port}`,
-    'Upgrade: websocket',
-    'Connection: Upgrade',
-    'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
-    'Sec-WebSocket-Version: 13',
-    '\r\n',
-  ].join('\r\n'));
+  client.write(
+    [
+      'GET /api/cache-updates HTTP/1.1',
+      `Host: 127.0.0.1:${port}`,
+      'Upgrade: websocket',
+      'Connection: Upgrade',
+      'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+      'Sec-WebSocket-Version: 13',
+      '\r\n',
+    ].join('\r\n'),
+  );
   return client;
 }
 
@@ -85,8 +91,11 @@ test.each([
 
 test.each([200, 401])('survives a TCP reset while authentication is pending and later returns %s', async (status) => {
   let resolveAuthentication!: (response: Response) => void;
-  const authentication = new Promise<Response>((resolve) => { resolveAuthentication = resolve; });
-  const fetch = vi.fn<AppController['fetch']>()
+  const authentication = new Promise<Response>((resolve) => {
+    resolveAuthentication = resolve;
+  });
+  const fetch = vi
+    .fn<AppController['fetch']>()
     .mockResolvedValue(new Response('{}'))
     .mockImplementationOnce(() => authentication);
   const { server, port, url } = await startServer(fetch);

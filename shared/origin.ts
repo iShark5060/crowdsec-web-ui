@@ -9,7 +9,9 @@ export function normalizeOrigin(origin: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-export function collectDistinctOrigins(decisions: Array<OriginCarrier | null | undefined> | null | undefined): string[] {
+export function collectDistinctOrigins(
+  decisions: Array<OriginCarrier | null | undefined> | null | undefined,
+): string[] {
   const origins = new Set<string>();
 
   for (const decision of decisions || []) {

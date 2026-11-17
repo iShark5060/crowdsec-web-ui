@@ -1,10 +1,13 @@
-import { createDefaultConfigResponse } from './harness';
-import { describe, expect, test, vi } from 'vitest';
+import './harness';
+
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { describe, expect, test, vi } from 'vitest';
+
 import * as api from '../../../lib/api';
 import { Decisions } from '../../Decisions';
+import { createDefaultConfigResponse } from './harness';
 
 function configureInstances(ids: string[], scenarios: Record<string, string[]> = {}) {
   const config = createDefaultConfigResponse();
@@ -21,7 +24,8 @@ function configureInstances(ids: string[], scenarios: Record<string, string[]> =
   });
 }
 
-const configureMultipleInstances = (scenarios: Record<string, string[]> = {}) => configureInstances(['east', 'west'], scenarios);
+const configureMultipleInstances = (scenarios: Record<string, string[]> = {}) =>
+  configureInstances(['east', 'west'], scenarios);
 
 async function openAddDecision(path: string) {
   renderDecisions(path);
@@ -30,9 +34,12 @@ async function openAddDecision(path: string) {
   return screen.getByRole('dialog', { name: 'Add Manual Decision' });
 }
 
-const renderDecisions = (path: string) => render(
-  <MemoryRouter initialEntries={[path]}><Decisions /></MemoryRouter>,
-);
+const renderDecisions = (path: string) =>
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <Decisions />
+    </MemoryRouter>,
+  );
 
 describe('shared Add Decision modal on Decisions page', () => {
   test('defaults to the filtered instance, supports all instances, and retries only failures', async () => {
@@ -61,9 +68,17 @@ describe('shared Add Decision modal on Decisions page', () => {
     expect(within(dialog).getByText('Current instance: EAST')).toBeInTheDocument();
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.8');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenNthCalledWith(1, {
-      ip: '203.0.113.8', duration: '4h', type: 'ban', reason: 'manual', scenario: 'manual/web-ui', scope: 'instance', instance_id: 'east',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenNthCalledWith(1, {
+        ip: '203.0.113.8',
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'manual/web-ui',
+        scope: 'instance',
+        instance_id: 'east',
+      }),
+    );
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Manual Decision' })).not.toBeInTheDocument());
 
     await userEvent.click(screen.getByRole('button', { name: 'Add Decision' }));
@@ -72,15 +87,30 @@ describe('shared Add Decision modal on Decisions page', () => {
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.9');
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'All instances' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenNthCalledWith(2, {
-      ip: '203.0.113.9', duration: '4h', type: 'ban', reason: 'manual', scenario: 'manual/web-ui', scope: 'all',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenNthCalledWith(2, {
+        ip: '203.0.113.9',
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'manual/web-ui',
+        scope: 'all',
+      }),
+    );
     dialog = screen.getByRole('dialog', { name: 'Add Manual Decision' });
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Failed: WEST');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Retry failed instances' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenNthCalledWith(3, {
-      ip: '203.0.113.9', duration: '4h', type: 'ban', reason: 'manual', scenario: 'manual/web-ui', scope: 'instance', instance_id: 'west',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenNthCalledWith(3, {
+        ip: '203.0.113.9',
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'manual/web-ui',
+        scope: 'instance',
+        instance_id: 'west',
+      }),
+    );
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add Manual Decision' })).not.toBeInTheDocument());
   });
 
@@ -96,9 +126,16 @@ describe('shared Add Decision modal on Decisions page', () => {
     expect(allInstances).toBeDisabled();
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.10');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenCalledWith({
-      ip: '203.0.113.10', duration: '4h', type: 'ban', reason: 'manual', scenario: 'manual/web-ui', scope: 'all',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenCalledWith({
+        ip: '203.0.113.10',
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'manual/web-ui',
+        scope: 'all',
+      }),
+    );
   });
 
   test('defaults to a ban and hides the scenario field when only the manual scenario is available', async () => {
@@ -110,9 +147,15 @@ describe('shared Add Decision modal on Decisions page', () => {
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.11');
     await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Type' }), 'captcha');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenCalledWith({
-      ip: '203.0.113.11', duration: '4h', type: 'captcha', reason: 'manual', scenario: 'manual/web-ui',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenCalledWith({
+        ip: '203.0.113.11',
+        duration: '4h',
+        type: 'captcha',
+        reason: 'manual',
+        scenario: 'manual/web-ui',
+      }),
+    );
   });
 
   test('offers the configured scenarios with the manual scenario selected first', async () => {
@@ -122,14 +165,24 @@ describe('shared Add Decision modal on Decisions page', () => {
     const scenario = await within(dialog).findByRole('combobox', { name: 'Scenario' });
     expect(scenario).toBeEnabled();
     expect(scenario).toHaveValue('manual/web-ui');
-    expect(within(scenario).getAllByRole('option').map((option) => option.textContent)).toEqual(['manual/web-ui', 'custom/abuse-report']);
+    expect(
+      within(scenario)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['manual/web-ui', 'custom/abuse-report']);
 
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.12');
     await userEvent.selectOptions(scenario, 'custom/abuse-report');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenCalledWith({
-      ip: '203.0.113.12', duration: '4h', type: 'ban', reason: 'manual', scenario: 'custom/abuse-report',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenCalledWith({
+        ip: '203.0.113.12',
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'custom/abuse-report',
+      }),
+    );
   });
 
   test('lists target instances and keeps their shared scenarios for All instances', async () => {
@@ -144,9 +197,16 @@ describe('shared Add Decision modal on Decisions page', () => {
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.13');
     await userEvent.selectOptions(scenario, 'custom/abuse-report');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenCalledWith({
-      ip: '203.0.113.13', duration: '4h', type: 'ban', reason: 'manual', scenario: 'custom/abuse-report', scope: 'all',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenCalledWith({
+        ip: '203.0.113.13',
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'custom/abuse-report',
+        scope: 'all',
+      }),
+    );
   });
 
   test('falls back to the manual scenario and hides the field for All instances with different lists', async () => {
@@ -163,17 +223,33 @@ describe('shared Add Decision modal on Decisions page', () => {
 
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'IP / Range' }), '203.0.113.14');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Decision' }));
-    await waitFor(() => expect(api.addDecision).toHaveBeenCalledWith({
-      ip: '203.0.113.14', duration: '4h', type: 'ban', reason: 'manual', scenario: 'manual/web-ui', scope: 'all',
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenCalledWith({
+        ip: '203.0.113.14',
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'manual/web-ui',
+        scope: 'all',
+      }),
+    );
   });
 });
 
 describe('allowlist protection in the Add Decision modal', () => {
   const allowlistedValue = '10.1.2.3';
-  const allowlistedResults = (value: string) => value === allowlistedValue
-    ? [{ instance_id: 'main', instance_name: 'MAIN', status: 'available' as const, allowlisted: true, reason: '10.0.0.0/8 from office (VPN)' }]
-    : [];
+  const allowlistedResults = (value: string) =>
+    value === allowlistedValue
+      ? [
+          {
+            instance_id: 'main',
+            instance_name: 'MAIN',
+            status: 'available' as const,
+            allowlisted: true,
+            reason: '10.0.0.0/8 from office (VPN)',
+          },
+        ]
+      : [];
 
   test('warns about an allowlisted value and only submits after the bypass is confirmed', async () => {
     configureInstances(['main']);
@@ -196,9 +272,16 @@ describe('allowlist protection in the Add Decision modal', () => {
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Bypass allowlist' }));
     expect(submit).toBeEnabled();
     await userEvent.click(submit);
-    await waitFor(() => expect(api.addDecision).toHaveBeenCalledWith({
-      ip: allowlistedValue, duration: '4h', type: 'ban', reason: 'manual', scenario: 'manual/web-ui', bypass_allowlist: true,
-    }));
+    await waitFor(() =>
+      expect(api.addDecision).toHaveBeenCalledWith({
+        ip: allowlistedValue,
+        duration: '4h',
+        type: 'ban',
+        reason: 'manual',
+        scenario: 'manual/web-ui',
+        bypass_allowlist: true,
+      }),
+    );
   });
 
   test('shows the server refusal and asks again for a bypass after the value changes', async () => {
@@ -206,10 +289,12 @@ describe('allowlist protection in the Add Decision modal', () => {
     // The pre-check is still running when the form is submitted.
     vi.mocked(api.checkAllowlist).mockImplementation(() => new Promise(() => {}));
     vi.mocked(api.addDecision)
-      .mockRejectedValueOnce(Object.assign(new Error('10.1.2.4 is allowlisted'), {
-        code: 'ALLOWLISTED',
-        allowlisted: [{ instance_id: 'west', instance_name: 'WEST', reason: '10.1.2.4 from partners' }],
-      }))
+      .mockRejectedValueOnce(
+        Object.assign(new Error('10.1.2.4 is allowlisted'), {
+          code: 'ALLOWLISTED',
+          allowlisted: [{ instance_id: 'west', instance_name: 'WEST', reason: '10.1.2.4 from partners' }],
+        }),
+      )
       .mockResolvedValueOnce(undefined);
     try {
       const dialog = await openAddDecision('/decisions');
@@ -230,9 +315,17 @@ describe('allowlist protection in the Add Decision modal', () => {
 
       await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Bypass allowlist' }));
       await userEvent.click(submit);
-      await waitFor(() => expect(api.addDecision).toHaveBeenLastCalledWith({
-        ip: '10.1.2.4', duration: '4h', type: 'ban', reason: 'manual', scenario: 'manual/web-ui', scope: 'all', bypass_allowlist: true,
-      }));
+      await waitFor(() =>
+        expect(api.addDecision).toHaveBeenLastCalledWith({
+          ip: '10.1.2.4',
+          duration: '4h',
+          type: 'ban',
+          reason: 'manual',
+          scenario: 'manual/web-ui',
+          scope: 'all',
+          bypass_allowlist: true,
+        }),
+      );
     } finally {
       vi.mocked(api.checkAllowlist).mockImplementation(async (value) => ({ value, allowlisted: false, results: [] }));
     }

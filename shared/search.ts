@@ -106,7 +106,13 @@ export type SearchNode =
   | { kind: 'not'; expression: SearchNode }
   | { kind: 'binary'; operator: SearchBooleanOperator; left: SearchNode; right: SearchNode }
   | { kind: 'field'; field: string; expression: SearchNode }
-  | { kind: 'comparison'; field: string; operator: SearchComparisonOperator; value: string; quoted: boolean };
+  | {
+      kind: 'comparison';
+      field: string;
+      operator: SearchComparisonOperator;
+      value: string;
+      quoted: boolean;
+    };
 
 type SearchComparatorTokenValue = ':' | '=' | '<>' | '<' | '>' | '<=' | '>=' | '=>';
 
@@ -144,84 +150,373 @@ type SearchCompileFailure = {
 };
 
 export type AlertSearchCompileResult = SearchCompileSuccess<SlimAlert> | SearchCompileFailure;
-export type DecisionSearchCompileResult = SearchCompileSuccess<DecisionListItem> | SearchCompileFailure;
+export type DecisionSearchCompileResult =
+  | SearchCompileSuccess<DecisionListItem>
+  | SearchCompileFailure;
 
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 
 const alertFieldDefinitions: SearchFieldDefinition[] = [
-  { name: 'id', aliases: [], description: 'Exact alert ID', descriptionKey: 'components.searchSyntax.fields.alerts.id' },
+  {
+    name: 'id',
+    aliases: [],
+    description: 'Exact alert ID',
+    descriptionKey: 'components.searchSyntax.fields.alerts.id',
+  },
   { name: 'instance', aliases: [], description: 'CrowdSec instance name or ID' },
-  { name: 'scenario', aliases: [], description: 'Scenario name', descriptionKey: 'components.searchSyntax.fields.alerts.scenario' },
-  { name: 'kind', aliases: [], description: 'Alert kind', descriptionKey: 'components.searchSyntax.fields.alerts.kind' },
-  { name: 'message', aliases: [], description: 'Alert message text', descriptionKey: 'components.searchSyntax.fields.alerts.message' },
-  { name: 'ip', aliases: ['source'], description: 'Source IP, value, or range', descriptionKey: 'components.searchSyntax.fields.alerts.ip' },
-  { name: 'country', aliases: [], description: 'Country code or name', descriptionKey: 'components.searchSyntax.fields.country' },
-  { name: 'region', aliases: [], description: 'Region name', descriptionKey: 'components.searchSyntax.fields.region' },
-  { name: 'city', aliases: [], description: 'City name', descriptionKey: 'components.searchSyntax.fields.city' },
-  { name: 'as', aliases: [], description: 'Autonomous system / provider name', descriptionKey: 'components.searchSyntax.fields.as' },
-  { name: 'target', aliases: [], description: 'Alert target', descriptionKey: 'components.searchSyntax.fields.alerts.target' },
-  { name: 'date', aliases: ['created', 'created_at', 'time'], description: 'Alert creation date or ISO timestamp', descriptionKey: 'components.searchSyntax.fields.alerts.date', valueType: 'date' },
-  { name: 'sim', aliases: ['simulation'], description: 'Simulation state (`live` or `simulated`)', descriptionKey: 'components.searchSyntax.fields.sim' },
-  { name: 'machine', aliases: [], description: 'Machine alias or ID', descriptionKey: 'components.searchSyntax.fields.machine', availability: 'machine' },
-  { name: 'origin', aliases: [], description: 'Decision origin', descriptionKey: 'components.searchSyntax.fields.origin', availability: 'origin' },
-  { name: 'decision', aliases: ['decisions'], description: 'Related decision state (`active`, `expired`, or empty)', descriptionKey: 'components.searchSyntax.fields.alerts.decision' },
+  {
+    name: 'scenario',
+    aliases: [],
+    description: 'Scenario name',
+    descriptionKey: 'components.searchSyntax.fields.alerts.scenario',
+  },
+  {
+    name: 'kind',
+    aliases: [],
+    description: 'Alert kind',
+    descriptionKey: 'components.searchSyntax.fields.alerts.kind',
+  },
+  {
+    name: 'message',
+    aliases: [],
+    description: 'Alert message text',
+    descriptionKey: 'components.searchSyntax.fields.alerts.message',
+  },
+  {
+    name: 'ip',
+    aliases: ['source'],
+    description: 'Source IP, value, or range',
+    descriptionKey: 'components.searchSyntax.fields.alerts.ip',
+  },
+  {
+    name: 'country',
+    aliases: [],
+    description: 'Country code or name',
+    descriptionKey: 'components.searchSyntax.fields.country',
+  },
+  {
+    name: 'region',
+    aliases: [],
+    description: 'Region name',
+    descriptionKey: 'components.searchSyntax.fields.region',
+  },
+  {
+    name: 'city',
+    aliases: [],
+    description: 'City name',
+    descriptionKey: 'components.searchSyntax.fields.city',
+  },
+  {
+    name: 'as',
+    aliases: [],
+    description: 'Autonomous system / provider name',
+    descriptionKey: 'components.searchSyntax.fields.as',
+  },
+  {
+    name: 'target',
+    aliases: [],
+    description: 'Alert target',
+    descriptionKey: 'components.searchSyntax.fields.alerts.target',
+  },
+  {
+    name: 'date',
+    aliases: ['created', 'created_at', 'time'],
+    description: 'Alert creation date or ISO timestamp',
+    descriptionKey: 'components.searchSyntax.fields.alerts.date',
+    valueType: 'date',
+  },
+  {
+    name: 'sim',
+    aliases: ['simulation'],
+    description: 'Simulation state (`live` or `simulated`)',
+    descriptionKey: 'components.searchSyntax.fields.sim',
+  },
+  {
+    name: 'machine',
+    aliases: [],
+    description: 'Machine alias or ID',
+    descriptionKey: 'components.searchSyntax.fields.machine',
+    availability: 'machine',
+  },
+  {
+    name: 'origin',
+    aliases: [],
+    description: 'Decision origin',
+    descriptionKey: 'components.searchSyntax.fields.origin',
+    availability: 'origin',
+  },
+  {
+    name: 'decision',
+    aliases: ['decisions'],
+    description: 'Related decision state (`active`, `expired`, or empty)',
+    descriptionKey: 'components.searchSyntax.fields.alerts.decision',
+  },
 ];
 
 const decisionFieldDefinitions: SearchFieldDefinition[] = [
-  { name: 'id', aliases: [], description: 'Exact decision ID', descriptionKey: 'components.searchSyntax.fields.decisions.id' },
+  {
+    name: 'id',
+    aliases: [],
+    description: 'Exact decision ID',
+    descriptionKey: 'components.searchSyntax.fields.decisions.id',
+  },
   { name: 'instance', aliases: [], description: 'CrowdSec instance name or ID' },
-  { name: 'alert', aliases: ['alert_id'], description: 'Linked alert ID', descriptionKey: 'components.searchSyntax.fields.decisions.alert' },
-  { name: 'scenario', aliases: ['reason'], description: 'Decision scenario / reason', descriptionKey: 'components.searchSyntax.fields.decisions.scenario' },
-  { name: 'kind', aliases: [], description: 'Linked alert kind', descriptionKey: 'components.searchSyntax.fields.alerts.kind' },
-  { name: 'message', aliases: [], description: 'Linked alert message text', descriptionKey: 'components.searchSyntax.fields.alerts.message' },
-  { name: 'ip', aliases: ['value'], description: 'Decision IP or range', descriptionKey: 'components.searchSyntax.fields.decisions.ip' },
-  { name: 'country', aliases: [], description: 'Country code or name', descriptionKey: 'components.searchSyntax.fields.country' },
-  { name: 'region', aliases: [], description: 'Region name', descriptionKey: 'components.searchSyntax.fields.region' },
-  { name: 'city', aliases: [], description: 'City name', descriptionKey: 'components.searchSyntax.fields.city' },
-  { name: 'as', aliases: [], description: 'Autonomous system / provider name', descriptionKey: 'components.searchSyntax.fields.as' },
-  { name: 'target', aliases: [], description: 'Decision target', descriptionKey: 'components.searchSyntax.fields.decisions.target' },
-  { name: 'date', aliases: ['created', 'created_at', 'time'], description: 'Decision creation date or ISO timestamp', descriptionKey: 'components.searchSyntax.fields.decisions.date', valueType: 'date' },
-  { name: 'action', aliases: [], description: 'Decision action', descriptionKey: 'components.searchSyntax.fields.decisions.action' },
-  { name: 'type', aliases: [], description: 'Decision type', descriptionKey: 'components.searchSyntax.fields.decisions.type' },
-  { name: 'status', aliases: [], description: 'Decision status (`active` or `expired`)', descriptionKey: 'components.searchSyntax.fields.decisions.status' },
-  { name: 'duplicate', aliases: [], description: 'Duplicate state (`true` or `false`)', descriptionKey: 'components.searchSyntax.fields.decisions.duplicate' },
-  { name: 'sim', aliases: ['simulation'], description: 'Simulation state (`live` or `simulated`)', descriptionKey: 'components.searchSyntax.fields.sim' },
-  { name: 'machine', aliases: [], description: 'Machine alias or ID', descriptionKey: 'components.searchSyntax.fields.machine', availability: 'machine' },
-  { name: 'origin', aliases: [], description: 'Decision origin', descriptionKey: 'components.searchSyntax.fields.origin', availability: 'origin' },
+  {
+    name: 'alert',
+    aliases: ['alert_id'],
+    description: 'Linked alert ID',
+    descriptionKey: 'components.searchSyntax.fields.decisions.alert',
+  },
+  {
+    name: 'scenario',
+    aliases: ['reason'],
+    description: 'Decision scenario / reason',
+    descriptionKey: 'components.searchSyntax.fields.decisions.scenario',
+  },
+  {
+    name: 'kind',
+    aliases: [],
+    description: 'Linked alert kind',
+    descriptionKey: 'components.searchSyntax.fields.alerts.kind',
+  },
+  {
+    name: 'message',
+    aliases: [],
+    description: 'Linked alert message text',
+    descriptionKey: 'components.searchSyntax.fields.alerts.message',
+  },
+  {
+    name: 'ip',
+    aliases: ['value'],
+    description: 'Decision IP or range',
+    descriptionKey: 'components.searchSyntax.fields.decisions.ip',
+  },
+  {
+    name: 'country',
+    aliases: [],
+    description: 'Country code or name',
+    descriptionKey: 'components.searchSyntax.fields.country',
+  },
+  {
+    name: 'region',
+    aliases: [],
+    description: 'Region name',
+    descriptionKey: 'components.searchSyntax.fields.region',
+  },
+  {
+    name: 'city',
+    aliases: [],
+    description: 'City name',
+    descriptionKey: 'components.searchSyntax.fields.city',
+  },
+  {
+    name: 'as',
+    aliases: [],
+    description: 'Autonomous system / provider name',
+    descriptionKey: 'components.searchSyntax.fields.as',
+  },
+  {
+    name: 'target',
+    aliases: [],
+    description: 'Decision target',
+    descriptionKey: 'components.searchSyntax.fields.decisions.target',
+  },
+  {
+    name: 'date',
+    aliases: ['created', 'created_at', 'time'],
+    description: 'Decision creation date or ISO timestamp',
+    descriptionKey: 'components.searchSyntax.fields.decisions.date',
+    valueType: 'date',
+  },
+  {
+    name: 'action',
+    aliases: [],
+    description: 'Decision action',
+    descriptionKey: 'components.searchSyntax.fields.decisions.action',
+  },
+  {
+    name: 'type',
+    aliases: [],
+    description: 'Decision type',
+    descriptionKey: 'components.searchSyntax.fields.decisions.type',
+  },
+  {
+    name: 'status',
+    aliases: [],
+    description: 'Decision status (`active` or `expired`)',
+    descriptionKey: 'components.searchSyntax.fields.decisions.status',
+  },
+  {
+    name: 'duplicate',
+    aliases: [],
+    description: 'Duplicate state (`true` or `false`)',
+    descriptionKey: 'components.searchSyntax.fields.decisions.duplicate',
+  },
+  {
+    name: 'sim',
+    aliases: ['simulation'],
+    description: 'Simulation state (`live` or `simulated`)',
+    descriptionKey: 'components.searchSyntax.fields.sim',
+  },
+  {
+    name: 'machine',
+    aliases: [],
+    description: 'Machine alias or ID',
+    descriptionKey: 'components.searchSyntax.fields.machine',
+    availability: 'machine',
+  },
+  {
+    name: 'origin',
+    aliases: [],
+    description: 'Decision origin',
+    descriptionKey: 'components.searchSyntax.fields.origin',
+    availability: 'origin',
+  },
 ];
 
 const fallbackAlertExamples: SearchHelpExample[] = [
-  { query: 'ssh hetzner', description: 'Normal free-text search across the existing alert fields', descriptionKey: 'components.searchSyntax.examples.alerts.freeText' },
-  { query: '"nginx bf"', description: 'Find an exact phrase', descriptionKey: 'components.searchSyntax.examples.alerts.phrase' },
-  { query: 'country:germany ssh', description: 'Mix fielded search with normal free-text terms', descriptionKey: 'components.searchSyntax.examples.alerts.mixedField' },
-  { query: 'date>=2026-03-24 AND date<2026-03-25', description: 'Filter alerts by date or timestamp ranges', descriptionKey: 'components.searchSyntax.examples.alerts.dateRange' },
-  { query: 'country:(germany OR france) AND -sim:simulated', description: 'Use grouping, boolean logic, and negation', descriptionKey: 'components.searchSyntax.examples.alerts.boolean' },
-  { query: 'ip:1.2.3.4 AND target:ssh', description: 'Match a specific IP and target', descriptionKey: 'components.searchSyntax.examples.alerts.specificField' },
-  { query: 'origin:""', description: 'Find alerts whose origin is empty', descriptionKey: 'components.searchSyntax.examples.alerts.emptyOrigin' },
+  {
+    query: 'ssh hetzner',
+    description: 'Normal free-text search across the existing alert fields',
+    descriptionKey: 'components.searchSyntax.examples.alerts.freeText',
+  },
+  {
+    query: '"nginx bf"',
+    description: 'Find an exact phrase',
+    descriptionKey: 'components.searchSyntax.examples.alerts.phrase',
+  },
+  {
+    query: 'country:germany ssh',
+    description: 'Mix fielded search with normal free-text terms',
+    descriptionKey: 'components.searchSyntax.examples.alerts.mixedField',
+  },
+  {
+    query: 'date>=2026-03-24 AND date<2026-03-25',
+    description: 'Filter alerts by date or timestamp ranges',
+    descriptionKey: 'components.searchSyntax.examples.alerts.dateRange',
+  },
+  {
+    query: 'country:(germany OR france) AND -sim:simulated',
+    description: 'Use grouping, boolean logic, and negation',
+    descriptionKey: 'components.searchSyntax.examples.alerts.boolean',
+  },
+  {
+    query: 'ip:1.2.3.4 AND target:ssh',
+    description: 'Match a specific IP and target',
+    descriptionKey: 'components.searchSyntax.examples.alerts.specificField',
+  },
+  {
+    query: 'origin:""',
+    description: 'Find alerts whose origin is empty',
+    descriptionKey: 'components.searchSyntax.examples.alerts.emptyOrigin',
+  },
 ];
 
 const fallbackDecisionExamples: SearchHelpExample[] = [
-  { query: 'ssh ban', description: 'Normal free-text search across the existing decision fields', descriptionKey: 'components.searchSyntax.examples.decisions.freeText' },
-  { query: 'status:active AND action:ban', description: 'Filter semantic decision fields', descriptionKey: 'components.searchSyntax.examples.decisions.semantic' },
-  { query: 'date>=2026-03-24 AND action:ban', description: 'Combine date filters with semantic decision fields', descriptionKey: 'components.searchSyntax.examples.decisions.dateAction' },
-  { query: 'alert:123 OR ip:"192.168.5.0/24"', description: 'Search by linked alert or a quoted IP/range', descriptionKey: 'components.searchSyntax.examples.decisions.linkedRecord' },
-  { query: 'country:(germany OR france) AND -duplicate:true', description: 'Exclude duplicates while grouping countries', descriptionKey: 'components.searchSyntax.examples.decisions.boolean' },
-  { query: 'target:ssh AND sim:live', description: 'Limit results to one target and simulation state', descriptionKey: 'components.searchSyntax.examples.decisions.simulation' },
-  { query: 'origin:""', description: 'Find decisions whose origin is empty', descriptionKey: 'components.searchSyntax.examples.decisions.emptyOrigin' },
+  {
+    query: 'ssh ban',
+    description: 'Normal free-text search across the existing decision fields',
+    descriptionKey: 'components.searchSyntax.examples.decisions.freeText',
+  },
+  {
+    query: 'status:active AND action:ban',
+    description: 'Filter semantic decision fields',
+    descriptionKey: 'components.searchSyntax.examples.decisions.semantic',
+  },
+  {
+    query: 'date>=2026-03-24 AND action:ban',
+    description: 'Combine date filters with semantic decision fields',
+    descriptionKey: 'components.searchSyntax.examples.decisions.dateAction',
+  },
+  {
+    query: 'alert:123 OR ip:"192.168.5.0/24"',
+    description: 'Search by linked alert or a quoted IP/range',
+    descriptionKey: 'components.searchSyntax.examples.decisions.linkedRecord',
+  },
+  {
+    query: 'country:(germany OR france) AND -duplicate:true',
+    description: 'Exclude duplicates while grouping countries',
+    descriptionKey: 'components.searchSyntax.examples.decisions.boolean',
+  },
+  {
+    query: 'target:ssh AND sim:live',
+    description: 'Limit results to one target and simulation state',
+    descriptionKey: 'components.searchSyntax.examples.decisions.simulation',
+  },
+  {
+    query: 'origin:""',
+    description: 'Find decisions whose origin is empty',
+    descriptionKey: 'components.searchSyntax.examples.decisions.emptyOrigin',
+  },
 ];
 
 const searchHelpOperators: SearchHelpOperatorDefinition[] = [
-  { label: 'AND', insertText: ' AND ', description: 'Both expressions must match', descriptionKey: 'components.searchSyntax.operators.and' },
-  { label: 'OR', insertText: ' OR ', description: 'Either expression may match', descriptionKey: 'components.searchSyntax.operators.or' },
-  { label: 'NOT', insertText: 'NOT ', description: 'Negate the next expression', descriptionKey: 'components.searchSyntax.operators.not' },
-  { label: '-', insertText: '-', description: 'Short negation for a single term or field', descriptionKey: 'components.searchSyntax.operators.minus' },
-  { label: ':', insertText: ':', description: 'Broad field match', descriptionKey: 'components.searchSyntax.operators.contains' },
-  { label: '=', insertText: '=', description: 'Exact field match', descriptionKey: 'components.searchSyntax.operators.equals' },
-  { label: '<>', insertText: '<>', description: 'Exclude an exact field value', descriptionKey: 'components.searchSyntax.operators.notEquals' },
-  { label: '>', insertText: '>', description: 'Date is after the supplied value', descriptionKey: 'components.searchSyntax.operators.greaterThan' },
-  { label: '>=', insertText: '>=', description: 'Date is on or after the supplied value', descriptionKey: 'components.searchSyntax.operators.greaterOrEqual' },
-  { label: '<', insertText: '<', description: 'Date is before the supplied value', descriptionKey: 'components.searchSyntax.operators.lessThan' },
-  { label: '<=', insertText: '<=', description: 'Date is on or before the supplied value', descriptionKey: 'components.searchSyntax.operators.lessOrEqual' },
+  {
+    label: 'AND',
+    insertText: ' AND ',
+    description: 'Both expressions must match',
+    descriptionKey: 'components.searchSyntax.operators.and',
+  },
+  {
+    label: 'OR',
+    insertText: ' OR ',
+    description: 'Either expression may match',
+    descriptionKey: 'components.searchSyntax.operators.or',
+  },
+  {
+    label: 'NOT',
+    insertText: 'NOT ',
+    description: 'Negate the next expression',
+    descriptionKey: 'components.searchSyntax.operators.not',
+  },
+  {
+    label: '-',
+    insertText: '-',
+    description: 'Short negation for a single term or field',
+    descriptionKey: 'components.searchSyntax.operators.minus',
+  },
+  {
+    label: ':',
+    insertText: ':',
+    description: 'Broad field match',
+    descriptionKey: 'components.searchSyntax.operators.contains',
+  },
+  {
+    label: '=',
+    insertText: '=',
+    description: 'Exact field match',
+    descriptionKey: 'components.searchSyntax.operators.equals',
+  },
+  {
+    label: '<>',
+    insertText: '<>',
+    description: 'Exclude an exact field value',
+    descriptionKey: 'components.searchSyntax.operators.notEquals',
+  },
+  {
+    label: '>',
+    insertText: '>',
+    description: 'Date is after the supplied value',
+    descriptionKey: 'components.searchSyntax.operators.greaterThan',
+  },
+  {
+    label: '>=',
+    insertText: '>=',
+    description: 'Date is on or after the supplied value',
+    descriptionKey: 'components.searchSyntax.operators.greaterOrEqual',
+  },
+  {
+    label: '<',
+    insertText: '<',
+    description: 'Date is before the supplied value',
+    descriptionKey: 'components.searchSyntax.operators.lessThan',
+  },
+  {
+    label: '<=',
+    insertText: '<=',
+    description: 'Date is on or before the supplied value',
+    descriptionKey: 'components.searchSyntax.operators.lessOrEqual',
+  },
 ];
 
 const EXAMPLE_STOP_WORDS = new Set(['crowdsecurity', 'crowdsec', 'manual', 'web', 'ui']);
@@ -236,7 +531,10 @@ function getSearchHelpExamples(
     : buildDecisionExamples(samples?.decisions, features.originEnabled === true);
 }
 
-function buildAlertExamples(alerts: SlimAlert[] | undefined, includeOriginExample: boolean): SearchHelpExample[] {
+function buildAlertExamples(
+  alerts: SlimAlert[] | undefined,
+  includeOriginExample: boolean,
+): SearchHelpExample[] {
   const examples = [
     buildSearchHelpExample(fallbackAlertExamples[0], findAlertFreeTextExample(alerts)),
     buildSearchHelpExample(fallbackAlertExamples[1], findAlertPhraseExample(alerts)),
@@ -248,7 +546,10 @@ function buildAlertExamples(alerts: SlimAlert[] | undefined, includeOriginExampl
   return includeOriginExample ? [...examples, fallbackAlertExamples[6]] : examples;
 }
 
-function buildDecisionExamples(decisions: DecisionListItem[] | undefined, includeOriginExample: boolean): SearchHelpExample[] {
+function buildDecisionExamples(
+  decisions: DecisionListItem[] | undefined,
+  includeOriginExample: boolean,
+): SearchHelpExample[] {
   const examples = [
     buildSearchHelpExample(fallbackDecisionExamples[0], findDecisionFreeTextExample(decisions)),
     buildSearchHelpExample(fallbackDecisionExamples[1], findDecisionSemanticExample(decisions)),
@@ -260,7 +561,10 @@ function buildDecisionExamples(decisions: DecisionListItem[] | undefined, includ
   return includeOriginExample ? [...examples, fallbackDecisionExamples[6]] : examples;
 }
 
-function buildSearchHelpExample(fallbackExample: SearchHelpExample, query: string | null): SearchHelpExample {
+function buildSearchHelpExample(
+  fallbackExample: SearchHelpExample,
+  query: string | null,
+): SearchHelpExample {
   return {
     ...fallbackExample,
     query: query ?? fallbackExample.query,
@@ -424,9 +728,11 @@ function getAlertTargetOrScenarioTerm(alert: SlimAlert): string | null {
 }
 
 function getAlertSourceExampleValue(alert: SlimAlert): string | null {
-  return sanitizeExampleValue(alert.source?.ip) ||
+  return (
+    sanitizeExampleValue(alert.source?.ip) ||
     sanitizeExampleValue(alert.source?.value) ||
-    sanitizeExampleValue(alert.source?.range);
+    sanitizeExampleValue(alert.source?.range)
+  );
 }
 
 function uniqueTerms(...groups: string[][]): string[] {
@@ -541,28 +847,36 @@ function getNextUtcDateString(day: string): string | null {
 
 const alertFieldMatchers: AlertFieldMatcherMap = {
   id: (alert, value) => normalizeValue(alert.id) === normalizeValue(value),
-  instance: (alert, value) => includesNormalized(`${alert.instance_id || ''} ${alert.instance_name || ''}`, value),
+  instance: (alert, value) =>
+    includesNormalized(`${alert.instance_id || ''} ${alert.instance_name || ''}`, value),
   scenario: (alert, value) => includesNormalized(alert.scenario, value),
   kind: (alert, value) => includesNormalized(alert.kind, value),
   message: (alert, value) => includesNormalized(alert.message, value),
-  ip: (alert, value) => getAlertSourceValues(alert).some((candidate) => matchesIpSearchValue(candidate, value)),
+  ip: (alert, value) =>
+    getAlertSourceValues(alert).some((candidate) => matchesIpSearchValue(candidate, value)),
   country: (alert, value) => matchesCountryField(alert.source?.cn || '', value),
   region: (alert, value) => includesNormalized(alert.source?.region, value),
   city: (alert, value) => includesNormalized(alert.source?.city, value),
   as: (alert, value) => includesNormalized(alert.source?.as_name, value),
-  target: (alert, value) => getAlertTargetValues(alert).some((target) => includesNormalized(target, value)),
+  target: (alert, value) =>
+    getAlertTargetValues(alert).some((target) => includesNormalized(target, value)),
   date: (alert, value) => includesNormalized(alert.created_at, value),
   sim: (alert, value) => matchesSimulationTerm(alert.simulated === true, value),
-  machine: (alert, value) => getAlertMachineValues(alert).some((machine) => includesNormalized(machine, value)),
-  origin: (alert, value) => collectDistinctOrigins(alert.decisions).some((origin) => includesNormalized(origin, value)),
-  decision: (alert, value) => getAlertDecisionStates(alert).some((state) => includesNormalized(state, value)),
+  machine: (alert, value) =>
+    getAlertMachineValues(alert).some((machine) => includesNormalized(machine, value)),
+  origin: (alert, value) =>
+    collectDistinctOrigins(alert.decisions).some((origin) => includesNormalized(origin, value)),
+  decision: (alert, value) =>
+    getAlertDecisionStates(alert).some((state) => includesNormalized(state, value)),
 };
 
 const decisionFieldMatchers: DecisionFieldMatcherMap = {
   id: (decision, value) => normalizeValue(decision.id) === normalizeValue(value),
-  instance: (decision, value) => includesNormalized(`${decision.instance_id || ''} ${decision.instance_name || ''}`, value),
+  instance: (decision, value) =>
+    includesNormalized(`${decision.instance_id || ''} ${decision.instance_name || ''}`, value),
   alert: (decision, value) => normalizeValue(decision.detail.alert_id) === normalizeValue(value),
-  scenario: (decision, value) => includesNormalized(decision.detail.reason || decision.scenario, value),
+  scenario: (decision, value) =>
+    includesNormalized(decision.detail.reason || decision.scenario, value),
   kind: (decision, value) => includesNormalized(decision.kind, value),
   message: (decision, value) => includesNormalized(decision.message, value),
   ip: (decision, value) => matchesIpSearchValue(decision.value, value),
@@ -570,41 +884,55 @@ const decisionFieldMatchers: DecisionFieldMatcherMap = {
   region: (decision, value) => includesNormalized(decision.detail.region, value),
   city: (decision, value) => includesNormalized(decision.detail.city, value),
   as: (decision, value) => includesNormalized(decision.detail.as, value),
-  target: (decision, value) => getDecisionTargetValues(decision).some((target) => includesNormalized(target, value)),
+  target: (decision, value) =>
+    getDecisionTargetValues(decision).some((target) => includesNormalized(target, value)),
   date: (decision, value) => includesNormalized(decision.created_at, value),
   action: (decision, value) => includesNormalized(decision.detail.action, value),
   type: (decision, value) => includesNormalized(decision.detail.type, value),
   status: (decision, value) => matchesDecisionStatus(decision, value),
   duplicate: (decision, value) => matchesBoolean(decision.is_duplicate, value),
   sim: (decision, value) => matchesSimulationTerm(decision.simulated === true, value),
-  machine: (decision, value) => getDecisionMachineValues(decision).some((machine) => includesNormalized(machine, value)),
+  machine: (decision, value) =>
+    getDecisionMachineValues(decision).some((machine) => includesNormalized(machine, value)),
   origin: (decision, value) => includesNormalized(decision.detail.origin, value),
 };
 
 const alertExactFieldMatchers: AlertFieldMatcherMap = {
   id: (alert, value) => equalsNormalized(alert.id, value),
-  instance: (alert, value) => [alert.instance_id, alert.instance_name].some((candidate) => equalsNormalized(candidate, value)),
+  instance: (alert, value) =>
+    [alert.instance_id, alert.instance_name].some((candidate) =>
+      equalsNormalized(candidate, value),
+    ),
   scenario: (alert, value) => equalsNormalized(alert.scenario, value),
   kind: (alert, value) => equalsNormalized(alert.kind, value),
   message: (alert, value) => equalsNormalized(alert.message, value),
-  ip: (alert, value) => getAlertSourceValues(alert).some((candidate) => equalsNormalized(candidate, value)),
+  ip: (alert, value) =>
+    getAlertSourceValues(alert).some((candidate) => equalsNormalized(candidate, value)),
   country: (alert, value) => matchesCountryFieldExact(alert.source?.cn || '', value),
   region: (alert, value) => equalsNormalized(alert.source?.region, value),
   city: (alert, value) => equalsNormalized(alert.source?.city, value),
   as: (alert, value) => equalsNormalized(alert.source?.as_name, value),
-  target: (alert, value) => getAlertTargetValues(alert).some((target) => equalsNormalized(target, value)),
+  target: (alert, value) =>
+    getAlertTargetValues(alert).some((target) => equalsNormalized(target, value)),
   date: (alert, value) => equalsNormalized(alert.created_at, value),
   sim: alertFieldMatchers.sim,
-  machine: (alert, value) => getAlertMachineValues(alert).some((machine) => equalsNormalized(machine, value)),
-  origin: (alert, value) => collectDistinctOrigins(alert.decisions).some((origin) => equalsNormalized(origin, value)),
-  decision: (alert, value) => getAlertDecisionStates(alert).some((state) => equalsNormalized(state, value)),
+  machine: (alert, value) =>
+    getAlertMachineValues(alert).some((machine) => equalsNormalized(machine, value)),
+  origin: (alert, value) =>
+    collectDistinctOrigins(alert.decisions).some((origin) => equalsNormalized(origin, value)),
+  decision: (alert, value) =>
+    getAlertDecisionStates(alert).some((state) => equalsNormalized(state, value)),
 };
 
 const decisionExactFieldMatchers: DecisionFieldMatcherMap = {
   id: (decision, value) => equalsNormalized(decision.id, value),
-  instance: (decision, value) => [decision.instance_id, decision.instance_name].some((candidate) => equalsNormalized(candidate, value)),
+  instance: (decision, value) =>
+    [decision.instance_id, decision.instance_name].some((candidate) =>
+      equalsNormalized(candidate, value),
+    ),
   alert: (decision, value) => equalsNormalized(decision.detail.alert_id, value),
-  scenario: (decision, value) => equalsNormalized(decision.detail.reason || decision.scenario, value),
+  scenario: (decision, value) =>
+    equalsNormalized(decision.detail.reason || decision.scenario, value),
   kind: (decision, value) => equalsNormalized(decision.kind, value),
   message: (decision, value) => equalsNormalized(decision.message, value),
   ip: (decision, value) => equalsNormalized(decision.value, value),
@@ -612,14 +940,16 @@ const decisionExactFieldMatchers: DecisionFieldMatcherMap = {
   region: (decision, value) => equalsNormalized(decision.detail.region, value),
   city: (decision, value) => equalsNormalized(decision.detail.city, value),
   as: (decision, value) => equalsNormalized(decision.detail.as, value),
-  target: (decision, value) => getDecisionTargetValues(decision).some((target) => equalsNormalized(target, value)),
+  target: (decision, value) =>
+    getDecisionTargetValues(decision).some((target) => equalsNormalized(target, value)),
   date: (decision, value) => equalsNormalized(decision.created_at, value),
   action: (decision, value) => equalsNormalized(decision.detail.action, value),
   type: (decision, value) => equalsNormalized(decision.detail.type, value),
   status: decisionFieldMatchers.status,
   duplicate: decisionFieldMatchers.duplicate,
   sim: decisionFieldMatchers.sim,
-  machine: (decision, value) => getDecisionMachineValues(decision).some((machine) => equalsNormalized(machine, value)),
+  machine: (decision, value) =>
+    getDecisionMachineValues(decision).some((machine) => equalsNormalized(machine, value)),
   origin: (decision, value) => equalsNormalized(decision.detail.origin, value),
 };
 
@@ -673,8 +1003,12 @@ export function getSearchHelpDefinition(
   return {
     page,
     title: page === 'alerts' ? 'Alert Search Syntax' : 'Decision Search Syntax',
-    titleKey: page === 'alerts' ? 'components.searchSyntax.alerts.title' : 'components.searchSyntax.decisions.title',
-    summary: 'Start with normal free-text search, then add exact phrases, field filters, and date comparisons only when you need them. Use `field:value` for broad matches, `=` / `<>` for exact field checks, and `date>=2026-03-24` style comparisons for time-based filters.',
+    titleKey:
+      page === 'alerts'
+        ? 'components.searchSyntax.alerts.title'
+        : 'components.searchSyntax.decisions.title',
+    summary:
+      'Start with normal free-text search, then add exact phrases, field filters, and date comparisons only when you need them. Use `field:value` for broad matches, `=` / `<>` for exact field checks, and `date>=2026-03-24` style comparisons for time-based filters.',
     summaryKey: 'components.searchSyntax.summary',
     tips: [
       {
@@ -716,16 +1050,18 @@ export function compileAlertSearch(
     ok: true,
     ast: parsed.ast,
     help,
-    predicate: (alert) => parsed.ast === null || evaluateNode(
-      parsed.ast,
-      alert,
-      alertFieldMatchers,
-      alertExactFieldMatchers,
-      alertFieldEmptyMatchers,
-      matchAlertFreeText,
-      undefined,
-      dateOptions,
-    ),
+    predicate: (alert) =>
+      parsed.ast === null ||
+      evaluateNode(
+        parsed.ast,
+        alert,
+        alertFieldMatchers,
+        alertExactFieldMatchers,
+        alertFieldEmptyMatchers,
+        matchAlertFreeText,
+        undefined,
+        dateOptions,
+      ),
   };
 }
 
@@ -745,16 +1081,18 @@ export function compileDecisionSearch(
     ok: true,
     ast: parsed.ast,
     help,
-    predicate: (decision) => parsed.ast === null || evaluateNode(
-      parsed.ast,
-      decision,
-      decisionFieldMatchers,
-      decisionExactFieldMatchers,
-      decisionFieldEmptyMatchers,
-      matchDecisionFreeText,
-      undefined,
-      dateOptions,
-    ),
+    predicate: (decision) =>
+      parsed.ast === null ||
+      evaluateNode(
+        parsed.ast,
+        decision,
+        decisionFieldMatchers,
+        decisionExactFieldMatchers,
+        decisionFieldEmptyMatchers,
+        matchDecisionFreeText,
+        undefined,
+        dateOptions,
+      ),
   };
 }
 
@@ -767,8 +1105,8 @@ export function removeSearchField(node: SearchNode | null, field: string): Searc
   const normalizedField = field.toLowerCase();
 
   if (
-    (node.kind === 'field' || node.kind === 'comparison')
-    && node.field.toLowerCase() === normalizedField
+    (node.kind === 'field' || node.kind === 'comparison') &&
+    node.field.toLowerCase() === normalizedField
   ) {
     return null;
   }
@@ -789,7 +1127,10 @@ export function removeSearchField(node: SearchNode | null, field: string): Searc
   return node;
 }
 
-export function getSearchFacetSelection(node: SearchNode | null, field: string): SearchFacetSelection {
+export function getSearchFacetSelection(
+  node: SearchNode | null,
+  field: string,
+): SearchFacetSelection {
   const included = new Set<string>();
   const excluded = new Set<string>();
   collectFacetValues(node, field.toLowerCase(), false, included, excluded);
@@ -838,9 +1179,7 @@ export function replaceSearchDateRange(
       value: range.end,
       quoted: false,
     };
-    dateRange = dateRange
-      ? { kind: 'binary', operator: 'AND', left: dateRange, right: end }
-      : end;
+    dateRange = dateRange ? { kind: 'binary', operator: 'AND', left: dateRange, right: end } : end;
   }
 
   if (!base) return dateRange;
@@ -848,7 +1187,11 @@ export function replaceSearchDateRange(
   return { kind: 'binary', operator: 'AND', left: base, right: dateRange };
 }
 
-function collectSearchDateRange(node: SearchNode | null, range: SearchDateRange, negated: boolean): void {
+function collectSearchDateRange(
+  node: SearchNode | null,
+  range: SearchDateRange,
+  negated: boolean,
+): void {
   if (!node) return;
   if (!negated && node.kind === 'comparison' && node.field.toLowerCase() === 'date') {
     if (node.operator === '>=' || node.operator === '>') {
@@ -885,9 +1228,10 @@ function serializeNode(node: SearchNode, parentPrecedence: number): string {
       node.field.toLowerCase() === 'date',
     )}`;
   } else if (node.kind === 'field') {
-    const expression = node.expression.kind === 'binary'
-      ? `(${serializeNode(node.expression, 0)})`
-      : serializeNode(node.expression, precedence);
+    const expression =
+      node.expression.kind === 'binary'
+        ? `(${serializeNode(node.expression, 0)})`
+        : serializeNode(node.expression, precedence);
     serialized = `${node.field}:${expression}`;
   } else if (node.kind === 'not') {
     serialized = `NOT ${serializeNode(node.expression, precedence)}`;
@@ -906,10 +1250,10 @@ function searchNodePrecedence(node: SearchNode): number {
 
 function formatSearchValue(value: string, forceQuote = false, allowColon = false): string {
   if (
-    forceQuote
-    || value.length === 0
-    || (allowColon ? /[\s"\\()<>=]/ : /[\s"\\():<>=]/).test(value)
-    || /^(?:AND|OR|NOT)$/i.test(value)
+    forceQuote ||
+    value.length === 0 ||
+    (allowColon ? /[\s"\\()<>=]/ : /[\s"\\():<>=]/).test(value) ||
+    /^(?:AND|OR|NOT)$/i.test(value)
   ) {
     return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
   }
@@ -947,14 +1291,7 @@ function collectFacetValues(
   }
 
   if (node.kind === 'field') {
-    collectFacetValues(
-      node.expression,
-      field,
-      negated,
-      included,
-      excluded,
-      node.field === field,
-    );
+    collectFacetValues(node.expression, field, negated, included, excluded, node.field === field);
     return;
   }
 
@@ -962,7 +1299,10 @@ function collectFacetValues(
   collectFacetValues(node.right, field, negated, included, excluded, scoped);
 }
 
-function buildFacetSelectionNode(field: string, selection: SearchFacetSelection): SearchNode | null {
+function buildFacetSelectionNode(
+  field: string,
+  selection: SearchFacetSelection,
+): SearchNode | null {
   const included = [...new Set(selection.included)];
   const excluded = [...new Set(selection.excluded)].filter((value) => !included.includes(value));
   let result: SearchNode | null = null;
@@ -1042,7 +1382,10 @@ export function analyzeSearchQuery(
   };
 }
 
-function getFieldDefinitions(page: SearchPage, features: SearchFeatureFlags): SearchFieldDefinition[] {
+function getFieldDefinitions(
+  page: SearchPage,
+  features: SearchFeatureFlags,
+): SearchFieldDefinition[] {
   const definitions = page === 'alerts' ? alertFieldDefinitions : decisionFieldDefinitions;
   return definitions.filter((definition) => isFieldAvailable(definition, features));
 }
@@ -1058,7 +1401,10 @@ function getFieldMap(page: SearchPage, features: SearchFeatureFlags): FieldMap {
   return map;
 }
 
-function isFieldAvailable(definition: SearchFieldDefinition, features: SearchFeatureFlags): boolean {
+function isFieldAvailable(
+  definition: SearchFieldDefinition,
+  features: SearchFeatureFlags,
+): boolean {
   void definition;
   void features;
   return true;
@@ -1094,7 +1440,10 @@ function parseQuery(
   return parsed;
 }
 
-function tokenizeQuery(query: string, fieldMap: FieldMap): { ok: true; tokens: SearchToken[] } | { ok: false; error: SearchParseError } {
+function tokenizeQuery(
+  query: string,
+  fieldMap: FieldMap,
+): { ok: true; tokens: SearchToken[] } | { ok: false; error: SearchParseError } {
   const tokens: SearchToken[] = [];
   let index = 0;
   const lowercaseBooleanMode = enableLowercaseBooleanMode(query);
@@ -1218,7 +1567,11 @@ function normalizeSearchQuery(query: string): { trimmedQuery: string; trimOffset
   };
 }
 
-function shiftParseError(error: SearchParseError, originalQuery: string, offset: number): SearchParseError {
+function shiftParseError(
+  error: SearchParseError,
+  originalQuery: string,
+  offset: number,
+): SearchParseError {
   return {
     ...error,
     query: originalQuery,
@@ -1226,7 +1579,10 @@ function shiftParseError(error: SearchParseError, originalQuery: string, offset:
   };
 }
 
-function classifyHighlightTokens(tokens: SearchToken[], fieldMap: FieldMap): SearchHighlightToken[] {
+function classifyHighlightTokens(
+  tokens: SearchToken[],
+  fieldMap: FieldMap,
+): SearchHighlightToken[] {
   return tokens.map((token, index) => {
     if (token.type === 'word') {
       const nextToken = tokens[index + 1];
@@ -1296,7 +1652,12 @@ function classifyHighlightTokens(tokens: SearchToken[], fieldMap: FieldMap): Sea
   });
 }
 
-function shouldSplitComparator(currentValue: string, query: string, index: number, fieldMap: FieldMap): boolean {
+function shouldSplitComparator(
+  currentValue: string,
+  query: string,
+  index: number,
+  fieldMap: FieldMap,
+): boolean {
   const comparator = readComparatorToken(query, index);
   if (!comparator) {
     return false;
@@ -1320,13 +1681,18 @@ function shouldSplitComparator(currentValue: string, query: string, index: numbe
   }
 
   if (comparator.value === ':') {
-    return nextChar === '"' || nextChar === '(' || /[A-Za-z_]/.test(nextChar) || isWhitespace(nextChar);
+    return (
+      nextChar === '"' || nextChar === '(' || /[A-Za-z_]/.test(nextChar) || isWhitespace(nextChar)
+    );
   }
 
   return nextChar === '"' || /[A-Za-z0-9_-]/.test(nextChar);
 }
 
-function readComparatorToken(query: string, index: number): { value: SearchComparatorTokenValue; length: number } | null {
+function readComparatorToken(
+  query: string,
+  index: number,
+): { value: SearchComparatorTokenValue; length: number } | null {
   for (const value of ['<=', '>=', '=>', '<>', ':', '<', '>', '='] as const) {
     if (query.startsWith(value, index)) {
       return { value, length: value.length };
@@ -1336,10 +1702,15 @@ function readComparatorToken(query: string, index: number): { value: SearchCompa
 }
 
 function enableLowercaseBooleanMode(query: string): boolean {
-  return /(^|\s)-(?=\S)|[()"]|[A-Za-z_][A-Za-z0-9_-]*\s*(?::|<=|>=|=>|<>|=|<|>)|\b(?:AND|OR|NOT)\b/.test(query);
+  return /(^|\s)-(?=\S)|[()"]|[A-Za-z_][A-Za-z0-9_-]*\s*(?::|<=|>=|=>|<>|=|<|>)|\b(?:AND|OR|NOT)\b/.test(
+    query,
+  );
 }
 
-function toOperatorToken(value: string, lowercaseBooleanMode: boolean): 'AND' | 'OR' | 'NOT' | null {
+function toOperatorToken(
+  value: string,
+  lowercaseBooleanMode: boolean,
+): 'AND' | 'OR' | 'NOT' | null {
   const normalized = value.toUpperCase();
   if (!['AND', 'OR', 'NOT'].includes(normalized)) {
     return null;
@@ -1352,7 +1723,10 @@ function toOperatorToken(value: string, lowercaseBooleanMode: boolean): 'AND' | 
   return null;
 }
 
-function readQuotedString(query: string, startIndex: number): { value: string; end: number } | null {
+function readQuotedString(
+  query: string,
+  startIndex: number,
+): { value: string; end: number } | null {
   let value = '';
   for (let index = startIndex; index < query.length; index += 1) {
     if (query[index] === '"') {
@@ -1374,7 +1748,14 @@ function readQuotedString(query: string, startIndex: number): { value: string; e
 function isUnaryMinusBoundary(query: string, index: number): boolean {
   const previous = query[index - 1];
   const next = query[index + 1];
-  const previousAllowsUnary = previous === undefined || isWhitespace(previous) || previous === '(' || previous === ':' || previous === '=' || previous === '<' || previous === '>';
+  const previousAllowsUnary =
+    previous === undefined ||
+    isWhitespace(previous) ||
+    previous === '(' ||
+    previous === ':' ||
+    previous === '=' ||
+    previous === '<' ||
+    previous === '>';
   return previousAllowsUnary && Boolean(next) && !isWhitespace(next);
 }
 
@@ -1397,7 +1778,12 @@ class SearchParser {
       const ast = this.parseOr();
       if (this.current()) {
         const token = this.current()!;
-        throw this.error(`Unexpected token \`${tokenToText(token)}\``, token.start, token.end - token.start, tokenToText(token));
+        throw this.error(
+          `Unexpected token \`${tokenToText(token)}\``,
+          token.start,
+          token.end - token.start,
+          tokenToText(token),
+        );
       }
       return { ok: true, ast };
     } catch (error) {
@@ -1457,12 +1843,22 @@ class SearchParser {
       const comparatorToken = this.peek(1) as SearchToken & { type: 'comparator' };
       const definition = this.fieldMap.get(fieldToken.value.toLowerCase());
       if (!definition) {
-        throw this.error(`Unknown field \`${fieldToken.value}\``, fieldToken.start, fieldToken.end - fieldToken.start, fieldToken.value);
+        throw this.error(
+          `Unknown field \`${fieldToken.value}\``,
+          fieldToken.start,
+          fieldToken.end - fieldToken.start,
+          fieldToken.value,
+        );
       }
 
       this.index += 2;
       if (!this.current()) {
-        throw this.error(`Missing search value after \`${fieldToken.value}${comparatorToken.value}\``, comparatorToken.end, 0, fieldToken.value);
+        throw this.error(
+          `Missing search value after \`${fieldToken.value}${comparatorToken.value}\``,
+          comparatorToken.end,
+          0,
+          fieldToken.value,
+        );
       }
 
       if (comparatorToken.value === ':') {
@@ -1485,7 +1881,12 @@ class SearchParser {
 
       const valueToken = this.current();
       if (!valueToken) {
-        throw this.error(`Missing search value after \`${fieldToken.value}${comparatorToken.value}\``, comparatorToken.end, 0, fieldToken.value);
+        throw this.error(
+          `Missing search value after \`${fieldToken.value}${comparatorToken.value}\``,
+          comparatorToken.end,
+          0,
+          fieldToken.value,
+        );
       }
       if (valueToken.type !== 'word' && valueToken.type !== 'string') {
         throw this.error(
@@ -1496,7 +1897,10 @@ class SearchParser {
         );
       }
 
-      if (definition.valueType === 'date' && parseSearchDateValue(valueToken.value, this.dateOptions) === null) {
+      if (
+        definition.valueType === 'date' &&
+        parseSearchDateValue(valueToken.value, this.dateOptions) === null
+      ) {
         throw this.error(
           'Invalid date value. Use `YYYY-MM-DD` or an ISO timestamp',
           valueToken.start,
@@ -1553,7 +1957,12 @@ class SearchParser {
       return expression;
     }
 
-    throw this.error(`Unexpected token \`${tokenToText(token)}\``, token.start, token.end - token.start, tokenToText(token));
+    throw this.error(
+      `Unexpected token \`${tokenToText(token)}\``,
+      token.start,
+      token.end - token.start,
+      tokenToText(token),
+    );
   }
 
   private isFieldPrefix(): boolean {
@@ -1586,12 +1995,23 @@ class SearchParser {
     return this.tokens[this.index + offset];
   }
 
-  private error(message: string, position: number, length: number, token?: string): SearchParseError {
+  private error(
+    message: string,
+    position: number,
+    length: number,
+    token?: string,
+  ): SearchParseError {
     return createParseError(this.query, message, position, length, token);
   }
 }
 
-function createParseError(query: string, message: string, position: number, length: number, token?: string): SearchParseError {
+function createParseError(
+  query: string,
+  message: string,
+  position: number,
+  length: number,
+  token?: string,
+): SearchParseError {
   return {
     message,
     position,
@@ -1631,18 +2051,84 @@ function evaluateNode<T>(
       }
       return freeTextMatcher(item, node.value);
     case 'comparison':
-      return compareFieldValue(item, node.field, node.operator, node.value, exactFieldMatchers, fieldEmptyMatchers, dateOptions);
+      return compareFieldValue(
+        item,
+        node.field,
+        node.operator,
+        node.value,
+        exactFieldMatchers,
+        fieldEmptyMatchers,
+        dateOptions,
+      );
     case 'field':
-      return evaluateNode(node.expression, item, fieldMatchers, exactFieldMatchers, fieldEmptyMatchers, freeTextMatcher, node.field, dateOptions);
+      return evaluateNode(
+        node.expression,
+        item,
+        fieldMatchers,
+        exactFieldMatchers,
+        fieldEmptyMatchers,
+        freeTextMatcher,
+        node.field,
+        dateOptions,
+      );
     case 'not':
-      return !evaluateNode(node.expression, item, fieldMatchers, exactFieldMatchers, fieldEmptyMatchers, freeTextMatcher, scopedField, dateOptions);
+      return !evaluateNode(
+        node.expression,
+        item,
+        fieldMatchers,
+        exactFieldMatchers,
+        fieldEmptyMatchers,
+        freeTextMatcher,
+        scopedField,
+        dateOptions,
+      );
     case 'binary':
       if (node.operator === 'AND') {
-        return evaluateNode(node.left, item, fieldMatchers, exactFieldMatchers, fieldEmptyMatchers, freeTextMatcher, scopedField, dateOptions) &&
-          evaluateNode(node.right, item, fieldMatchers, exactFieldMatchers, fieldEmptyMatchers, freeTextMatcher, scopedField, dateOptions);
+        return (
+          evaluateNode(
+            node.left,
+            item,
+            fieldMatchers,
+            exactFieldMatchers,
+            fieldEmptyMatchers,
+            freeTextMatcher,
+            scopedField,
+            dateOptions,
+          ) &&
+          evaluateNode(
+            node.right,
+            item,
+            fieldMatchers,
+            exactFieldMatchers,
+            fieldEmptyMatchers,
+            freeTextMatcher,
+            scopedField,
+            dateOptions,
+          )
+        );
       }
-      return evaluateNode(node.left, item, fieldMatchers, exactFieldMatchers, fieldEmptyMatchers, freeTextMatcher, scopedField, dateOptions) ||
-        evaluateNode(node.right, item, fieldMatchers, exactFieldMatchers, fieldEmptyMatchers, freeTextMatcher, scopedField, dateOptions);
+      return (
+        evaluateNode(
+          node.left,
+          item,
+          fieldMatchers,
+          exactFieldMatchers,
+          fieldEmptyMatchers,
+          freeTextMatcher,
+          scopedField,
+          dateOptions,
+        ) ||
+        evaluateNode(
+          node.right,
+          item,
+          fieldMatchers,
+          exactFieldMatchers,
+          fieldEmptyMatchers,
+          freeTextMatcher,
+          scopedField,
+          dateOptions,
+        )
+      );
     default:
       return false;
   }
@@ -1658,19 +2144,22 @@ function matchAlertFreeText(alert: SlimAlert, value: string): boolean {
   const simulationSearch = alert.simulated === true ? 'simulation simulated' : 'live';
   const sourceValues = getAlertSourceValues(alert);
 
-  return sourceValues.some((candidate) => matchesIpSearchValue(candidate, value)) || [
-    scenario,
-    alert.kind || '',
-    message,
-    asName,
-    countryCode,
-    countryName,
-    alert.meta_search || '',
-    simulationSearch,
-    ...getAlertTargetValues(alert),
-    ...getAlertMachineValues(alert),
-    ...origins,
-  ].some((candidate) => includesNormalized(candidate, value));
+  return (
+    sourceValues.some((candidate) => matchesIpSearchValue(candidate, value)) ||
+    [
+      scenario,
+      alert.kind || '',
+      message,
+      asName,
+      countryCode,
+      countryName,
+      alert.meta_search || '',
+      simulationSearch,
+      ...getAlertTargetValues(alert),
+      ...getAlertMachineValues(alert),
+      ...origins,
+    ].some((candidate) => includesNormalized(candidate, value))
+  );
 }
 
 function matchDecisionFreeText(decision: DecisionListItem, value: string): boolean {
@@ -1678,19 +2167,22 @@ function matchDecisionFreeText(decision: DecisionListItem, value: string): boole
   const countryName = getCountryName(countryCode);
   const simulationSearch = decision.simulated === true ? 'simulation simulated' : 'live';
 
-  return matchesIpSearchValue(decision.value, value) || [
-    decision.detail.reason || decision.scenario || '',
-    decision.message || '',
-    countryCode,
-    countryName,
-    decision.detail.as || '',
-    decision.detail.action || '',
-    decision.detail.type || '',
-    decision.detail.origin || '',
-    simulationSearch,
-    ...getDecisionTargetValues(decision),
-    ...getDecisionMachineValues(decision),
-  ].some((candidate) => includesNormalized(candidate, value));
+  return (
+    matchesIpSearchValue(decision.value, value) ||
+    [
+      decision.detail.reason || decision.scenario || '',
+      decision.message || '',
+      countryCode,
+      countryName,
+      decision.detail.as || '',
+      decision.detail.action || '',
+      decision.detail.type || '',
+      decision.detail.origin || '',
+      simulationSearch,
+      ...getDecisionTargetValues(decision),
+      ...getDecisionMachineValues(decision),
+    ].some((candidate) => includesNormalized(candidate, value))
+  );
 }
 
 function distinctSearchValues(values: Array<string | null | undefined>): string[] {
@@ -1718,18 +2210,19 @@ function getAlertMachineValues(alert: SlimAlert): string[] {
 }
 
 function getDecisionMachineValues(decision: DecisionListItem): string[] {
-  return distinctSearchValues([
-    decision.machine_id,
-    decision.machine_alias,
-    decision.machine,
-  ]);
+  return distinctSearchValues([decision.machine_id, decision.machine_alias, decision.machine]);
 }
 
-function normalizeComparisonOperator(value: Exclude<SearchComparatorTokenValue, ':'>): SearchComparisonOperator {
+function normalizeComparisonOperator(
+  value: Exclude<SearchComparatorTokenValue, ':'>,
+): SearchComparisonOperator {
   return value === '=>' ? '>=' : value;
 }
 
-function supportsComparisonOperator(definition: SearchFieldDefinition, operator: SearchComparisonOperator): boolean {
+function supportsComparisonOperator(
+  definition: SearchFieldDefinition,
+  operator: SearchComparisonOperator,
+): boolean {
   if (operator === '=' || operator === '<>') {
     return true;
   }
@@ -1746,7 +2239,12 @@ function compareFieldValue<T>(
   dateOptions: SearchDateOptions,
 ): boolean {
   if (field === 'date') {
-    return compareDateValue((item as { created_at?: string }).created_at, operator, value, dateOptions);
+    return compareDateValue(
+      (item as { created_at?: string }).created_at,
+      operator,
+      value,
+      dateOptions,
+    );
   }
 
   const matcher = fieldMatchers[field];
@@ -1779,10 +2277,15 @@ function compareFieldValue<T>(
 }
 
 function getAlertSourceValues(alert: SlimAlert): string[] {
-  return [alert.source?.ip, alert.source?.value, alert.source?.range].filter((value): value is string => Boolean(value));
+  return [alert.source?.ip, alert.source?.value, alert.source?.range].filter(
+    (value): value is string => Boolean(value),
+  );
 }
 
-export function matchesIpSearchValue(candidate: string | number | null | undefined, value: string): boolean {
+export function matchesIpSearchValue(
+  candidate: string | number | null | undefined,
+  value: string,
+): boolean {
   const normalizedCandidate = normalizeValue(candidate);
   const normalizedValue = normalizeValue(value);
   if (!normalizedCandidate || !normalizedValue) {
@@ -1851,7 +2354,10 @@ function matchesCountryFieldExact(countryCode: string, value: string): boolean {
   if (!normalizedValue) {
     return false;
   }
-  return normalizeValue(countryCode) === normalizedValue || normalizeValue(getCountryName(countryCode)) === normalizedValue;
+  return (
+    normalizeValue(countryCode) === normalizedValue ||
+    normalizeValue(getCountryName(countryCode)) === normalizedValue
+  );
 }
 
 function getCountryName(code?: string | null): string {
@@ -1960,9 +2466,11 @@ function cidrContainsIp(cidr: ParsedCidrRange, address: ParsedIpAddress): boolea
 }
 
 function cidrContainsCidr(filter: ParsedCidrRange, candidate: ParsedCidrRange): boolean {
-  return filter.version === candidate.version &&
+  return (
+    filter.version === candidate.version &&
     candidate.prefix >= filter.prefix &&
-    cidrContainsIp(filter, candidate);
+    cidrContainsIp(filter, candidate)
+  );
 }
 
 function getCidrMask(bits: 32 | 128, prefix: number): bigint {
@@ -2167,7 +2675,9 @@ function parseDateOnlyParts(value: string): { year: number; month: number; day: 
   return { year, month, day };
 }
 
-function parseDateHourParts(value: string): { year: number; month: number; day: number; hour: number } | null {
+function parseDateHourParts(
+  value: string,
+): { year: number; month: number; day: number; hour: number } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})$/.exec(value);
   if (!match) {
     return null;
@@ -2258,8 +2768,16 @@ function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
     second: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(date);
-  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((entry) => entry.type === type)?.value || 0);
-  const representedAsUtc = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((entry) => entry.type === type)?.value || 0);
+  const representedAsUtc = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second'),
+  );
   return representedAsUtc - Math.floor(date.getTime() / 1_000) * 1_000;
 }
 

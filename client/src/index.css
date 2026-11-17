@@ -1,20 +1,20 @@
 @import 'flag-icons/css/flag-icons.min.css';
-@import "tailwindcss";
+@import 'tailwindcss';
 @config "../tailwind.config.js";
 
 /* Accent palette as CSS variables so branding can override it at runtime (see shared/branding-theme.ts). */
 @theme {
-  --color-primary-50: #f0f9ff;
-  --color-primary-100: #e0f2fe;
-  --color-primary-200: #bae6fd;
-  --color-primary-300: #7dd3fc;
-  --color-primary-400: #38bdf8;
-  --color-primary-500: #0ea5e9;
-  --color-primary-600: #0284c7;
-  --color-primary-700: #0369a1;
-  --color-primary-800: #075985;
-  --color-primary-900: #0c4a6e;
-  --color-primary-950: #082f49;
+  --color-primary-50: #f6f6ff;
+  --color-primary-100: #ededff;
+  --color-primary-200: #dbdaff;
+  --color-primary-300: #c1bfff;
+  --color-primary-400: #a69fff;
+  --color-primary-500: #9385ff;
+  --color-primary-600: #765cf0;
+  --color-primary-700: #5f4ac3;
+  --color-primary-800: #4f40a0;
+  --color-primary-900: #423783;
+  --color-primary-950: #2a2355;
 }
 
 @layer base {
@@ -27,7 +27,113 @@
   }
 
   body {
-    @apply bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 antialiased;
+    @apply text-gray-900 antialiased dark:text-gray-100;
+  }
+}
+
+/* Arsenal Acrylic, light and dark. Panels use .acrylic; the page is the tinted wash behind them. */
+html.ui-acrylic {
+  --acrylic-backdrop: blur(40px) saturate(200%) contrast(1.08);
+  --acrylic-noise: url('./acrylic-noise.svg');
+  --acrylic-exclusion: rgb(127 127 127);
+}
+
+html.ui-acrylic:not(.dark) {
+  --color-glass: rgb(243 243 245 / 0.55);
+  --color-glass-border: rgb(0 0 0 / 0.08);
+  --acrylic-inset: inset 0 0.5px 0 rgb(255 255 255 / 0.65);
+  --acrylic-fallback: #f3f3f3;
+  --shadow-panel:
+    0 2px 4px rgb(0 0 0 / 0.06), 0 12px 28px rgb(0 0 0 / 0.1), 0 32px 80px rgb(0 0 0 / 0.14);
+}
+
+html.dark.ui-acrylic {
+  --color-glass: rgb(28 28 30 / 0.55);
+  --color-glass-border: rgb(255 255 255 / 0.08);
+  --acrylic-inset: inset 0 0.5px 0 rgb(255 255 255 / 0.14);
+  --acrylic-fallback: #2c2c2c;
+  --shadow-panel:
+    0 2px 4px rgb(0 0 0 / 0.12), 0 12px 28px rgb(0 0 0 / 0.28), 0 32px 80px rgb(0 0 0 / 0.38);
+}
+
+html.ui-acrylic body {
+  background:
+    radial-gradient(ellipse at 0% 0%, oklch(78% 0.08 286 / 0.7), transparent 48%),
+    radial-gradient(ellipse at 100% 0%, oklch(90% 0.04 220 / 0.85), transparent 42%),
+    linear-gradient(165deg, oklch(93% 0.02 276), oklch(98% 0.004 260));
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+html.dark.ui-acrylic body {
+  background:
+    radial-gradient(ellipse at 0% 0%, oklch(40% 0.09 286 / 0.45), transparent 48%),
+    radial-gradient(ellipse at 100% 8%, oklch(46% 0.06 220 / 0.28), transparent 42%),
+    linear-gradient(165deg, oklch(20% 0.02 276), oklch(13% 0.014 260));
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+html.ui-acrylic .acrylic:not(.absolute):not(.fixed):not(.sticky) {
+  position: relative;
+}
+
+html.ui-acrylic .acrylic {
+  isolation: isolate;
+  -webkit-backdrop-filter: var(--acrylic-backdrop);
+  backdrop-filter: var(--acrylic-backdrop);
+}
+
+/* Utilities stay above this layer, so a card can still set its own fill, border, or shadow. */
+@layer components {
+  html.ui-acrylic .acrylic {
+    background: var(--color-glass);
+    border-color: var(--color-glass-border);
+    box-shadow: var(--acrylic-inset), var(--shadow-panel);
+  }
+}
+
+html.ui-acrylic .acrylic::before,
+html.ui-acrylic .acrylic::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+html.ui-acrylic .acrylic::before {
+  background: var(--acrylic-exclusion);
+  opacity: 0.04;
+  mix-blend-mode: exclusion;
+}
+
+html.ui-acrylic .acrylic::after {
+  background-image: var(--acrylic-noise);
+  background-size: 128px 128px;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+}
+
+html.ui-acrylic .acrylic-overlay {
+  background: oklch(21% 0.04 266 / 0.18);
+}
+
+html.dark.ui-acrylic .acrylic-overlay {
+  background: oklch(0% 0 0 / 0.32);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html.ui-acrylic .acrylic {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  @layer components {
+    html.ui-acrylic .acrylic {
+      background: var(--acrylic-fallback);
+    }
   }
 }
 

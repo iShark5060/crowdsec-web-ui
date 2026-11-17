@@ -1,10 +1,13 @@
-import { useAuthMock } from './harness';
-import { SettingsRouter } from './router';
-import { describe, expect, test, vi } from 'vitest';
+import './harness';
+
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Settings } from '../../Settings';
+import { describe, expect, test, vi } from 'vitest';
+
 import { fetchConfig } from '../../../lib/api';
+import { Settings } from '../../Settings';
+import { useAuthMock } from './harness';
+import { SettingsRouter } from './router';
 
 const adminAuth = {
   authEnabled: true,
@@ -25,9 +28,42 @@ const adminAuth = {
 };
 
 const users = [
-  { id: 1, username: 'admin', role: 'admin', source: 'local', disabled: false, passwordChangeRequired: false, totpEnabled: false, passkeyCount: 0, createdAt: '2026-01-01T00:00:00.000Z', current: true },
-  { id: 2, username: 'viewer', role: 'read-only', source: 'local', disabled: false, passwordChangeRequired: true, totpEnabled: true, passkeyCount: 2, createdAt: '2026-01-02T00:00:00.000Z', current: false },
-  { id: 3, username: 'sso-user', role: 'admin', source: 'oidc', disabled: false, passwordChangeRequired: false, totpEnabled: false, passkeyCount: 0, createdAt: '2026-01-03T00:00:00.000Z', current: false },
+  {
+    id: 1,
+    username: 'admin',
+    role: 'admin',
+    source: 'local',
+    disabled: false,
+    passwordChangeRequired: false,
+    totpEnabled: false,
+    passkeyCount: 0,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    current: true,
+  },
+  {
+    id: 2,
+    username: 'viewer',
+    role: 'read-only',
+    source: 'local',
+    disabled: false,
+    passwordChangeRequired: true,
+    totpEnabled: true,
+    passkeyCount: 2,
+    createdAt: '2026-01-02T00:00:00.000Z',
+    current: false,
+  },
+  {
+    id: 3,
+    username: 'sso-user',
+    role: 'admin',
+    source: 'oidc',
+    disabled: false,
+    passwordChangeRequired: false,
+    totpEnabled: false,
+    passkeyCount: 0,
+    createdAt: '2026-01-03T00:00:00.000Z',
+    current: false,
+  },
 ];
 
 function mockAdminConfig(canManage = true) {
@@ -54,19 +90,24 @@ function stubUsersFetch() {
   const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method || 'GET';
-    if (url.endsWith('/api/auth/users') && method === 'GET') return Response.json({ users, totpManagedByConfig: false });
+    if (url.endsWith('/api/auth/users') && method === 'GET')
+      return Response.json({ users, totpManagedByConfig: false });
     if (url.endsWith('/api/auth/users') && method === 'POST') {
       const body = JSON.parse(String(init?.body)) as { username: string; role: string };
-      return Response.json({
-        status: 'ok',
-        user: { ...users[1], id: 4, username: body.username, role: body.role, totpEnabled: false, passkeyCount: 0 },
-      }, { status: 201 });
+      return Response.json(
+        {
+          status: 'ok',
+          user: { ...users[1], id: 4, username: body.username, role: body.role, totpEnabled: false, passkeyCount: 0 },
+        },
+        { status: 201 },
+      );
     }
     if (url.endsWith('/api/auth/users/3') && method === 'DELETE') return Response.json({ status: 'ok' });
     if (url.endsWith('/api/auth/users/2') && method === 'PATCH') {
       return Response.json({ status: 'ok', user: { ...users[1], ...JSON.parse(String(init?.body)) } });
     }
-    if (url.includes('/api/auth/settings')) return Response.json({ hasPassword: true, passkeysAvailable: false, authMethod: 'password' });
+    if (url.includes('/api/auth/settings'))
+      return Response.json({ hasPassword: true, passkeysAvailable: false, authMethod: 'password' });
     return Response.json({});
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -79,7 +120,11 @@ describe('Settings users', () => {
     mockAdminConfig(false);
     stubUsersFetch();
 
-    render(<SettingsRouter tab="users"><Settings /></SettingsRouter>);
+    render(
+      <SettingsRouter tab="users">
+        <Settings />
+      </SettingsRouter>,
+    );
 
     expect(await screen.findByRole('tab', { name: 'pages.settings.account' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Authentication' })).not.toBeInTheDocument();
@@ -93,7 +138,11 @@ describe('Settings users', () => {
     mockAdminConfig();
     stubUsersFetch();
 
-    render(<SettingsRouter tab="users"><Settings /></SettingsRouter>);
+    render(
+      <SettingsRouter tab="users">
+        <Settings />
+      </SettingsRouter>,
+    );
 
     const own = await screen.findByTestId('settings-user-admin');
     expect(within(own).getByText('pages.settings.userYou')).toBeInTheDocument();
@@ -128,17 +177,29 @@ describe('Settings users', () => {
     const user = userEvent.setup();
     useAuthMock.mockReturnValue(adminAuth);
     mockAdminConfig();
-    const oidcLink = { issuer: 'https://idp.example.com', username: 'alice', role: 'admin', method: 'username', linkedAt: '2026-01-04T00:00:00.000Z' };
+    const oidcLink = {
+      issuer: 'https://idp.example.com',
+      username: 'alice',
+      role: 'admin',
+      method: 'username',
+      linkedAt: '2026-01-04T00:00:00.000Z',
+    };
     const fetchMock = stubUsersFetch();
     const usersFetch = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.endsWith('/api/auth/users') && !init?.method) return Response.json({ users: [users[0], { ...users[1], oidcLink }] });
-      if (url.endsWith('/api/auth/users/2/unlink-oidc')) return Response.json({ status: 'ok', user: { ...users[1], oidcLink: null } });
+      if (url.endsWith('/api/auth/users') && !init?.method)
+        return Response.json({ users: [users[0], { ...users[1], oidcLink }] });
+      if (url.endsWith('/api/auth/users/2/unlink-oidc'))
+        return Response.json({ status: 'ok', user: { ...users[1], oidcLink: null } });
       return usersFetch(input, init);
     });
 
-    render(<SettingsRouter tab="users"><Settings /></SettingsRouter>);
+    render(
+      <SettingsRouter tab="users">
+        <Settings />
+      </SettingsRouter>,
+    );
 
     const viewer = await screen.findByTestId('settings-user-viewer');
     expect(within(viewer).getByText('pages.settings.userSourceLinked')).toBeInTheDocument();
@@ -151,8 +212,17 @@ describe('Settings users', () => {
     expect(await screen.findByText('pages.settings.removeUserOidcLinkDescription')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'pages.settings.removeUserOidcLink' }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/auth/users/2/unlink-oidc'), expect.objectContaining({ method: 'POST' })));
-    await waitFor(() => expect(within(screen.getByTestId('settings-user-viewer')).getByText('pages.settings.userSourceLocal')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/users/2/unlink-oidc'),
+        expect.objectContaining({ method: 'POST' }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('settings-user-viewer')).getByText('pages.settings.userSourceLocal'),
+      ).toBeInTheDocument(),
+    );
   });
 
   test('creates users, changes roles and deletes OIDC users', async () => {
@@ -161,7 +231,11 @@ describe('Settings users', () => {
     mockAdminConfig();
     const fetchMock = stubUsersFetch();
 
-    render(<SettingsRouter tab="users"><Settings /></SettingsRouter>);
+    render(
+      <SettingsRouter tab="users">
+        <Settings />
+      </SettingsRouter>,
+    );
     await screen.findByTestId('settings-user-viewer');
 
     await user.click(screen.getByRole('button', { name: 'pages.settings.addUser' }));
@@ -171,20 +245,29 @@ describe('Settings users', () => {
     await user.selectOptions(within(dialog).getByLabelText('pages.settings.userRole'), 'admin');
     await user.click(within(dialog).getByRole('button', { name: 'pages.settings.createUser' }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/auth/users'),
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ username: 'operator', password: 'Initial123', role: 'admin', requirePasswordChange: true }),
-      }),
-    ));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/users'),
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            username: 'operator',
+            password: 'Initial123',
+            role: 'admin',
+            requirePasswordChange: true,
+          }),
+        }),
+      ),
+    );
     expect(await screen.findByTestId('settings-user-operator')).toBeInTheDocument();
 
     await user.selectOptions(within(screen.getByTestId('settings-user-viewer')).getByRole('combobox'), 'admin');
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/auth/users/2'),
-      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ role: 'admin' }) }),
-    ));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/auth/users/2'),
+        expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ role: 'admin' }) }),
+      ),
+    );
 
     const oidc = screen.getByTestId('settings-user-sso-user');
     await user.click(within(oidc).getByRole('button', { name: 'pages.settings.userActionsFor' }));
@@ -192,6 +275,9 @@ describe('Settings users', () => {
     const confirm = await screen.findByRole('dialog', { name: 'pages.settings.deleteUserTitle' });
     await user.click(within(confirm).getByRole('button', { name: 'common.delete' }));
     await waitFor(() => expect(screen.queryByTestId('settings-user-sso-user')).not.toBeInTheDocument());
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/auth/users/3'), expect.objectContaining({ method: 'DELETE' }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/auth/users/3'),
+      expect.objectContaining({ method: 'DELETE' }),
+    );
   });
 });

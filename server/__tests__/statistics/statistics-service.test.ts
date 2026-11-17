@@ -1,16 +1,25 @@
-import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { CrowdsecDatabase } from '../../database';
-import { StatisticsService } from '../../statistics-service';
-import { acknowledgeStatisticsBatch, configureStatisticsCapture, readStatisticsBatch, statisticsPendingFrom } from '../../statistics-capture';
-import type { RuntimeConfig } from '../../config';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
 import { addStatisticsDays, statisticsDay, type StatisticsFilters } from '../../../shared/statistics';
+import type { RuntimeConfig } from '../../config';
+import { CrowdsecDatabase } from '../../database';
+import {
+  acknowledgeStatisticsBatch,
+  configureStatisticsCapture,
+  readStatisticsBatch,
+  statisticsPendingFrom,
+} from '../../statistics-capture';
+import { StatisticsService } from '../../statistics-service';
 
 const DAY_MS = 86_400_000;
 const cleanups: Array<() => void> = [];
-afterEach(() => { while (cleanups.length) cleanups.pop()!(); });
+afterEach(() => {
+  while (cleanups.length) cleanups.pop()!();
+});
 
 /**
  * A service over a real cache and statistics worker. The sync queue runs in
@@ -23,9 +32,14 @@ function fixture(timeZone = 'UTC') {
   configureStatisticsCapture(database.db, true);
   const config = {
     statistics: { enabled: true, retentionDays: 30, jobInterval: '1h', jobTimeBudget: '30s' },
-    statisticsManaged: [], configEnvironmentOverrides: {}, timeZone, lookbackMs: 10 * DAY_MS,
+    statisticsManaged: [],
+    configEnvironmentOverrides: {},
+    timeZone,
+    lookbackMs: 10 * DAY_MS,
     instances: [{ id: 'default', name: 'default', sync: {} }],
-    sqliteWalEnabled: true, sqliteIncrementalVacuumEnabled: true, sqliteJournalSizeLimitBytes: 128 * 1024 * 1024,
+    sqliteWalEnabled: true,
+    sqliteIncrementalVacuumEnabled: true,
+    sqliteJournalSizeLimitBytes: 128 * 1024 * 1024,
   } as unknown as RuntimeConfig;
   const control = { batchLimit: Infinity, batchesRead: 0, failAcknowledge: false, failBatch: false };
   const sync = {
@@ -40,23 +54,63 @@ function fixture(timeZone = 'UTC') {
       return acknowledgeStatisticsBatch(database.db, ids, cutoff);
     },
   };
-  const service = new StatisticsService({ config, database, sync, ready: () => true, busy: () => control.batchesRead >= control.batchLimit });
-  cleanups.push(() => { service.close(); database.close(); rmSync(dir, { recursive: true, force: true }); });
+  const service = new StatisticsService({
+    config,
+    database,
+    sync,
+    ready: () => true,
+    busy: () => control.batchesRead >= control.batchLimit,
+  });
+  cleanups.push(() => {
+    service.close();
+    database.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
 
   const now = Date.now();
   const iso = (daysAgo: number) => new Date(now - daysAgo * DAY_MS).toISOString();
   /** UTC day, as the outbox dates observations. */
   const day = (daysAgo: number) => statisticsDay(now - daysAgo * DAY_MS, 'UTC');
   const alert = (id: number, daysAgo: number) => {
-    const record = { id, uuid: `a-${id}`, created_at: iso(daysAgo), scenario: 'ssh', source: { ip: `192.0.2.${id % 250}` }, machine_id: 'm-1', events_count: 1 };
-    database.insertAlert({ $id: id, $uuid: record.uuid, $created_at: record.created_at, $message: '', $record: record as never, $instance_id: 'default' });
+    const record = {
+      id,
+      uuid: `a-${id}`,
+      created_at: iso(daysAgo),
+      scenario: 'ssh',
+      source: { ip: `192.0.2.${id % 250}` },
+      machine_id: 'm-1',
+      events_count: 1,
+    };
+    database.insertAlert({
+      $id: id,
+      $uuid: record.uuid,
+      $created_at: record.created_at,
+      $message: '',
+      $record: record as never,
+      $instance_id: 'default',
+    });
   };
-  const decisions = (alertId: number, count: number, daysAgo = 0, first = 1) => database.transaction(() => {
-    for (let id = first; id < first + count; id++) {
-      const record = { id, type: 'ban', origin: 'lists', value: `10.0.${id >> 8 & 255}.${id & 255}`, created_at: iso(daysAgo) };
-      database.insertDecision({ $id: String(id), $uuid: String(id), $alert_id: alertId, $created_at: record.created_at, $stop_at: iso(-1), $record: record as never, $instance_id: 'default' });
-    }
-  })(undefined);
+  const decisions = (alertId: number, count: number, daysAgo = 0, first = 1) =>
+    database.transaction(() => {
+      for (let id = first; id < first + count; id++) {
+        const record = {
+          id,
+          type: 'ban',
+          origin: 'lists',
+          value: `10.0.${(id >> 8) & 255}.${id & 255}`,
+          created_at: iso(daysAgo),
+        };
+        database.insertDecision({
+          $id: String(id),
+          $uuid: String(id),
+          $alert_id: alertId,
+          $created_at: record.created_at,
+          $stop_at: iso(-1),
+          $record: record as never,
+          $instance_id: 'default',
+        });
+      }
+    })(undefined);
   /** Runs the job, ending it after `batches` batches like a source sync would. */
   const run = async (batches = Infinity) => {
     Object.assign(control, { batchLimit: batches, batchesRead: 0 });
@@ -66,7 +120,13 @@ function fixture(timeZone = 'UTC') {
   const tick = () => (service as unknown as { tick(): Promise<void> }).tick();
   /** Whether a range of days of the configured zone, given as dates or as UTC days ago, is partial. */
   const partial = async (from: number | string, to: number | string) => {
-    const filters: StatisticsFilters = { from: typeof from === 'number' ? day(from) : from, to: typeof to === 'number' ? day(to) : to, instance: 'all', simulation: 'all', limit: 10 };
+    const filters: StatisticsFilters = {
+      from: typeof from === 'number' ? day(from) : from,
+      to: typeof to === 'number' ? day(to) : to,
+      instance: 'all',
+      simulation: 'all',
+      limit: 10,
+    };
     return (await service.query(filters)).coverage.partial;
   };
   const backlog = () => service.configuration().status.backlog;
@@ -174,7 +234,8 @@ describe('statistics background job', () => {
     const remaining = f.backlog();
     await f.run(0);
     expect(f.backlog()).toBe(remaining);
-    f.control.batchLimit = 1; f.control.batchesRead = 0;
+    f.control.batchLimit = 1;
+    f.control.batchesRead = 0;
     await f.tick();
     expect(f.backlog()).toBeLessThan(remaining);
   });
@@ -189,12 +250,14 @@ describe('statistics background job', () => {
     expect(remaining).toBeGreaterThan(0);
 
     // The next tick continues instead of waiting for the hourly interval.
-    f.control.batchLimit = 1; f.control.batchesRead = 0;
+    f.control.batchLimit = 1;
+    f.control.batchesRead = 0;
     await f.tick();
     expect(f.backlog()).toBeLessThan(remaining);
 
     // A failed run records its error and does not retry every minute.
-    f.control.batchLimit = Infinity; f.control.failAcknowledge = true;
+    f.control.batchLimit = Infinity;
+    f.control.failAcknowledge = true;
     await f.tick();
     expect(f.service.configuration().status.error).toBe('Simulated acknowledgement failure');
     f.control.failAcknowledge = false;

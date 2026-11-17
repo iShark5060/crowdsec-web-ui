@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest';
+
 import { createController, destroyTempDir } from './harness';
 
 const controllers: ReturnType<typeof createController>['controller'][] = [];
@@ -57,23 +58,26 @@ describe.each([
     expect(await readConfig(restarted)).toMatchObject({ [key]: true });
   });
 
-  test.each(['false', 'true'])('configuration overrides the saved preference with %s and locks updates', async (visible) => {
-    const { controller, database } = start();
-    await controller.fetch(update(sidebar, visible !== 'true'));
-    controller.stopBackgroundTasks();
-    database.close();
-    controllers.pop();
-    const managed = start({ env: { [envName]: visible } }).controller;
-    expect(await readConfig(managed)).toMatchObject({
-      [key]: visible === 'true',
-      managed_settings: {
-        [key]: { path: configPath, env: envName },
-      },
-    });
-    const response = await managed.fetch(update(sidebar, visible !== 'true'));
-    expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({ code: 'MANAGED_BY_CONFIG' });
-  });
+  test.each(['false', 'true'])(
+    'configuration overrides the saved preference with %s and locks updates',
+    async (visible) => {
+      const { controller, database } = start();
+      await controller.fetch(update(sidebar, visible !== 'true'));
+      controller.stopBackgroundTasks();
+      database.close();
+      controllers.pop();
+      const managed = start({ env: { [envName]: visible } }).controller;
+      expect(await readConfig(managed)).toMatchObject({
+        [key]: visible === 'true',
+        managed_settings: {
+          [key]: { path: configPath, env: envName },
+        },
+      });
+      const response = await managed.fetch(update(sidebar, visible !== 'true'));
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: 'MANAGED_BY_CONFIG' });
+    },
+  );
 
   test('rejects invalid visibility and allows display preferences in read-only mode', async () => {
     const { controller } = start();

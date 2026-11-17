@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { compileDecisionSearch } from '../../../shared/search';
 import { decisionSearchCanSplitDuplicateGroup } from '../../app/search-sql';
 

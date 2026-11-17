@@ -1,27 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { describe, expect, test, vi } from 'vitest';
+
 import { ActivityBarChart, CustomTooltip } from '../DashboardCharts';
 import { getBrushSelectionPayload, getDraggedBrushWindow } from '../DashboardCharts.helpers';
 
 vi.mock('recharts', () => {
   const Container = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
-  const YAxis = ({
-    scale,
-    domain,
-    ticks,
-  }: {
-    scale?: string;
-    domain?: Array<number | string>;
-    ticks?: number[];
-  }) => (
-    <div
-      data-testid="mock-y-axis"
-      data-scale={scale}
-      data-domain={domain?.join(',')}
-      data-ticks={ticks?.join(',')}
-    />
+  const YAxis = ({ scale, domain, ticks }: { scale?: string; domain?: Array<number | string>; ticks?: number[] }) => (
+    <div data-testid="mock-y-axis" data-scale={scale} data-domain={domain?.join(',')} data-ticks={ticks?.join(',')} />
   );
   const Bar = ({
     dataKey,
@@ -75,17 +63,18 @@ Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', {
   value: vi.fn(),
 });
 
-const createDomRect = (width: number, height = 20): DOMRect => ({
-  x: 0,
-  y: 0,
-  top: 0,
-  left: 0,
-  right: width,
-  bottom: height,
-  width,
-  height,
-  toJSON: () => ({}),
-} as DOMRect);
+const createDomRect = (width: number, height = 20): DOMRect =>
+  ({
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: width,
+    bottom: height,
+    width,
+    height,
+    toJSON: () => ({}),
+  }) as DOMRect;
 
 describe('ActivityBarChart', () => {
   test('shows the active decision count beside the bucket total', () => {
@@ -93,23 +82,25 @@ describe('ActivityBarChart', () => {
       <CustomTooltip
         active
         label="Jan 1"
-        payload={[{
-          name: 'Decisions',
-          value: 4,
-          color: '#2563eb',
-          dataKey: 'decisions',
-          payload: {
-            date: '2025-01-01',
-            bucketKey: '2025-01-01',
-            label: 'Jan 1',
-            alerts: 0,
-            simulatedAlerts: 0,
-            decisions: 4,
-            simulatedDecisions: 0,
-            activeDecisions: 2,
-            activeSimulatedDecisions: 0,
+        payload={[
+          {
+            name: 'Decisions',
+            value: 4,
+            color: '#2563eb',
+            dataKey: 'decisions',
+            payload: {
+              date: '2025-01-01',
+              bucketKey: '2025-01-01',
+              label: 'Jan 1',
+              alerts: 0,
+              simulatedAlerts: 0,
+              decisions: 4,
+              simulatedDecisions: 0,
+              activeDecisions: 2,
+              activeSimulatedDecisions: 0,
+            },
           },
-        }]}
+        ]}
       />,
     );
 

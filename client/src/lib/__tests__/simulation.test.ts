@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { isSimulatedAlert, isSimulatedDecision, matchesSimulationFilter, parseSimulationFilter } from '../simulation';
 
 describe('simulation helpers', () => {

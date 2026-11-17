@@ -1,12 +1,7 @@
-import type { DateFormat, TimeFormat } from '../config';
 import { formatCustomDate } from '../../shared/date-format';
+import type { DateFormat, TimeFormat } from '../config';
 
-const TIMESTAMP_KEYS = new Set([
-  'timestamp',
-  'expiration',
-  'offline_since',
-  'last_check',
-]);
+const TIMESTAMP_KEYS = new Set(['timestamp', 'expiration', 'offline_since', 'last_check']);
 const DATE_TIME_KEY_FORMATTER_CACHE_MAX_ENTRIES = 32;
 const dateTimeKeyFormatters = new Map<string, Intl.DateTimeFormat>();
 const timeZoneOffsetFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -146,8 +141,16 @@ export function getTimeZoneOffsetMs(date: Date, timeZone: string): number {
     second: '2-digit',
     hourCycle: 'h23',
   }).formatToParts(date);
-  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((entry) => entry.type === type)?.value || 0);
-  const representedAsUtc = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((entry) => entry.type === type)?.value || 0);
+  const representedAsUtc = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    part('hour'),
+    part('minute'),
+    part('second'),
+  );
   return representedAsUtc - Math.floor(date.getTime() / 1_000) * 1_000;
 }
 
@@ -166,7 +169,11 @@ export function zonedDateTimeKeyToDate(key: string, timeZone: string): Date {
   return instant;
 }
 
-export function getZonedHourlyBucketKeys(startKey: string, endKey: string, timeZone: string): string[] {
+export function getZonedHourlyBucketKeys(
+  startKey: string,
+  endKey: string,
+  timeZone: string,
+): string[] {
   const end = zonedDateTimeKeyToDate(endKey, timeZone);
   let cursor = zonedDateTimeKeyToDate(startKey, timeZone);
   const keys: string[] = [];

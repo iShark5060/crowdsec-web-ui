@@ -1,7 +1,9 @@
-import { afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { afterEach } from 'vitest';
+
 import { createRuntimeConfig as createRuntimeConfigImpl } from '../../config';
 
 export const tempDirs: string[] = [];

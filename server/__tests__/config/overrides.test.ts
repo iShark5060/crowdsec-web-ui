@@ -1,11 +1,11 @@
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+
 import { describe, expect, test, vi } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { createRuntimeConfig as createRuntimeConfigImpl, getIntervalName, parseBooleanEnv, parseCsvEnv, parseLookbackToMs, parseOidcScope, parseOidcUnmatchedRole, parseOptionalBooleanEnv, parseRefreshInterval, parseTimeFormat, parseTimeZone } from '../../config';
+
+import { createRuntimeConfig as createRuntimeConfigImpl } from '../../config';
 import { ConfigurationLoadError } from '../../config-error';
-import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret, tempDirs } from './harness';
+import { createMissingConfigPath, createRuntimeConfig, createTempConfig, createTempSecret } from './harness';
 
 describe('configuration overrides', () => {
   const sidebarSettings = [
@@ -33,7 +33,8 @@ describe('configuration overrides', () => {
     const overridden = createRuntimeConfigImpl({ CONFIG_FILE: configFile, [envName]: 'true' });
     expect(overridden[setting]).toBe(true);
     expect(overridden.configEnvironmentOverrides).toContainEqual({
-      name: envName, path: ['ui', setting],
+      name: envName,
+      path: ['ui', setting],
     });
     expect(createRuntimeConfigImpl({ CONFIG_FILE: configFile })[setting]).toBe(false);
   });
@@ -42,7 +43,9 @@ describe('configuration overrides', () => {
     const configFile = createMissingConfigPath();
     expect(createRuntimeConfigImpl({ [envName]: 'false' }, { defaultConfigFile: configFile })[setting]).toBe(false);
     expect(createRuntimeConfigImpl({ CONFIG_FILE: configFile })[setting]).toBe(false);
-    expect(() => createRuntimeConfigImpl({ CONFIG_FILE: configFile, [envName]: 'nope' })).toThrow(`ui.${setting} must be a boolean`);
+    expect(() => createRuntimeConfigImpl({ CONFIG_FILE: configFile, [envName]: 'nope' })).toThrow(
+      `ui.${setting} must be a boolean`,
+    );
   });
 
   const clientIds = [
@@ -60,9 +63,12 @@ describe('configuration overrides', () => {
 
   test.each(clientIds)('generates and reloads the exact OIDC client ID from %j', (value, expected) => {
     const configFile = createMissingConfigPath();
-    const config = createRuntimeConfigImpl({
-      CONFIG_AUTH_OIDC_CLIENT_ID: value,
-    }, { defaultConfigFile: configFile });
+    const config = createRuntimeConfigImpl(
+      {
+        CONFIG_AUTH_OIDC_CLIENT_ID: value,
+      },
+      { defaultConfigFile: configFile },
+    );
 
     expect(config.dashboardAuth.oidcClientId).toBe(expected);
     expect(parseYaml(readFileSync(configFile, 'utf8')).auth.oidc.clientId).toBe(expected);
@@ -79,7 +85,9 @@ describe('configuration overrides', () => {
     expect(readFileSync(configFile, 'utf8')).toBe(original);
     expect(createRuntimeConfigImpl({ CONFIG_FILE: configFile }).dashboardAuth.oidcClientId).toBe('original-client');
 
-    expect(createRuntimeConfigImpl({ ...env, CONFIG_PERSIST_OVERRIDES: 'true' }).dashboardAuth.oidcClientId).toBe(expected);
+    expect(createRuntimeConfigImpl({ ...env, CONFIG_PERSIST_OVERRIDES: 'true' }).dashboardAuth.oidcClientId).toBe(
+      expected,
+    );
     expect(parseYaml(readFileSync(configFile, 'utf8')).auth.oidc.clientId).toBe(expected);
     expect(createRuntimeConfigImpl({ CONFIG_FILE: configFile }).dashboardAuth.oidcClientId).toBe(expected);
   });
@@ -88,23 +96,31 @@ describe('configuration overrides', () => {
     'rejects invalid OIDC client ID %j without writing configuration',
     (value) => {
       const configFile = createMissingConfigPath();
-      const expectedError = value === '"unterminated'
-        ? /failed to parse CONFIG_AUTH_OIDC_CLIENT_ID as YAML/i
-        : /auth\.oidc\.clientId must be a non-empty string/i;
+      const expectedError =
+        value === '"unterminated'
+          ? /failed to parse CONFIG_AUTH_OIDC_CLIENT_ID as YAML/i
+          : /auth\.oidc\.clientId must be a non-empty string/i;
 
-      expect(() => createRuntimeConfigImpl({
-        CONFIG_AUTH_OIDC_CLIENT_ID: value,
-      }, { defaultConfigFile: configFile })).toThrow(expectedError);
+      expect(() =>
+        createRuntimeConfigImpl(
+          {
+            CONFIG_AUTH_OIDC_CLIENT_ID: value,
+          },
+          { defaultConfigFile: configFile },
+        ),
+      ).toThrow(expectedError);
       expect(existsSync(configFile)).toBe(false);
 
       createRuntimeConfigImpl({}, { defaultConfigFile: configFile });
       const original = readFileSync(configFile, 'utf8');
       for (const persist of ['false', 'true']) {
-        expect(() => createRuntimeConfigImpl({
-          CONFIG_FILE: configFile,
-          CONFIG_AUTH_OIDC_CLIENT_ID: value,
-          CONFIG_PERSIST_OVERRIDES: persist,
-        })).toThrow(expectedError);
+        expect(() =>
+          createRuntimeConfigImpl({
+            CONFIG_FILE: configFile,
+            CONFIG_AUTH_OIDC_CLIENT_ID: value,
+            CONFIG_PERSIST_OVERRIDES: persist,
+          }),
+        ).toThrow(expectedError);
         expect(readFileSync(configFile, 'utf8')).toBe(original);
       }
     },
@@ -132,10 +148,12 @@ describe('configuration overrides', () => {
 
   test('still requires a string client ID in whole-section overrides and YAML files', () => {
     const configFile = createTempConfig('auth:\n  oidc:\n    clientId: 123456\n');
-    expect(() => createRuntimeConfigImpl({ CONFIG_FILE: configFile }))
-      .toThrow(/auth\.oidc\.clientId must be a non-empty string/i);
-    expect(() => createRuntimeConfig({ CONFIG_AUTH: '{oidc: {clientId: 123456}}' }))
-      .toThrow(/auth\.oidc\.clientId must be a non-empty string/i);
+    expect(() => createRuntimeConfigImpl({ CONFIG_FILE: configFile })).toThrow(
+      /auth\.oidc\.clientId must be a non-empty string/i,
+    );
+    expect(() => createRuntimeConfig({ CONFIG_AUTH: '{oidc: {clientId: 123456}}' })).toThrow(
+      /auth\.oidc\.clientId must be a non-empty string/i,
+    );
   });
 
   test('applies CONFIG_ values without modifying an existing YAML', () => {
@@ -144,16 +162,23 @@ describe('configuration overrides', () => {
     const original = readFileSync(generatedConfigFile, 'utf8');
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const config = createRuntimeConfigImpl({
-        CONFIG_SERVER_PORT: '4200',
-        CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL: '5m',
-      }, { defaultConfigFile: generatedConfigFile });
+      const config = createRuntimeConfigImpl(
+        {
+          CONFIG_SERVER_PORT: '4200',
+          CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL: '5m',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       expect(config.port).toBe(4200);
       expect(config.refreshIntervalMs).toBe(300_000);
       expect(readFileSync(generatedConfigFile, 'utf8')).toBe(original);
-      expect(log).toHaveBeenCalledWith(`Applied CONFIG_ overrides to application configuration from ${generatedConfigFile}.`);
+      expect(log).toHaveBeenCalledWith(
+        `Applied CONFIG_ overrides to application configuration from ${generatedConfigFile}.`,
+      );
       expect(log).toHaveBeenCalledWith('  CONFIG_SERVER_PORT -> server.port: 4100 -> 4200');
-      expect(log).toHaveBeenCalledWith('  CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL -> crowdsec.sync.refreshInterval: <unset> -> "5m"');
+      expect(log).toHaveBeenCalledWith(
+        '  CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL -> crowdsec.sync.refreshInterval: <unset> -> "5m"',
+      );
     } finally {
       log.mockRestore();
     }
@@ -166,11 +191,22 @@ describe('configuration overrides', () => {
     try {
       expect(createRuntimeConfigImpl({}, { defaultConfigFile: generatedConfigFile }).hostname).toBeUndefined();
       for (const hostname of ['crowdsec.example.com', 'relay', '192.0.2.1', '2001:db8::1']) {
-        expect(createRuntimeConfigImpl({ CONFIG_SERVER_HOSTNAME: ` ${hostname} ` }, { defaultConfigFile: generatedConfigFile }).hostname).toBe(hostname);
+        expect(
+          createRuntimeConfigImpl(
+            { CONFIG_SERVER_HOSTNAME: ` ${hostname} ` },
+            { defaultConfigFile: generatedConfigFile },
+          ).hostname,
+        ).toBe(hostname);
       }
-      for (const hostname of ['crowdsec.example.com\r\nRSET', 'crowd sec', '-crowdsec.example.com', 'crowdsec..example.com']) {
-        expect(() => createRuntimeConfigImpl({ CONFIG_SERVER_HOSTNAME: hostname }, { defaultConfigFile: generatedConfigFile }))
-          .toThrow(/Invalid server\.hostname value/);
+      for (const hostname of [
+        'crowdsec.example.com\r\nRSET',
+        'crowd sec',
+        '-crowdsec.example.com',
+        'crowdsec..example.com',
+      ]) {
+        expect(() =>
+          createRuntimeConfigImpl({ CONFIG_SERVER_HOSTNAME: hostname }, { defaultConfigFile: generatedConfigFile }),
+        ).toThrow(/Invalid server\.hostname value/);
       }
     } finally {
       log.mockRestore();
@@ -182,10 +218,13 @@ describe('configuration overrides', () => {
     createRuntimeConfigImpl({}, { defaultConfigFile: generatedConfigFile });
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const config = createRuntimeConfigImpl({
-        CONFIG_AUDIT_ENABLED: 'false',
-        CONFIG_AUDIT_LOG_FILE: '/var/log/crowdsec-web-ui/audit.log',
-      }, { defaultConfigFile: generatedConfigFile });
+      const config = createRuntimeConfigImpl(
+        {
+          CONFIG_AUDIT_ENABLED: 'false',
+          CONFIG_AUDIT_LOG_FILE: '/var/log/crowdsec-web-ui/audit.log',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       expect(config.auditEnabled).toBe(false);
       expect(config.auditLogFile).toBe('/var/log/crowdsec-web-ui/audit.log');
       expect(log).toHaveBeenCalledWith('  CONFIG_AUDIT_ENABLED -> audit.enabled: <unset> -> false');
@@ -202,11 +241,14 @@ describe('configuration overrides', () => {
     createRuntimeConfigImpl({ CONFIG_SERVER_PORT: '4100' }, { defaultConfigFile: generatedConfigFile });
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const config = createRuntimeConfigImpl({
-        CONFIG_PERSIST_OVERRIDES: 'true',
-        CONFIG_SERVER_PORT: '4200',
-        CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL: '5m',
-      }, { defaultConfigFile: generatedConfigFile });
+      const config = createRuntimeConfigImpl(
+        {
+          CONFIG_PERSIST_OVERRIDES: 'true',
+          CONFIG_SERVER_PORT: '4200',
+          CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL: '5m',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       expect(config.port).toBe(4200);
       expect(config.refreshIntervalMs).toBe(300_000);
       const persisted = parseYaml(readFileSync(generatedConfigFile, 'utf8'));
@@ -226,9 +268,12 @@ describe('configuration overrides', () => {
     const original = readFileSync(generatedConfigFile, 'utf8');
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
-      const config = createRuntimeConfigImpl({
-        CONFIG_PERSIST_OVERRIDES: 'false',
-      }, { defaultConfigFile: generatedConfigFile });
+      const config = createRuntimeConfigImpl(
+        {
+          CONFIG_PERSIST_OVERRIDES: 'false',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      );
       expect(config.port).toBe(4100);
       expect(readFileSync(generatedConfigFile, 'utf8')).toBe(original);
       expect(log).not.toHaveBeenCalledWith(expect.stringContaining('Applied CONFIG_ overrides'));
@@ -347,7 +392,11 @@ instances:
       expect(config.port).toBe(3200);
       expect(config.readOnly).toBe(true);
       expect(config.dashboardAuth.oidcAdminGroups).toEqual(['admins', 'secops']);
-      expect(config.instances[0].lapiAuth).toEqual({ mode: 'password', user: 'watcher', password: 'persist-by-reference' });
+      expect(config.instances[0].lapiAuth).toEqual({
+        mode: 'password',
+        user: 'watcher',
+        password: 'persist-by-reference',
+      });
       expect(config.instances[0].prometheus[0]).toMatchObject({ id: '0', name: 'Metrics 0', auth: { type: 'none' } });
       expect(readFileSync(configFile, 'utf8')).toBe(original);
 
@@ -388,7 +437,9 @@ instances:
       });
       expect(config.port).toBe(3200);
       expect(config.instances[0].lapiAuth).toEqual({
-        mode: 'password', user: 'watcher', password: 'do-not-persist-this-secret',
+        mode: 'password',
+        user: 'watcher',
+        password: 'do-not-persist-this-secret',
       });
 
       const persistedYaml = readFileSync(configFile, 'utf8');
@@ -415,19 +466,26 @@ instances:
       auth: { type: none }
 `);
     const original = readFileSync(configFile, 'utf8');
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_FILE: configFile,
-      CONFIG_PERSIST_OVERRIDES: 'sometimes',
-      CONFIG_SERVER_PORT: '3200',
-    })).toThrow(/CONFIG_PERSIST_OVERRIDES must be a boolean/i);
+    expect(() =>
+      createRuntimeConfigImpl({
+        CONFIG_FILE: configFile,
+        CONFIG_PERSIST_OVERRIDES: 'sometimes',
+        CONFIG_SERVER_PORT: '3200',
+      }),
+    ).toThrow(/CONFIG_PERSIST_OVERRIDES must be a boolean/i);
     expect(readFileSync(configFile, 'utf8')).toBe(original);
   });
 
   test('validates CONFIG_ setup values before writing the YAML', () => {
     const generatedConfigFile = createMissingConfigPath();
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_SERVER_PORT: 'not-a-port',
-    }, { defaultConfigFile: generatedConfigFile })).toThrow(/server\.port must be a positive integer/i);
+    expect(() =>
+      createRuntimeConfigImpl(
+        {
+          CONFIG_SERVER_PORT: 'not-a-port',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      ),
+    ).toThrow(/server\.port must be a positive integer/i);
     expect(existsSync(generatedConfigFile)).toBe(false);
   });
 
@@ -443,10 +501,12 @@ instances:
       auth: { type: none }
 `);
     const original = readFileSync(configFile, 'utf8');
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_FILE: configFile,
-      CONFIG_SERVER_PORT: 'not-a-port',
-    })).toThrow(/server\.port must be a positive integer/i);
+    expect(() =>
+      createRuntimeConfigImpl({
+        CONFIG_FILE: configFile,
+        CONFIG_SERVER_PORT: 'not-a-port',
+      }),
+    ).toThrow(/server\.port must be a positive integer/i);
     expect(readFileSync(configFile, 'utf8')).toBe(original);
   });
 
@@ -480,25 +540,45 @@ instances:
 
   test('rejects unknown indexed CONFIG_ paths', () => {
     const generatedConfigFile = createMissingConfigPath();
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_INSTANCES_0_LAPI_URl: 'http://typo:8080',
-    }, { defaultConfigFile: generatedConfigFile })).toThrow(/unknown indexed CONFIG_ variable/i);
+    expect(() =>
+      createRuntimeConfigImpl(
+        {
+          CONFIG_INSTANCES_0_LAPI_URl: 'http://typo:8080',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      ),
+    ).toThrow(/unknown indexed CONFIG_ variable/i);
     expect(existsSync(generatedConfigFile)).toBe(false);
   });
 
   test('rejects duplicate shorthand and indexed CONFIG_ paths', () => {
     const generatedConfigFile = createMissingConfigPath();
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_INSTANCES_NAME: 'Old shorthand',
-    }, { defaultConfigFile: generatedConfigFile })).toThrow(/Use CONFIG_INSTANCE_\*/i);
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_INSTANCE_NAME: 'Shorthand',
-      CONFIG_INSTANCES_0_NAME: 'Indexed',
-    }, { defaultConfigFile: generatedConfigFile })).toThrow(/both .* target the same setting/i);
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_INSTANCE_METRICS_URL: 'http://crowdsec:6060/metrics',
-      CONFIG_INSTANCES_0_METRICS_0_URL: 'http://crowdsec:6061/metrics',
-    }, { defaultConfigFile: generatedConfigFile })).toThrow(/both .* target the same setting/i);
+    expect(() =>
+      createRuntimeConfigImpl(
+        {
+          CONFIG_INSTANCES_NAME: 'Old shorthand',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      ),
+    ).toThrow(/Use CONFIG_INSTANCE_\*/i);
+    expect(() =>
+      createRuntimeConfigImpl(
+        {
+          CONFIG_INSTANCE_NAME: 'Shorthand',
+          CONFIG_INSTANCES_0_NAME: 'Indexed',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      ),
+    ).toThrow(/both .* target the same setting/i);
+    expect(() =>
+      createRuntimeConfigImpl(
+        {
+          CONFIG_INSTANCE_METRICS_URL: 'http://crowdsec:6060/metrics',
+          CONFIG_INSTANCES_0_METRICS_0_URL: 'http://crowdsec:6061/metrics',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      ),
+    ).toThrow(/both .* target the same setting/i);
   });
 
   test('explains skipped instance indexes and reports only the overrides after the gap', () => {
@@ -543,11 +623,16 @@ instances:
 
   test('explains skipped metrics indexes', () => {
     const generatedConfigFile = createMissingConfigPath();
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_INSTANCE_LAPI_URL: 'http://crowdsec:8080',
-      CONFIG_INSTANCE_METRICS_URL: 'http://crowdsec:6060/metrics',
-      CONFIG_INSTANCE_METRICS_2_URL: 'http://crowdsec:6062/metrics',
-    }, { defaultConfigFile: generatedConfigFile })).toThrow(
+    expect(() =>
+      createRuntimeConfigImpl(
+        {
+          CONFIG_INSTANCE_LAPI_URL: 'http://crowdsec:8080',
+          CONFIG_INSTANCE_METRICS_URL: 'http://crowdsec:6060/metrics',
+          CONFIG_INSTANCE_METRICS_2_URL: 'http://crowdsec:6062/metrics',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      ),
+    ).toThrow(
       /metrics index 1 is missing for instance 0 before configured index 2.*zero-based and contiguous.*METRICS_1_\*/i,
     );
     expect(existsSync(generatedConfigFile)).toBe(false);
@@ -555,12 +640,16 @@ instances:
 
   test('explains gaps in indexed CONFIG_ scalar arrays', () => {
     const generatedConfigFile = createMissingConfigPath();
-    expect(() => createRuntimeConfigImpl({
-      CONFIG_AUTH_OIDC_ADMIN_GROUPS_1: 'secops',
-    }, { defaultConfigFile: generatedConfigFile })).toThrow(
+    expect(() =>
+      createRuntimeConfigImpl(
+        {
+          CONFIG_AUTH_OIDC_ADMIN_GROUPS_1: 'secops',
+        },
+        { defaultConfigFile: generatedConfigFile },
+      ),
+    ).toThrow(
       /index 0 is missing for auth\.oidc\.adminGroups.*zero-based and contiguous.*CONFIG_AUTH_OIDC_ADMIN_GROUPS_0/i,
     );
     expect(existsSync(generatedConfigFile)).toBe(false);
   });
-
 });

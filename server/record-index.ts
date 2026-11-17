@@ -1,7 +1,13 @@
 import type { AlertDecision, AlertRecord } from '../shared/contracts';
 import { resolveMachineName } from '../shared/machine';
 import { collectDistinctOrigins } from '../shared/origin';
-import { buildMetaSearch, getAlertSourceValue, getAlertTarget, resolveAlertHistoryAt, resolveAlertScenario } from './utils/alerts';
+import {
+  buildMetaSearch,
+  getAlertSourceValue,
+  getAlertTarget,
+  resolveAlertHistoryAt,
+  resolveAlertScenario,
+} from './utils/alerts';
 import { normalizeIsoTimestamp } from './utils/date-time';
 
 export interface AlertIndexValues {
@@ -39,27 +45,37 @@ export interface DecisionIndexValues {
 const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
 const countryNameCache = new Map<string, string>();
 
-export function deriveAlertIndexValues(rawData: string, fallback: {
-  createdAt: string;
-  scenario?: string | null;
-  sourceIp?: string | null;
-  message?: string | null;
-}): AlertIndexValues {
+export function deriveAlertIndexValues(
+  rawData: string,
+  fallback: {
+    createdAt: string;
+    scenario?: string | null;
+    sourceIp?: string | null;
+    message?: string | null;
+  },
+): AlertIndexValues {
   const alert = parseJson<AlertRecord>(rawData);
   return deriveAlertIndexValuesFromRecord(alert, fallback);
 }
 
-export function deriveAlertIndexValuesFromRecord(alert: AlertRecord | null | undefined, fallback: {
-  createdAt: string;
-  scenario?: string | null;
-  sourceIp?: string | null;
-  message?: string | null;
-}): AlertIndexValues {
+export function deriveAlertIndexValuesFromRecord(
+  alert: AlertRecord | null | undefined,
+  fallback: {
+    createdAt: string;
+    scenario?: string | null;
+    sourceIp?: string | null;
+    message?: string | null;
+  },
+): AlertIndexValues {
   const resolvedHistoryAt = alert ? resolveAlertHistoryAt(alert) : null;
   const historyAt = normalizeIsoTimestamp(
-    resolvedHistoryAt && Number.isFinite(Date.parse(resolvedHistoryAt)) ? resolvedHistoryAt : fallback.createdAt,
+    resolvedHistoryAt && Number.isFinite(Date.parse(resolvedHistoryAt))
+      ? resolvedHistoryAt
+      : fallback.createdAt,
   );
-  const scenario = alert ? resolveAlertScenario(alert) || fallback.scenario || null : fallback.scenario || null;
+  const scenario = alert
+    ? resolveAlertScenario(alert) || fallback.scenario || null
+    : fallback.scenario || null;
   const kind = normalizeText(alert?.kind)?.toLowerCase() || null;
   const sourceIp = alert ? getAlertSourceValue(alert.source) || null : fallback.sourceIp || null;
   const latitude = normalizeCoordinate(alert?.source?.latitude, -90, 90);
@@ -113,22 +129,28 @@ export function deriveAlertIndexValuesFromRecord(alert: AlertRecord | null | und
   };
 }
 
-export function deriveDecisionIndexValues(rawData: string, fallback: {
-  value?: string | null;
-  type?: string | null;
-  origin?: string | null;
-  scenario?: string | null;
-}): DecisionIndexValues {
-  const decision = parseJson<(AlertDecision & Record<string, unknown>)>(rawData);
+export function deriveDecisionIndexValues(
+  rawData: string,
+  fallback: {
+    value?: string | null;
+    type?: string | null;
+    origin?: string | null;
+    scenario?: string | null;
+  },
+): DecisionIndexValues {
+  const decision = parseJson<AlertDecision & Record<string, unknown>>(rawData);
   return deriveDecisionIndexValuesFromRecord(decision, fallback);
 }
 
-export function deriveDecisionIndexValuesFromRecord(decision: (AlertDecision & Record<string, unknown>) | null | undefined, fallback: {
-  value?: string | null;
-  type?: string | null;
-  origin?: string | null;
-  scenario?: string | null;
-}): DecisionIndexValues {
+export function deriveDecisionIndexValuesFromRecord(
+  decision: (AlertDecision & Record<string, unknown>) | null | undefined,
+  fallback: {
+    value?: string | null;
+    type?: string | null;
+    origin?: string | null;
+    scenario?: string | null;
+  },
+): DecisionIndexValues {
   const country = normalizeCountryCode(readString(decision?.country));
   const region = normalizeText(readString(decision?.region));
   const city = normalizeText(readString(decision?.city));
@@ -186,7 +208,9 @@ function normalizeText(value: unknown): string | null {
 function normalizeCoordinate(value: unknown, minimum: number, maximum: number): number | null {
   if (typeof value !== 'number' && typeof value !== 'string') return null;
   const coordinate = typeof value === 'number' ? value : Number(value.trim());
-  return Number.isFinite(coordinate) && coordinate >= minimum && coordinate <= maximum ? coordinate : null;
+  return Number.isFinite(coordinate) && coordinate >= minimum && coordinate <= maximum
+    ? coordinate
+    : null;
 }
 
 function readString(value: unknown): string | null {
@@ -200,7 +224,7 @@ function normalizeCountryCode(value: unknown): string | null {
 
 function normalizeSearchText(values: unknown[]): string {
   return values
-    .flatMap((value) => value === undefined || value === null ? [] : [String(value)])
+    .flatMap((value) => (value === undefined || value === null ? [] : [String(value)]))
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -231,21 +255,32 @@ function parseSimulationBoolean(value: unknown): boolean | null {
 }
 
 function hasSimulationMarker(value: unknown): boolean {
-  return typeof value === 'string' &&
-    (value.trim().toLowerCase().startsWith('(simul)') || value.trim().toLowerCase().includes('simulated'));
+  return (
+    typeof value === 'string' &&
+    (value.trim().toLowerCase().startsWith('(simul)') ||
+      value.trim().toLowerCase().includes('simulated'))
+  );
 }
 
 function normalizeDecisionSimulated(decision: AlertDecision & Record<string, unknown>): boolean {
   const explicit = parseSimulationBoolean(decision.simulated);
   if (explicit !== null) return explicit;
-  return hasSimulationMarker(decision.type) || hasSimulationMarker(decision.action) || hasSimulationMarker(decision.decisions);
+  return (
+    hasSimulationMarker(decision.type) ||
+    hasSimulationMarker(decision.action) ||
+    hasSimulationMarker(decision.decisions)
+  );
 }
 
 function isAlertSimulated(alert: AlertRecord): boolean {
   const explicit = parseSimulationBoolean(alert.simulated);
   if (explicit !== null) return explicit;
 
-  return Array.isArray(alert.decisions) &&
+  return (
+    Array.isArray(alert.decisions) &&
     alert.decisions.length > 0 &&
-    alert.decisions.every((decision) => normalizeDecisionSimulated(decision as AlertDecision & Record<string, unknown>));
+    alert.decisions.every((decision) =>
+      normalizeDecisionSimulated(decision as AlertDecision & Record<string, unknown>),
+    )
+  );
 }

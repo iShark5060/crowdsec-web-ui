@@ -1,4 +1,13 @@
-import { MANUAL_DECISION_MESSAGE_PREFIX, type AlertDecision, type AlertEvent, type AlertMeta, type AlertRecord, type AlertSource, type SlimAlert, type SlimDecision } from '../../shared/contracts';
+import {
+  MANUAL_DECISION_MESSAGE_PREFIX,
+  type AlertDecision,
+  type AlertEvent,
+  type AlertMeta,
+  type AlertRecord,
+  type AlertSource,
+  type SlimAlert,
+  type SlimDecision,
+} from '../../shared/contracts';
 import { resolveMachineName } from '../../shared/machine';
 
 export interface AlertTargetSummary {
@@ -7,7 +16,13 @@ export interface AlertTargetSummary {
 }
 
 export function getAlertTargetSummary(
-  alert: Pick<AlertRecord, 'events' | 'scenario' | 'message' | 'machine_alias' | 'machine_id' | 'target' | 'targets'> | null | undefined,
+  alert:
+    | Pick<
+        AlertRecord,
+        'events' | 'scenario' | 'message' | 'machine_alias' | 'machine_id' | 'target' | 'targets'
+      >
+    | null
+    | undefined,
 ): AlertTargetSummary {
   if (!alert) return { target: 'Unknown', count: 1 };
 
@@ -20,25 +35,36 @@ export function getAlertTargetSummary(
 }
 
 export function getAlertTargets(
-  alert: Pick<AlertRecord, 'events' | 'scenario' | 'message' | 'machine_alias' | 'machine_id' | 'target' | 'targets'> | null | undefined,
+  alert:
+    | Pick<
+        AlertRecord,
+        'events' | 'scenario' | 'message' | 'machine_alias' | 'machine_id' | 'target' | 'targets'
+      >
+    | null
+    | undefined,
 ): string[] {
   if (!alert) return ['Unknown'];
   // Web UI decisions target an IP, not a service, and their scenario is user-chosen.
   if (isManualWebUiAlert(alert)) return [];
   if (Array.isArray(alert.targets)) {
-    const targets = [...new Set(alert.targets
-      .filter((target): target is string => typeof target === 'string')
-      .map((target) => target.trim())
-      .filter(Boolean))];
+    const targets = [
+      ...new Set(
+        alert.targets
+          .filter((target): target is string => typeof target === 'string')
+          .map((target) => target.trim())
+          .filter(Boolean),
+      ),
+    ];
     if (targets.length > 0) return targets;
   }
   const targetCounts = new Map<string, number>();
   const events = Array.isArray(alert.events) ? alert.events : [];
   for (const event of events) {
     const metas = Array.isArray(event.meta) ? event.meta : [];
-    const target = findMetaValue(metas, 'target_fqdn')
-      || findMetaValue(metas, 'target_host')
-      || findMetaValue(metas, 'service');
+    const target =
+      findMetaValue(metas, 'target_fqdn') ||
+      findMetaValue(metas, 'target_host') ||
+      findMetaValue(metas, 'service');
     if (target) {
       targetCounts.set(target, (targetCounts.get(target) || 0) + 1);
     }
@@ -64,10 +90,18 @@ export function getAlertTargets(
 }
 
 export function isManualWebUiAlert(alert: Pick<AlertRecord, 'message'>): boolean {
-  return typeof alert.message === 'string' && alert.message.startsWith(`${MANUAL_DECISION_MESSAGE_PREFIX}:`);
+  return (
+    typeof alert.message === 'string' &&
+    alert.message.startsWith(`${MANUAL_DECISION_MESSAGE_PREFIX}:`)
+  );
 }
 
-export function getAlertTarget(alert: Pick<AlertRecord, 'events' | 'scenario' | 'message' | 'machine_alias' | 'machine_id'> | null | undefined): string {
+export function getAlertTarget(
+  alert:
+    | Pick<AlertRecord, 'events' | 'scenario' | 'message' | 'machine_alias' | 'machine_id'>
+    | null
+    | undefined,
+): string {
   return getAlertTargetSummary(alert).target;
 }
 
@@ -82,7 +116,10 @@ export function withAlertTargetSummary<T extends AlertRecord>(alert: T): T {
   };
 }
 
-export function buildMetaSearch(events: AlertEvent[] | undefined, alertMeta: AlertMeta[] | undefined = undefined): string {
+export function buildMetaSearch(
+  events: AlertEvent[] | undefined,
+  alertMeta: AlertMeta[] | undefined = undefined,
+): string {
   const values = new Set<string>();
 
   const addValue = (value: AlertMeta['value']) => {
@@ -116,7 +153,9 @@ export function toSlimDecision(decision: AlertDecision): SlimDecision {
   };
 }
 
-export function getAlertSourceValue(source: Pick<AlertSource, 'ip' | 'value' | 'range'> | null | undefined): string | undefined {
+export function getAlertSourceValue(
+  source: Pick<AlertSource, 'ip' | 'value' | 'range'> | null | undefined,
+): string | undefined {
   if (!source) return undefined;
 
   const values = [source.ip, source.value, source.range];
@@ -128,7 +167,10 @@ export function resolveAlertScenario(alert: AlertRecord): string | undefined {
   const sourceScope = typeof alert.source?.scope === 'string' ? alert.source.scope : undefined;
   const kind = typeof alert.kind === 'string' ? alert.kind.toLowerCase() : undefined;
 
-  if (sourceScope && (kind === 'capi' || (scenario?.startsWith('update :') && sourceScope.includes('/')))) {
+  if (
+    sourceScope &&
+    (kind === 'capi' || (scenario?.startsWith('update :') && sourceScope.includes('/')))
+  ) {
     return sourceScope;
   }
 
@@ -170,10 +212,15 @@ export function toSlimAlert(alert: AlertRecord): SlimAlert {
     source: alert.source || null,
     target: alert.target,
     targets: Array.isArray(alert.targets)
-      ? alert.targets.filter((target): target is string => typeof target === 'string' && target.trim().length > 0)
+      ? alert.targets.filter(
+          (target): target is string => typeof target === 'string' && target.trim().length > 0,
+        )
       : undefined,
     target_count: typeof alert.target_count === 'number' ? alert.target_count : undefined,
-    meta_search: typeof alert.meta_search === 'string' ? alert.meta_search : buildMetaSearch(alert.events, alert.meta),
+    meta_search:
+      typeof alert.meta_search === 'string'
+        ? alert.meta_search
+        : buildMetaSearch(alert.events, alert.meta),
     decisions: (alert.decisions || []).map(toSlimDecision),
     simulated: alert.simulated === true,
   };

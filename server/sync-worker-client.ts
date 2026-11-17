@@ -1,7 +1,5 @@
-import type { StatisticsOutboxRow, StatisticsPendingBound } from './statistics-capture';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { DatabaseWorker as Worker } from './database-worker';
-import { isWorkerReadyMessage, terminateWorker, type WorkerReadyMessage } from './worker-lifecycle';
+
 import type {
   AlertInsertParams,
   CachedAllowlist,
@@ -10,6 +8,9 @@ import type {
   IncrementalVacuumResult,
   SearchIndexRebuildScope,
 } from './database';
+import { DatabaseWorker as Worker } from './database-worker';
+import type { StatisticsOutboxRow, StatisticsPendingBound } from './statistics-capture';
+import { isWorkerReadyMessage, terminateWorker, type WorkerReadyMessage } from './worker-lifecycle';
 
 export type DatabaseWrite = <T>(operation: () => T | Promise<T>) => Promise<T>;
 
@@ -21,10 +22,8 @@ interface SyncAlertMutationBase {
   updateAlertRawDataOnly?: boolean;
 }
 
-export type SyncAlertMutation = SyncAlertMutationBase & (
-  | { alert: AlertInsertParams; alertId?: never }
-  | { alert?: never; alertId: string | number }
-);
+export type SyncAlertMutation = SyncAlertMutationBase &
+  ({ alert: AlertInsertParams; alertId?: never } | { alert?: never; alertId: string | number });
 
 export interface AlertDecisionComparison {
   alertId: string | number;
@@ -58,10 +57,20 @@ type SyncWorkerRequest =
   | { type: 'set-meta'; key: string; value: string }
   | { type: 'persist-alerts'; mutations: SyncAlertMutation[] }
   | { type: 'compare-alert-decisions'; comparisons: AlertDecisionComparison[] }
-  | { type: 'delete-alerts-missing-between'; start: string; end: string; keepIds: Array<string | number>; instanceId?: string }
+  | {
+      type: 'delete-alerts-missing-between';
+      start: string;
+      end: string;
+      keepIds: Array<string | number>;
+      instanceId?: string;
+    }
   | { type: 'delete-cached-alerts'; ids: Array<string | number> }
   | { type: 'delete-cached-decisions'; ids: Array<string | number> }
-  | { type: 'begin-deferred-search-indexes'; dropSecondaryIndexes: boolean; clearSearchIndexes: boolean }
+  | {
+      type: 'begin-deferred-search-indexes';
+      dropSecondaryIndexes: boolean;
+      clearSearchIndexes: boolean;
+    }
   | { type: 'rebuild-search-indexes'; scope?: SearchIndexRebuildScope }
   | { type: 'refresh-duplicate-flags'; now: string }
   | { type: 'cleanup-old-data'; cutoff: string; limit?: number }
@@ -70,7 +79,12 @@ type SyncWorkerRequest =
   | { type: 'commit-transaction' }
   | { type: 'rollback-transaction' }
   | { type: 'clear-sync-data' }
-  | { type: 'replace-allowlists'; instanceId: string; allowlists: CachedAllowlist[] | null; syncState: string };
+  | {
+      type: 'replace-allowlists';
+      instanceId: string;
+      allowlists: CachedAllowlist[] | null;
+      syncState: string;
+    };
 
 type SyncWorkerResponse = {
   id: number;
@@ -99,7 +113,10 @@ export class DatabaseSyncWorker {
   private nextId = 1;
   private readonly pending = new Map<number, PendingRequest>();
   private operationQueue: Promise<void> = Promise.resolve();
-  private readonly transactionContext = new AsyncLocalStorage<{ worker: Worker; active: boolean }>();
+  private readonly transactionContext = new AsyncLocalStorage<{
+    worker: Worker;
+    active: boolean;
+  }>();
 
   constructor(options: {
     dbPath: string;
@@ -123,7 +140,12 @@ export class DatabaseSyncWorker {
     return this.execute({ type: 'statistics-reset' });
   }
 
-  statisticsBatch(backfill: boolean): Promise<{ rows: StatisticsOutboxRow[]; backlog: number; backfillPending: boolean; coverageFrom: Record<string, string> }> {
+  statisticsBatch(backfill: boolean): Promise<{
+    rows: StatisticsOutboxRow[];
+    backlog: number;
+    backfillPending: boolean;
+    coverageFrom: Record<string, string>;
+  }> {
     return this.execute({ type: 'statistics-batch', backfill });
   }
 
@@ -162,8 +184,15 @@ export class DatabaseSyncWorker {
     return this.execute({ type: 'delete-cached-decisions', ids });
   }
 
-  beginDeferredSearchIndexUpdates(dropSecondaryIndexes = true, clearSearchIndexes = true): Promise<void> {
-    return this.execute({ type: 'begin-deferred-search-indexes', dropSecondaryIndexes, clearSearchIndexes });
+  beginDeferredSearchIndexUpdates(
+    dropSecondaryIndexes = true,
+    clearSearchIndexes = true,
+  ): Promise<void> {
+    return this.execute({
+      type: 'begin-deferred-search-indexes',
+      dropSecondaryIndexes,
+      clearSearchIndexes,
+    });
   }
 
   rebuildSearchIndexes(scope?: SearchIndexRebuildScope): Promise<void> {
@@ -186,7 +215,11 @@ export class DatabaseSyncWorker {
     return this.execute({ type: 'clear-sync-data' });
   }
 
-  replaceAllowlists(instanceId: string, allowlists: CachedAllowlist[] | null, syncState: string): Promise<{ changed: boolean }> {
+  replaceAllowlists(
+    instanceId: string,
+    allowlists: CachedAllowlist[] | null,
+    syncState: string,
+  ): Promise<{ changed: boolean }> {
     return this.execute({ type: 'replace-allowlists', instanceId, allowlists, syncState });
   }
 
@@ -204,11 +237,17 @@ export class DatabaseSyncWorker {
       };
       return this.workerShutdown ? this.workerShutdown.then(run) : run();
     });
-    this.operationQueue = result.then(() => undefined, () => undefined);
+    this.operationQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
     return result;
   }
 
-  runTransaction<T>(operation: () => Promise<T>, options: DatabaseTransactionOptions = {}): Promise<T> {
+  runTransaction<T>(
+    operation: () => Promise<T>,
+    options: DatabaseTransactionOptions = {},
+  ): Promise<T> {
     return this.runExclusive(async () => {
       const worker = this.getWorker();
       const context = { worker, active: true };
@@ -255,7 +294,8 @@ export class DatabaseSyncWorker {
   private execute<T>(request: SyncWorkerRequest, timeoutMs = this.timeoutMs): Promise<T> {
     const context = this.transactionContext.getStore();
     if (context) {
-      if (!context.active) return Promise.reject(new Error('Database refresh transaction is no longer active'));
+      if (!context.active)
+        return Promise.reject(new Error('Database refresh transaction is no longer active'));
       return this.dispatch<T>(request, timeoutMs, context.worker);
     }
     return this.runExclusive(() => this.dispatch<T>(request, timeoutMs, this.getWorker()));
@@ -269,7 +309,10 @@ export class DatabaseSyncWorker {
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
         if (!this.pending.has(id)) return;
-        this.retireWorker(worker, new Error(`Database maintenance exceeded ${timeoutMs}ms timeout (${request.type})`));
+        this.retireWorker(
+          worker,
+          new Error(`Database maintenance exceeded ${timeoutMs}ms timeout (${request.type})`),
+        );
       }, timeoutMs);
       this.pending.set(id, {
         worker,
@@ -288,15 +331,18 @@ export class DatabaseSyncWorker {
   private getWorker(): Worker {
     if (this.worker) return this.worker;
     const isTsRuntime = import.meta.url.endsWith('.ts');
-    const worker = new Worker(new URL(`./sync-worker.${isTsRuntime ? 'ts' : 'js'}`, import.meta.url), {
-      workerData: {
-        dbPath: this.dbPath,
-        walEnabled: this.walEnabled,
-        incrementalVacuumEnabled: this.incrementalVacuumEnabled,
-        journalSizeLimitBytes: this.journalSizeLimitBytes,
+    const worker = new Worker(
+      new URL(`./sync-worker.${isTsRuntime ? 'ts' : 'js'}`, import.meta.url),
+      {
+        workerData: {
+          dbPath: this.dbPath,
+          walEnabled: this.walEnabled,
+          incrementalVacuumEnabled: this.incrementalVacuumEnabled,
+          journalSizeLimitBytes: this.journalSizeLimitBytes,
+        },
+        execArgv: isTsRuntime ? ['--import', 'tsx'] : [],
       },
-      execArgv: isTsRuntime ? ['--import', 'tsx'] : [],
-    });
+    );
     worker.on('message', (message: SyncWorkerResponse | WorkerReadyMessage) => {
       if (isWorkerReadyMessage(message)) return;
       this.handleMessage(worker, message);

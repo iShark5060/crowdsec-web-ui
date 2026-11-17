@@ -46,11 +46,15 @@ export function createCrowdsecAuthConfig(env: NodeJS.ProcessEnv = process.env): 
   }
 
   if (hasPasswordAuthInput && !hasPasswordAuth) {
-    throw new Error('CrowdSec password authentication requires CROWDSEC_USER and either CROWDSEC_PASSWORD or CROWDSEC_PASSWORD_FILE.');
+    throw new Error(
+      'CrowdSec password authentication requires CROWDSEC_USER and either CROWDSEC_PASSWORD or CROWDSEC_PASSWORD_FILE.',
+    );
   }
 
   if (hasMtlsAuthInput && !hasMtlsAuth) {
-    throw new Error('CrowdSec mTLS authentication requires both CROWDSEC_TLS_CERT_PATH and CROWDSEC_TLS_KEY_PATH.');
+    throw new Error(
+      'CrowdSec mTLS authentication requires both CROWDSEC_TLS_CERT_PATH and CROWDSEC_TLS_KEY_PATH.',
+    );
   }
 
   if (hasPasswordAuth) {

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+
 import { isValidDecisionScenario } from '../../shared/contracts';
 import type { CrowdsecDatabase } from '../database';
 
@@ -59,7 +60,9 @@ export function loadManualDecisionScenarios(database: CrowdsecDatabase): string[
     if (!value) return [];
     const parsed: unknown = JSON.parse(value);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((entry): entry is string => typeof entry === 'string' && isValidDecisionScenario(entry));
+    return parsed.filter(
+      (entry): entry is string => typeof entry === 'string' && isValidDecisionScenario(entry),
+    );
   } catch (error) {
     console.error('Error loading manual decision scenarios from database:', error);
     return [];
@@ -106,7 +109,10 @@ export function savePersistedConfig(database: CrowdsecDatabase, config: Persiste
   }
 }
 
-export function resolveNotificationSecretKey(database: CrowdsecDatabase, configuredKey?: string): string {
+export function resolveNotificationSecretKey(
+  database: CrowdsecDatabase,
+  configuredKey?: string,
+): string {
   const trimmedConfiguredKey = configuredKey?.trim();
   if (trimmedConfiguredKey) {
     return trimmedConfiguredKey;

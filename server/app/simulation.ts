@@ -3,18 +3,7 @@ import type {
   AlertDecisionSummary,
   AlertRecord,
   DecisionListItem,
-  SlimAlert,
 } from '../../shared/contracts';
-import { collectDistinctOrigins } from '../../shared/origin';
-import {
-  getAlertSourceValue,
-  getAlertTargets,
-  getAlertTargetSummary,
-  resolveAlertHistoryAt,
-  resolveAlertReason,
-  resolveAlertScenario,
-} from '../utils/alerts';
-import { parseGoDuration } from '../utils/duration';
 
 export function lookbackHours(duration: string): number {
   const match = duration.match(/^(\d+)([hmd])$/);
@@ -62,7 +51,9 @@ export function hasSimulationMarker(value: unknown): boolean {
   return normalized.startsWith('(simul)') || normalized.includes('simulated');
 }
 
-export function normalizeAlertSimulated(alert: Pick<AlertRecord, 'simulated'> | null | undefined): boolean {
+export function normalizeAlertSimulated(
+  alert: Pick<AlertRecord, 'simulated'> | null | undefined,
+): boolean {
   const explicit = parseSimulationBoolean(alert?.simulated);
   if (explicit !== null) {
     return explicit;
@@ -96,12 +87,17 @@ export function isAlertSimulated(alert: AlertRecord): boolean {
     return true;
   }
 
-  return Array.isArray(alert.decisions) &&
+  return (
+    Array.isArray(alert.decisions) &&
     alert.decisions.length > 0 &&
-    alert.decisions.every((decision) => normalizeDecisionSimulated(decision, alert));
+    alert.decisions.every((decision) => normalizeDecisionSimulated(decision, alert))
+  );
 }
 
-export function applySimulationModeToAlert(alert: AlertRecord, simulationsEnabled: boolean): AlertRecord | null {
+export function applySimulationModeToAlert(
+  alert: AlertRecord,
+  simulationsEnabled: boolean,
+): AlertRecord | null {
   const alertWithSimulation: AlertRecord = {
     ...alert,
     decisions: Array.isArray(alert.decisions)
@@ -118,7 +114,9 @@ export function applySimulationModeToAlert(alert: AlertRecord, simulationsEnable
   }
 
   if (!simulationsEnabled) {
-    alertWithSimulation.decisions = (alertWithSimulation.decisions || []).filter((decision) => !decision.simulated);
+    alertWithSimulation.decisions = (alertWithSimulation.decisions || []).filter(
+      (decision) => !decision.simulated,
+    );
   }
 
   return alertWithSimulation;
@@ -162,7 +160,9 @@ export function toDecisionListItem(
       alert_id: decision.alert_id as string | number | undefined,
       target: typeof decision.target === 'string' ? decision.target : null,
       targets: Array.isArray(decision.targets)
-        ? decision.targets.filter((target): target is string => typeof target === 'string' && target.trim().length > 0)
+        ? decision.targets.filter(
+            (target): target is string => typeof target === 'string' && target.trim().length > 0,
+          )
         : undefined,
       target_count: typeof decision.target_count === 'number' ? decision.target_count : undefined,
       simulated: normalizeDecisionSimulated(decision),
@@ -171,7 +171,10 @@ export function toDecisionListItem(
 }
 
 export function markDuplicateDecisions(decisions: DecisionListItem[]): DecisionListItem[] {
-  const primaryMap = new Map<string, { id: string | number; expirationMs: number; numericId: number }>();
+  const primaryMap = new Map<
+    string,
+    { id: string | number; expirationMs: number; numericId: number }
+  >();
 
   for (const decision of decisions) {
     if (decision.expired) continue;
@@ -190,13 +193,17 @@ export function markDuplicateDecisions(decisions: DecisionListItem[]): DecisionL
 
   return decisions.map((decision) => {
     if (decision.expired) return { ...decision, is_duplicate: false };
-    const primaryId = primaryMap.get(`${decision.instance_id || 'default'}|${decision.value ?? ''}|${decision.simulated === true ? 'simulated' : 'live'}`);
+    const primaryId = primaryMap.get(
+      `${decision.instance_id || 'default'}|${decision.value ?? ''}|${decision.simulated === true ? 'simulated' : 'live'}`,
+    );
     return { ...decision, is_duplicate: String(decision.id) !== String(primaryId?.id) };
   });
 }
 
 export function getDecisionExpirationMs(decision: DecisionListItem): number {
-  const expiration = decision.detail.expiration ? Date.parse(decision.detail.expiration) : Number.NaN;
+  const expiration = decision.detail.expiration
+    ? Date.parse(decision.detail.expiration)
+    : Number.NaN;
   return Number.isFinite(expiration) ? expiration : Number.NEGATIVE_INFINITY;
 }
 

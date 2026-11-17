@@ -1,5 +1,10 @@
 import type { Hono } from 'hono';
-import { BrandingThemeValidationError, parseBrandingThemeInput, type BrandingTheme } from '../../shared/branding-theme';
+
+import {
+  BrandingThemeValidationError,
+  parseBrandingThemeInput,
+  type BrandingTheme,
+} from '../../shared/branding-theme';
 import type { DashboardAuth } from '../app-auth';
 import {
   BrandingValidationError,
@@ -19,7 +24,9 @@ type HonoContext = any;
 
 async function readBody(context: HonoContext): Promise<Record<string, unknown> | null> {
   const body = await context.req.json().catch(() => null);
-  return body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : null;
+  return body && typeof body === 'object' && !Array.isArray(body)
+    ? (body as Record<string, unknown>)
+    : null;
 }
 
 export function registerBrandingRoutes(options: {
@@ -32,12 +39,16 @@ export function registerBrandingRoutes(options: {
 }): void {
   const { app, basePath, database, auth, ensureCanManageSettings, writeDatabase } = options;
   const root = `${basePath}/api/branding`;
-  const brandingResponse = (context: HonoContext) => context.json(getPublicBranding(database, basePath));
+  const brandingResponse = (context: HonoContext) =>
+    context.json(getPublicBranding(database, basePath));
 
   // Public: the sign-in and setup pages are branded before authentication.
   app.get(root, (context) => brandingResponse(context));
 
-  const logoRoutes: Array<[string, AppLogoVariant]> = [[`${root}/logo`, 'default'], [`${root}/logo/dark`, 'dark']];
+  const logoRoutes: Array<[string, AppLogoVariant]> = [
+    [`${root}/logo`, 'default'],
+    [`${root}/logo/dark`, 'dark'],
+  ];
 
   for (const [logoPath, variant] of logoRoutes) {
     app.get(logoPath, (context) => {
@@ -46,10 +57,16 @@ export function registerBrandingRoutes(options: {
 
       const versioned = context.req.query('v') === logo.version;
       context.header('Content-Type', logo.contentType);
-      context.header('Cache-Control', versioned ? 'public, max-age=31536000, immutable' : 'no-cache');
+      context.header(
+        'Cache-Control',
+        versioned ? 'public, max-age=31536000, immutable' : 'no-cache',
+      );
       // SVG logos are rendered via <img>, but lock them down in case one is
       // opened directly so embedded scripts can never run on this origin.
-      context.header('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox");
+      context.header(
+        'Content-Security-Policy',
+        "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
+      );
       context.header('Content-Disposition', 'inline');
       return context.body(new Uint8Array(logo.data));
     });
@@ -64,7 +81,8 @@ export function registerBrandingRoutes(options: {
       try {
         logo = parseAppLogoUpload(body.dataUrl);
       } catch (error) {
-        if (error instanceof BrandingValidationError) return context.json({ error: error.message }, 400);
+        if (error instanceof BrandingValidationError)
+          return context.json({ error: error.message }, 400);
         throw error;
       }
 
@@ -91,7 +109,8 @@ export function registerBrandingRoutes(options: {
     try {
       theme = parseBrandingThemeInput(body.theme);
     } catch (error) {
-      if (error instanceof BrandingThemeValidationError) return context.json({ error: error.message }, 400);
+      if (error instanceof BrandingThemeValidationError)
+        return context.json({ error: error.message }, 400);
       throw error;
     }
 
@@ -109,7 +128,8 @@ export function registerBrandingRoutes(options: {
     try {
       appName = normalizeAppName(body.appName);
     } catch (error) {
-      if (error instanceof BrandingValidationError) return context.json({ error: error.message }, 400);
+      if (error instanceof BrandingValidationError)
+        return context.json({ error: error.message }, 400);
       throw error;
     }
 

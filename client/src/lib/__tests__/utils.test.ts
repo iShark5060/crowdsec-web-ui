@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { cn, getCountryCodesMatchingName, getCountryName, getHubUrl } from '../utils';
 
 describe('utils', () => {
@@ -8,10 +9,18 @@ describe('utils', () => {
   });
 
   test('getHubUrl returns scenario and appsec links', () => {
-    expect(getHubUrl('crowdsecurity/ssh-bf')).toBe('https://app.crowdsec.net/hub/author/crowdsecurity/scenarios/ssh-bf');
-    expect(getHubUrl('crowdsecurity/appsec-rule')).toBe('https://app.crowdsec.net/hub/author/crowdsecurity/appsec-rules/appsec-rule');
-    expect(getHubUrl('crowdsecurity/vpatch-test')).toBe('https://app.crowdsec.net/hub/author/crowdsecurity/appsec-rules/vpatch-test');
-    expect(getHubUrl('crowdsecurity/crs-test')).toBe('https://app.crowdsec.net/hub/author/crowdsecurity/appsec-rules/crs-test');
+    expect(getHubUrl('crowdsecurity/ssh-bf')).toBe(
+      'https://app.crowdsec.net/hub/author/crowdsecurity/scenarios/ssh-bf',
+    );
+    expect(getHubUrl('crowdsecurity/appsec-rule')).toBe(
+      'https://app.crowdsec.net/hub/author/crowdsecurity/appsec-rules/appsec-rule',
+    );
+    expect(getHubUrl('crowdsecurity/vpatch-test')).toBe(
+      'https://app.crowdsec.net/hub/author/crowdsecurity/appsec-rules/vpatch-test',
+    );
+    expect(getHubUrl('crowdsecurity/crs-test')).toBe(
+      'https://app.crowdsec.net/hub/author/crowdsecurity/appsec-rules/crs-test',
+    );
     expect(getHubUrl('invalid')).toBeNull();
     expect(getHubUrl(null)).toBeNull();
   });
@@ -32,10 +41,8 @@ describe('utils', () => {
     const original = Intl.DisplayNames;
     Object.defineProperty(Intl, 'DisplayNames', {
       configurable: true,
-      value: class {
-        constructor() {
-          throw new Error('boom');
-        }
+      value: function DisplayNames() {
+        throw new Error('boom');
       },
     });
 

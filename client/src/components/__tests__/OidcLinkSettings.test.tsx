@@ -1,12 +1,13 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { OidcLinkSettings } from '../OidcLinkSettings';
 
 vi.mock('../../lib/i18n', () => ({
   useI18n: () => ({
-    t: (key: string, values?: Record<string, unknown>) => values ? `${key} ${JSON.stringify(values)}` : key,
+    t: (key: string, values?: Record<string, unknown>) => (values ? `${key} ${JSON.stringify(values)}` : key),
   }),
 }));
 
@@ -38,7 +39,13 @@ const LINKED = {
 
 const PENDING = {
   ...UNLINKED,
-  pending: { id: 'attempt-1', issuer: 'https://auth.example.com/oidc', username: 'alice', role: 'admin', merge: { username: 'admin#oidc-1a2b3c4d5e' } },
+  pending: {
+    id: 'attempt-1',
+    issuer: 'https://auth.example.com/oidc',
+    username: 'alice',
+    role: 'admin',
+    merge: { username: 'admin#oidc-1a2b3c4d5e' },
+  },
 };
 
 type Handler = (url: string, init?: RequestInit) => Response | undefined;
@@ -46,9 +53,12 @@ type Handler = (url: string, init?: RequestInit) => Response | undefined;
 function stubFetch(status: unknown, handler: Handler = () => undefined) {
   const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
-    return handler(url, init) ?? (url.endsWith('/api/auth/oidc/link') && (init?.method ?? 'GET') === 'GET'
-      ? Response.json(status)
-      : Response.json({ status: 'ok' }));
+    return (
+      handler(url, init) ??
+      (url.endsWith('/api/auth/oidc/link') && (init?.method ?? 'GET') === 'GET'
+        ? Response.json(status)
+        : Response.json({ status: 'ok' }))
+    );
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -86,9 +96,11 @@ describe('OidcLinkSettings', () => {
   test('starts linking from a local session', async () => {
     const assign = vi.fn();
     vi.stubGlobal('location', { ...window.location, origin: 'https://ui.example.com', assign });
-    const fetchMock = stubFetch(UNLINKED, (url) => url.endsWith('/link/start')
-      ? Response.json({ status: 'ok', redirectUrl: 'https://auth.example.com/authorize' })
-      : undefined);
+    const fetchMock = stubFetch(UNLINKED, (url) =>
+      url.endsWith('/link/start')
+        ? Response.json({ status: 'ok', redirectUrl: 'https://auth.example.com/authorize' })
+        : undefined,
+    );
     renderSettings();
 
     await userEvent.click(await screen.findByRole('button', { name: 'pages.settings.oidcLink.link' }));
@@ -173,7 +185,11 @@ describe('OidcLinkSettings', () => {
 
     await waitFor(() => expect(showToast).toHaveBeenCalledWith('pages.settings.oidcLink.linked', 'success'));
     const confirmCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/link/confirm'));
-    expect(JSON.parse(String(confirmCall?.[1]?.body))).toEqual({ password: 'Password1', totpCode: '123456', confirmationId: 'attempt-1' });
+    expect(JSON.parse(String(confirmCall?.[1]?.body))).toEqual({
+      password: 'Password1',
+      totpCode: '123456',
+      confirmationId: 'attempt-1',
+    });
     await waitFor(() => expect(screen.getByTestId('search')).toBeEmptyDOMElement());
     expect(screen.queryByText(/pages\.settings\.oidcLink\.confirmMessage/)).not.toBeInTheDocument();
     expect(await screen.findByText('pages.settings.oidcLink.statusLinked')).toBeInTheDocument();
@@ -183,9 +199,11 @@ describe('OidcLinkSettings', () => {
     const user = userEvent.setup();
     const invalidated = vi.fn();
     window.addEventListener('crowdsec-auth-session-invalidated', invalidated);
-    stubFetch(PENDING, (url) => url.endsWith('/link/confirm')
-      ? Response.json({ error: 'Current password is incorrect' }, { status: 401 })
-      : undefined);
+    stubFetch(PENDING, (url) =>
+      url.endsWith('/link/confirm')
+        ? Response.json({ error: 'Current password is incorrect' }, { status: 401 })
+        : undefined,
+    );
     const { showToast } = renderSettings('?oidcLink=confirm');
 
     await user.type(await screen.findByLabelText('pages.settings.currentPassword'), 'Wrong-password1');
@@ -201,14 +219,20 @@ describe('OidcLinkSettings', () => {
 
   test('closes the form and says why when another tab changed the attempt', async () => {
     const user = userEvent.setup();
-    const fetchMock = stubFetch(PENDING, (url) => url.endsWith('/link/confirm')
-      ? Response.json({ error: 'This SSO link attempt changed. Start again.', code: 'OIDC_LINK_CHANGED' }, { status: 409 })
-      : undefined);
+    const fetchMock = stubFetch(PENDING, (url) =>
+      url.endsWith('/link/confirm')
+        ? Response.json(
+            { error: 'This SSO link attempt changed. Start again.', code: 'OIDC_LINK_CHANGED' },
+            { status: 409 },
+          )
+        : undefined,
+    );
     const { showToast } = renderSettings('?oidcLink=confirm');
 
     await user.type(await screen.findByLabelText('pages.settings.currentPassword'), 'Password1');
     await user.type(screen.getByLabelText('pages.settings.authenticatorCode'), '123456');
-    const statusLoads = () => fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith('/api/auth/oidc/link') && !init?.method).length;
+    const statusLoads = () =>
+      fetchMock.mock.calls.filter(([url, init]) => String(url).endsWith('/api/auth/oidc/link') && !init?.method).length;
     const loadsBefore = statusLoads();
     await user.click(screen.getByRole('button', { name: 'pages.settings.oidcLink.confirm' }));
 

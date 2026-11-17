@@ -1,6 +1,6 @@
-import { Badge } from './ui/Badge';
-import { useRemediationTypeLabel } from '../lib/remediationTypes';
 import type { StatisticsRemediationType } from '../../../shared/statistics';
+import { useRemediationTypeLabel } from '../lib/remediationTypes';
+import { Badge } from './ui/Badge';
 
 const VARIANTS: Record<string, 'danger' | 'warning'> = { ban: 'danger', captcha: 'warning' };
 
@@ -11,7 +11,11 @@ export function RemediationPills({ types }: { types: StatisticsRemediationType[]
   return (
     <span className="inline-flex flex-wrap justify-end gap-1">
       {types.map((type) => (
-        <Badge key={type.label} variant={VARIANTS[type.label.toLowerCase()] ?? 'secondary'} className="whitespace-nowrap tabular-nums">
+        <Badge
+          key={type.label}
+          variant={VARIANTS[type.label.toLowerCase()] ?? 'secondary'}
+          className="whitespace-nowrap tabular-nums"
+        >
           {label(type.label)} {type.count.toLocaleString()}
         </Badge>
       ))}

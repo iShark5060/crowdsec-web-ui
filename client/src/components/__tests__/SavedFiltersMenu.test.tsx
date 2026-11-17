@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SavedFiltersMenu } from '../SavedFiltersMenu';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { filterValidForPage } from '../../lib/savedFilters';
+import { SavedFiltersMenu } from '../SavedFiltersMenu';
 
 const authState = vi.hoisted(() => ({ current: { authEnabled: false, user: null as { userId: number } | null } }));
 vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => authState.current }));
@@ -38,7 +39,10 @@ function installApi() {
       return Response.json({ success: true });
     }
     if (method === 'DELETE') {
-      saved.splice(saved.findIndex((filter) => path.endsWith(filter.id)), 1);
+      saved.splice(
+        saved.findIndex((filter) => path.endsWith(filter.id)),
+        1,
+      );
       return Response.json({ success: true });
     }
     throw new Error(`${method} ${path}`);
@@ -60,8 +64,16 @@ describe('SavedFiltersMenu', () => {
     await user.click(screen.getByRole('button', { name: 'Save current query' }));
     expect(await screen.findByText('SSH')).toBeInTheDocument();
     const german = screen.getByText('German WAF').closest('div.rounded-md')!;
-    expect(within(german as HTMLElement).getByRole('button', { name: 'Rename' }).querySelector('svg.lucide-square-pen')).not.toBeNull();
-    expect(within(german as HTMLElement).getByRole('button', { name: 'Delete' }).querySelector('svg.lucide-trash-2')).not.toBeNull();
+    expect(
+      within(german as HTMLElement)
+        .getByRole('button', { name: 'Rename' })
+        .querySelector('svg.lucide-square-pen'),
+    ).not.toBeNull();
+    expect(
+      within(german as HTMLElement)
+        .getByRole('button', { name: 'Delete' })
+        .querySelector('svg.lucide-trash-2'),
+    ).not.toBeNull();
     await user.click(within(german as HTMLElement).getByRole('button', { name: 'Rename' }));
     await user.clear(within(german as HTMLElement).getByRole('textbox', { name: 'Name' }));
     await user.type(within(german as HTMLElement).getByRole('textbox', { name: 'Name' }), 'Germany WAF');
@@ -80,14 +92,19 @@ describe('SavedFiltersMenu', () => {
 
   test('clears the menu and reloads filters when the signed-in user changes', async () => {
     let loads = 0;
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      loads += 1;
-      return Response.json({
-        saved: [{ id: String(loads), name: `User ${loads} filter`, query: 'country=DE', created_at: '', updated_at: '' }],
-        recent: [],
-        shared: false,
-      });
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        loads += 1;
+        return Response.json({
+          saved: [
+            { id: String(loads), name: `User ${loads} filter`, query: 'country=DE', created_at: '', updated_at: '' },
+          ],
+          recent: [],
+          shared: false,
+        });
+      }),
+    );
     authState.current = { authEnabled: true, user: { userId: 1 } };
     const view = render(<SavedFiltersMenu page="alerts" query="country=DE" onApply={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Saved filters' }));

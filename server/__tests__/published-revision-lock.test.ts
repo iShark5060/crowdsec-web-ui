@@ -1,4 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
+
 import { PublishedRevisionLock } from '../published-revision-lock';
 
 afterEach(() => vi.useRealTimers());
@@ -7,6 +8,8 @@ test('removes timed-out writers without blocking readers or acquiring a late loc
   vi.useFakeTimers();
   const lock = new PublishedRevisionLock(1000);
   const read = await lock.acquireRead();
+  // Attached before the clock jumps so the rejection is not unhandled. Awaited once the timer fires.
+  // oxlint-disable-next-line vitest/valid-expect
   const failure = expect(lock.acquireWrite()).rejects.toThrow('Cache publication waited');
   const waitingRead = lock.acquireRead();
   await vi.advanceTimersByTimeAsync(1000);
@@ -26,7 +29,10 @@ test('preserves writer ordering and only releases readers after the committed re
   const first = await lock.acquireWrite();
   const second = lock.acquireWrite();
   let readAcquired = false;
-  const read = lock.acquireRead().then(release => { readAcquired = true; return release; });
+  const read = lock.acquireRead().then((release) => {
+    readAcquired = true;
+    return release;
+  });
   first();
   first();
   const releaseSecond = await second;

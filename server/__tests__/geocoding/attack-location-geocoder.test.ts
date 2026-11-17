@@ -1,12 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
 import { describe, expect, test, vi } from 'vitest';
+
 import type { DashboardAttackLocationDatum } from '../../../shared/contracts';
-import {
-  createAttackLocationResolver,
-  hasGeoNamesAttackLocationData,
-} from '../../attack-location-geocoder';
+import { createAttackLocationResolver, hasGeoNamesAttackLocationData } from '../../attack-location-geocoder';
 
 const berlinLocation: DashboardAttackLocationDatum = {
   latitude: 52.52,
@@ -72,83 +71,92 @@ describe('attack location geocoder', () => {
   });
 
   test('resolves a nearby city, admin region, and country from cities5000', async () => {
-    const client = createClient([[
-      {
-        name: 'Berlin',
-        admin1Code: { name: 'Berlin' },
-        countryCode: 'de',
-        distance: 0.4,
-      },
-    ]]);
+    const client = createClient([
+      [
+        {
+          name: 'Berlin',
+          admin1Code: { name: 'Berlin' },
+          countryCode: 'de',
+          distance: 0.4,
+        },
+      ],
+    ]);
     const resolver = createAttackLocationResolver({
       dumpDirectory: '/geonames',
       client,
       dataAvailable: () => true,
     });
 
-    await expect(resolver.resolve([berlinLocation])).resolves.toEqual([{
-      ...berlinLocation,
-      city: 'Berlin',
-      region: 'Berlin',
-      countryCode: 'DE',
-    }]);
-    expect(client.init).toHaveBeenCalledWith({
-      dumpDirectory: '/geonames',
-      citiesFileOverride: 'cities5000',
-      load: {
-        admin1: true,
-        admin2: false,
-        admin3And4: false,
-        alternateNames: false,
+    await expect(resolver.resolve([berlinLocation])).resolves.toEqual([
+      {
+        ...berlinLocation,
+        city: 'Berlin',
+        region: 'Berlin',
+        countryCode: 'DE',
       },
-    }, expect.any(Function));
-    expect(client.lookUp).toHaveBeenCalledWith(
-      [{ latitude: 52.52, longitude: 13.405 }],
-      10,
+    ]);
+    expect(client.init).toHaveBeenCalledWith(
+      {
+        dumpDirectory: '/geonames',
+        citiesFileOverride: 'cities5000',
+        load: {
+          admin1: true,
+          admin2: false,
+          admin3And4: false,
+          alternateNames: false,
+        },
+      },
       expect.any(Function),
     );
+    expect(client.lookUp).toHaveBeenCalledWith([{ latitude: 52.52, longitude: 13.405 }], 10, expect.any(Function));
   });
 
   test('prefers a city over a nearer neighborhood record', async () => {
-    const client = createClient([[
-      {
-        name: 'Mitte',
-        featureCode: 'PPLX',
-        admin1Code: { name: 'State of Berlin' },
-        countryCode: 'DE',
-        distance: 0.01,
-      },
-      {
-        name: 'Berlin',
-        featureCode: 'PPLC',
-        admin1Code: { name: 'State of Berlin' },
-        countryCode: 'DE',
-        distance: 0.61,
-      },
-    ]]);
+    const client = createClient([
+      [
+        {
+          name: 'Mitte',
+          featureCode: 'PPLX',
+          admin1Code: { name: 'State of Berlin' },
+          countryCode: 'DE',
+          distance: 0.01,
+        },
+        {
+          name: 'Berlin',
+          featureCode: 'PPLC',
+          admin1Code: { name: 'State of Berlin' },
+          countryCode: 'DE',
+          distance: 0.61,
+        },
+      ],
+    ]);
     const resolver = createAttackLocationResolver({
       dumpDirectory: '/geonames',
       client,
       dataAvailable: () => true,
     });
 
-    await expect(resolver.resolve([berlinLocation])).resolves.toEqual([{
-      ...berlinLocation,
-      city: 'Berlin',
-      region: 'State of Berlin',
-      countryCode: 'DE',
-    }]);
+    await expect(resolver.resolve([berlinLocation])).resolves.toEqual([
+      {
+        ...berlinLocation,
+        city: 'Berlin',
+        region: 'State of Berlin',
+        countryCode: 'DE',
+      },
+    ]);
   });
 
   test('does not attach a misleading city beyond the distance limit', async () => {
-    const client = createClient([[
-      {
-        name: 'Remote City',
-        admin1Code: { name: 'Remote Region' },
-        countryCode: 'AU',
-        distance: 100.01,
-      },
-    ]]);
+    const client = createClient([
+      [
+        {
+          name: 'Remote City',
+          admin1Code: { name: 'Remote Region' },
+          countryCode: 'AU',
+          distance: 100.01,
+        },
+      ],
+    ]);
     const resolver = createAttackLocationResolver({
       dumpDirectory: '/geonames',
       client,
@@ -194,31 +202,57 @@ describe('attack location geocoder', () => {
   });
 });
 
-test.each(['initialization', 'lookup'] as const)('bounds stalled geocoder %s and accepts later successful lookups', async (stage) => {
-  vi.useFakeTimers();
-  let finishInit!: () => void;
-  let finishLookup!: (error: Error | null, results: never[]) => void;
-  const client = {
-    init: vi.fn((_options, callback: () => void) => { finishInit = callback; if (stage === 'lookup') callback(); }),
-    lookUp: vi.fn((_points, _limit, callback) => { finishLookup = callback; }),
-  };
-  const warn = vi.fn();
-  const resolver = createAttackLocationResolver({ dumpDirectory: '/geonames', client, dataAvailable: () => true, timeoutMs: 1000, warn });
-  try {
-    const stalled = resolver.resolve([berlinLocation]);
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(await stalled).toEqual([berlinLocation]);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('1000ms timeout'));
-    if (stage === 'initialization') {
-      // Further requests fail promptly without reinitializing a stuck singleton.
-      expect(await resolver.resolve([berlinLocation])).toEqual([berlinLocation]);
-      finishInit();
-    } else finishLookup(null, []);
-    client.lookUp.mockImplementation((_points, _limit, callback) => callback(null, [[{
-      name: 'Berlin', distance: 1, countryCode: 'DE',
-    }]]));
-    expect(await resolver.resolve([berlinLocation])).toEqual([{ ...berlinLocation, city: 'Berlin', region: undefined, countryCode: 'DE' }]);
-    expect(client.init).toHaveBeenCalledOnce();
-    expect(vi.getTimerCount()).toBe(0);
-  } finally { vi.useRealTimers(); }
-});
+test.each(['initialization', 'lookup'] as const)(
+  'bounds stalled geocoder %s and accepts later successful lookups',
+  async (stage) => {
+    vi.useFakeTimers();
+    let finishInit!: () => void;
+    let finishLookup!: (error: Error | null, results: never[]) => void;
+    const client = {
+      init: vi.fn((_options, callback: () => void) => {
+        finishInit = callback;
+        if (stage === 'lookup') callback();
+      }),
+      lookUp: vi.fn((_points, _limit, callback) => {
+        finishLookup = callback;
+      }),
+    };
+    const warn = vi.fn();
+    const resolver = createAttackLocationResolver({
+      dumpDirectory: '/geonames',
+      client,
+      dataAvailable: () => true,
+      timeoutMs: 1000,
+      warn,
+    });
+    try {
+      const stalled = resolver.resolve([berlinLocation]);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(await stalled).toEqual([berlinLocation]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('1000ms timeout'));
+      if (stage === 'initialization') {
+        // Further requests fail promptly without reinitializing a stuck singleton.
+        expect(await resolver.resolve([berlinLocation])).toEqual([berlinLocation]);
+        finishInit();
+      } else finishLookup(null, []);
+      client.lookUp.mockImplementation((_points, _limit, callback) =>
+        callback(null, [
+          [
+            {
+              name: 'Berlin',
+              distance: 1,
+              countryCode: 'DE',
+            },
+          ],
+        ]),
+      );
+      expect(await resolver.resolve([berlinLocation])).toEqual([
+        { ...berlinLocation, city: 'Berlin', region: undefined, countryCode: 'DE' },
+      ]);
+      expect(client.init).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  },
+);

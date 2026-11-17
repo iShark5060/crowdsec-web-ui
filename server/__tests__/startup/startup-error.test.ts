@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+
 import { ConfigurationLoadError } from '../../config-error';
 import { formatStartupError } from '../../startup-error';
 

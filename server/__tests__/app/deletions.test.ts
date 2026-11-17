@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+
 import {
   createController,
   destroyTempDir,
@@ -14,23 +15,31 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', {
-      method: 'DELETE',
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/1', {
+        method: 'DELETE',
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
-      requested_alerts: 1,
-      requested_decisions: 1,
-      deleted_alerts: 1,
-      deleted_decisions: 1,
-      failed: [],
-    }));
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        requested_alerts: 1,
+        requested_decisions: 1,
+        deleted_alerts: 1,
+        deleted_decisions: 1,
+        failed: [],
+      }),
+    );
     await vi.waitFor(() => {
       expect(fetchCalls.some((call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE')).toBe(true);
     });
-    const decisionDeleteIndex = fetchCalls.findIndex((call) => call.url.endsWith('/v1/decisions/10') && call.method === 'DELETE');
-    const alertDeleteIndex = fetchCalls.findIndex((call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE');
+    const decisionDeleteIndex = fetchCalls.findIndex(
+      (call) => call.url.endsWith('/v1/decisions/10') && call.method === 'DELETE',
+    );
+    const alertDeleteIndex = fetchCalls.findIndex(
+      (call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE',
+    );
     expect(decisionDeleteIndex).toBeGreaterThanOrEqual(0);
     expect(alertDeleteIndex).toBeGreaterThan(decisionDeleteIndex);
     expect(database.countAlerts()).toBe(0);
@@ -57,9 +66,11 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', {
-      method: 'DELETE',
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/1', {
+        method: 'DELETE',
+      }),
+    );
 
     expect(response.status).toBe(200);
     expect(database.countAlerts()).toBe(0);
@@ -83,20 +94,30 @@ describe('createApp deletion workflows', () => {
       seedAlert(database, sampleAlert());
       await lapiClient.login();
 
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', {
-        method: 'DELETE',
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts/1', {
+          method: 'DELETE',
+        }),
+      );
       expect(response.status).toBe(200);
       await vi.waitFor(() => {
         expect(database.getAlertDeletionTombstone('1')?.completed_at).not.toBeNull();
       });
       await vi.waitFor(() => {
-        expect(logSpy.mock.calls.some((call) => String(call[0]).includes('[deletion-queue] Queue is empty'))).toBe(true);
+        expect(logSpy.mock.calls.some((call) => String(call[0]).includes('[deletion-queue] Queue is empty'))).toBe(
+          true,
+        );
       });
 
       const messages = logSpy.mock.calls.map((call) => String(call[0]));
-      expect(messages.some((message) => message.includes('[deletion-queue] Queued 1 alert deletion(s) and 1 decision deletion(s)'))).toBe(true);
-      expect(messages.some((message) => message.includes('[deletion-queue] Deleted alert 1 and 1 linked decision(s)'))).toBe(true);
+      expect(
+        messages.some((message) =>
+          message.includes('[deletion-queue] Queued 1 alert deletion(s) and 1 decision deletion(s)'),
+        ),
+      ).toBe(true);
+      expect(
+        messages.some((message) => message.includes('[deletion-queue] Deleted alert 1 and 1 linked decision(s)')),
+      ).toBe(true);
       expect(messages.some((message) => message.includes('[deletion-queue] Queue is empty'))).toBe(true);
     } finally {
       controller.stopBackgroundTasks();
@@ -117,16 +138,20 @@ describe('createApp deletion workflows', () => {
     });
     try {
       await lapiClient.login();
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/decisions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip: '5.6.7.8', duration: '4h', type: 'ban', reason: 'manual' }),
+        }),
+      );
 
       expect(response.status).toBe(200);
-      expect(logSpy.mock.calls.some((call) =>
-        String(call[0]).includes('[decisions] Added ban decision for 5.6.7.8 (4h, manual/web-ui).'),
-      )).toBe(true);
+      expect(
+        logSpy.mock.calls.some((call) =>
+          String(call[0]).includes('[decisions] Added ban decision for 5.6.7.8 (4h, manual/web-ui).'),
+        ),
+      ).toBe(true);
     } finally {
       controller.stopBackgroundTasks();
       database.close();
@@ -153,9 +178,11 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', {
-      method: 'DELETE',
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/1', {
+        method: 'DELETE',
+      }),
+    );
 
     expect(response.status).toBe(200);
     expect(decisionDeletedAt).toBeGreaterThan(0);
@@ -192,8 +219,12 @@ describe('createApp deletion workflows', () => {
     controller.startBackgroundTasks();
     await vi.waitFor(() => expect(controller.getSyncStatus().state).toBe('complete'));
 
-    const alertDeleteIndex = fetchCalls.findIndex((call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE');
-    const firstHistoricalSyncIndex = fetchCalls.findIndex((call) => call.url.includes('/v1/alerts?') && call.method === 'GET');
+    const alertDeleteIndex = fetchCalls.findIndex(
+      (call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE',
+    );
+    const firstHistoricalSyncIndex = fetchCalls.findIndex(
+      (call) => call.url.includes('/v1/alerts?') && call.method === 'GET',
+    );
     expect(alertDeleteIndex).toBeGreaterThanOrEqual(0);
     expect(firstHistoricalSyncIndex).toBeGreaterThan(alertDeleteIndex);
     expect(database.getAlertDeletionTombstone('1')?.completed_at).not.toBeNull();
@@ -227,7 +258,9 @@ describe('createApp deletion workflows', () => {
     controller.startBackgroundTasks();
     await vi.waitFor(() => expect(controller.getSyncStatus().state).toBe('complete'));
 
-    expect(fetchCalls.filter((call) => /\/v1\/alerts\/\d+$/.test(call.url) && call.method === 'DELETE')).toHaveLength(250);
+    expect(fetchCalls.filter((call) => /\/v1\/alerts\/\d+$/.test(call.url) && call.method === 'DELETE')).toHaveLength(
+      250,
+    );
     expect(database.getPendingAlertDeletions()).toEqual([]);
     expect(completedInTransaction).toHaveLength(250);
     expect(completedInTransaction.every(Boolean)).toBe(true);
@@ -261,11 +294,13 @@ describe('createApp deletion workflows', () => {
       for (let id = 100; id < 130; id += 1) database.queueAlertDeletion(String(id), [String(id + 1000)], requestedAt);
     })(undefined);
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [99] }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [99] }),
+      }),
+    );
     expect(response.status).toBe(200);
     await vi.waitFor(() => expect(database.getPendingAlertDeletions()).toEqual([]));
 
@@ -293,18 +328,24 @@ describe('createApp deletion workflows', () => {
       last_attempt_at: null,
       last_error: null,
     };
-    const getPending = vi.spyOn(database, 'getPendingAlertDeletions').mockReturnValue(Array.from({ length: 200_000 }, () => row));
+    const getPending = vi
+      .spyOn(database, 'getPendingAlertDeletions')
+      .mockReturnValue(Array.from({ length: 200_000 }, () => row));
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     try {
-      const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [99] }),
-      }));
+      const response = await controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: [99] }),
+        }),
+      );
       expect(response.status).toBe(200);
       await vi.waitFor(() => expect(getPending.mock.calls.length).toBeGreaterThanOrEqual(2));
-      expect(errorSpy.mock.calls.filter((call) => String(call[0]).includes('Pending alert deletion processor failed'))).toEqual([]);
+      expect(
+        errorSpy.mock.calls.filter((call) => String(call[0]).includes('Pending alert deletion processor failed')),
+      ).toEqual([]);
     } finally {
       errorSpy.mockRestore();
       getPending.mockRestore();
@@ -320,14 +361,19 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleAlert({ id: 2, uuid: 'a-2', message: 'secondneedle', decisions: [] }));
     seedAlert(database, sampleAlert({ id: 3, uuid: 'a-3', message: 'thirdneedle', decisions: [] }));
     await lapiClient.login();
-    const indexed = () => (database.db.prepare('SELECT rowid AS id FROM alerts_fts ORDER BY rowid').all() as Array<{ id: number }>).map((row) => row.id);
+    const indexed = () =>
+      (database.db.prepare('SELECT rowid AS id FROM alerts_fts ORDER BY rowid').all() as Array<{ id: number }>).map(
+        (row) => row.id,
+      );
     expect(indexed()).toEqual([1, 2, 3]);
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [1, 3] }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [1, 3] }),
+      }),
+    );
 
     expect(response.status).toBe(200);
     expect(indexed()).toEqual([2]);
@@ -346,14 +392,20 @@ describe('createApp deletion workflows', () => {
     const { controller, database, lapiClient } = createController();
     const instanceId = controller.config.instances[0].id;
     seedAlert(database, sampleAlert());
-    seedAlert(database, sampleAlert({ id: 3, uuid: 'alert-3', decisions: [{ ...sampleAlert().decisions![0], id: 30 }] }));
+    seedAlert(
+      database,
+      sampleAlert({ id: 3, uuid: 'alert-3', decisions: [{ ...sampleAlert().decisions![0], id: 30 }] }),
+    );
     await lapiClient.login();
     const loadRules = vi.spyOn(database, 'listNotificationRules');
-    const post = (ids: number[]) => controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refs: ids.map((id) => ({ instance_id: instanceId, id })) }),
-    }));
+    const post = (ids: number[]) =>
+      controller.fetch(
+        new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refs: ids.map((id) => ({ instance_id: instanceId, id })) }),
+        }),
+      );
 
     expect((await post([1])).status).toBe(200);
     expect((await post([3])).status).toBe(200);
@@ -379,9 +431,11 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', {
-      method: 'DELETE',
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/1', {
+        method: 'DELETE',
+      }),
+    );
 
     expect(response.status).toBe(200);
     await vi.waitFor(() => {
@@ -398,10 +452,7 @@ describe('createApp deletion workflows', () => {
     const { controller, database, lapiClient, fetchCalls } = createController({
       fetchResolver: (url, init) => {
         if (url.endsWith('/v1/decisions/10') && init?.method === 'DELETE') {
-          return Response.json(
-            { message: "decision with id '10' doesn't exist: delete failed" },
-            { status: 500 },
-          );
+          return Response.json({ message: "decision with id '10' doesn't exist: delete failed" }, { status: 500 });
         }
         return undefined;
       },
@@ -409,9 +460,11 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/1', {
-      method: 'DELETE',
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/1', {
+        method: 'DELETE',
+      }),
+    );
 
     expect(response.status).toBe(200);
     await vi.waitFor(() => {
@@ -453,9 +506,9 @@ describe('createApp deletion workflows', () => {
       expect(database.getAlertDeletionTombstone('1')?.completed_at).not.toBeNull();
     });
     expect(database.getAlertDeletionTombstone('1')?.last_error).toContain('Maximum deletion queue age of 1s exceeded');
-    expect(fetchCalls.some((call) =>
-      /\/v1\/(?:alerts|decisions)\/\d+$/.test(call.url) && call.method === 'DELETE',
-    )).toBe(false);
+    expect(
+      fetchCalls.some((call) => /\/v1\/(?:alerts|decisions)\/\d+$/.test(call.url) && call.method === 'DELETE'),
+    ).toBe(false);
     await vi.waitFor(() => expect(controller.getSyncStatus().state).toBe('complete'));
     expect(database.countAlerts()).toBe(0);
     expect(database.countDecisions()).toBe(0);
@@ -471,25 +524,35 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleManualWebUiAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [1, 3] }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [1, 3] }),
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
-      requested_alerts: 2,
-      requested_decisions: 2,
-      deleted_alerts: 2,
-      deleted_decisions: 2,
-      failed: [],
-    }));
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        requested_alerts: 2,
+        requested_decisions: 2,
+        deleted_alerts: 2,
+        deleted_decisions: 2,
+        failed: [],
+      }),
+    );
     await vi.waitFor(() => {
-      expect(fetchCalls.filter((call) => /\/v1\/alerts\/(1|3)$/.test(call.url) && call.method === 'DELETE')).toHaveLength(2);
+      expect(
+        fetchCalls.filter((call) => /\/v1\/alerts\/(1|3)$/.test(call.url) && call.method === 'DELETE'),
+      ).toHaveLength(2);
     });
-    const decisionDeleteIndexes = fetchCalls.flatMap((call, index) => /\/v1\/decisions\/(10|30)$/.test(call.url) && call.method === 'DELETE' ? [index] : []);
-    const alertDeleteIndexes = fetchCalls.flatMap((call, index) => /\/v1\/alerts\/(1|3)$/.test(call.url) && call.method === 'DELETE' ? [index] : []);
+    const decisionDeleteIndexes = fetchCalls.flatMap((call, index) =>
+      /\/v1\/decisions\/(10|30)$/.test(call.url) && call.method === 'DELETE' ? [index] : [],
+    );
+    const alertDeleteIndexes = fetchCalls.flatMap((call, index) =>
+      /\/v1\/alerts\/(1|3)$/.test(call.url) && call.method === 'DELETE' ? [index] : [],
+    );
     expect(decisionDeleteIndexes).toHaveLength(2);
     expect(alertDeleteIndexes).toHaveLength(2);
     expect(alertDeleteIndexes[0]).toBeGreaterThan(decisionDeleteIndexes[0]);
@@ -507,18 +570,22 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleAlert({ id: 6, uuid: 'alert-6', decisions: [] }));
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/6', {
-      method: 'DELETE',
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/6', {
+        method: 'DELETE',
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
-      requested_alerts: 1,
-      requested_decisions: 0,
-      deleted_alerts: 1,
-      deleted_decisions: 0,
-      failed: [],
-    }));
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        requested_alerts: 1,
+        requested_decisions: 0,
+        deleted_alerts: 1,
+        deleted_decisions: 0,
+        failed: [],
+      }),
+    );
     await vi.waitFor(() => {
       expect(fetchCalls.some((call) => call.url.endsWith('/v1/alerts/6') && call.method === 'DELETE')).toBe(true);
     });
@@ -536,19 +603,23 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleSimulatedAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [10] }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/decisions/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [10] }),
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
-      requested_decisions: 1,
-      deleted_alerts: 0,
-      deleted_decisions: 1,
-      failed: [],
-    }));
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        requested_decisions: 1,
+        deleted_alerts: 0,
+        deleted_decisions: 1,
+        failed: [],
+      }),
+    );
     expect(database.getDecisionById('10')).toBeNull();
     expect(database.getDecisionById('20')).not.toBeNull();
     expect(database.countAlerts()).toBe(2);
@@ -589,28 +660,38 @@ describe('createApp deletion workflows', () => {
     });
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/cleanup/by-ip', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: '1.2.3.4' }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/cleanup/by-ip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: '1.2.3.4' }),
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
-      ip: '1.2.3.4',
-      requested_alerts: 1,
-      requested_decisions: 2,
-      deleted_alerts: 1,
-      deleted_decisions: 2,
-      failed: [],
-    }));
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        ip: '1.2.3.4',
+        requested_alerts: 1,
+        requested_decisions: 2,
+        deleted_alerts: 1,
+        deleted_decisions: 2,
+        failed: [],
+      }),
+    );
     await vi.waitFor(() => {
       expect(fetchCalls.some((call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE')).toBe(true);
     });
-    const decisionDeleteIndexes = fetchCalls.flatMap((call, index) => /\/v1\/decisions\/(10|90)$/.test(call.url) && call.method === 'DELETE' ? [index] : []);
-    const alertDeleteIndex = fetchCalls.findIndex((call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE');
+    const decisionDeleteIndexes = fetchCalls.flatMap((call, index) =>
+      /\/v1\/decisions\/(10|90)$/.test(call.url) && call.method === 'DELETE' ? [index] : [],
+    );
+    const alertDeleteIndex = fetchCalls.findIndex(
+      (call) => call.url.endsWith('/v1/alerts/1') && call.method === 'DELETE',
+    );
     expect(decisionDeleteIndexes).toHaveLength(2);
-    const linkedDecisionDeleteIndex = fetchCalls.findIndex((call) => call.url.endsWith('/v1/decisions/10') && call.method === 'DELETE');
+    const linkedDecisionDeleteIndex = fetchCalls.findIndex(
+      (call) => call.url.endsWith('/v1/decisions/10') && call.method === 'DELETE',
+    );
     expect(alertDeleteIndex).toBeGreaterThan(linkedDecisionDeleteIndex);
     expect(database.countAlerts()).toBe(1);
     expect(database.getDecisionById('10')).toBeNull();
@@ -635,20 +716,24 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleSimulatedAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [1, 2] }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [1, 2] }),
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
-      requested_alerts: 2,
-      requested_decisions: 2,
-      deleted_alerts: 2,
-      deleted_decisions: 2,
-      failed: [],
-    }));
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        requested_alerts: 2,
+        requested_decisions: 2,
+        deleted_alerts: 2,
+        deleted_decisions: 2,
+        failed: [],
+      }),
+    );
     await vi.waitFor(() => {
       expect(database.getAlertDeletionTombstone('2')?.last_error).toContain('HTTP 500');
     });
@@ -676,20 +761,24 @@ describe('createApp deletion workflows', () => {
     seedAlert(database, sampleSimulatedAlert());
     await lapiClient.login();
 
-    const response = await controller.fetch(new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [1, 2] }),
-    }));
+    const response = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/alerts/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [1, 2] }),
+      }),
+    );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(expect.objectContaining({
-      requested_alerts: 2,
-      requested_decisions: 2,
-      deleted_alerts: 2,
-      deleted_decisions: 2,
-      failed: [],
-    }));
+    expect(await response.json()).toEqual(
+      expect.objectContaining({
+        requested_alerts: 2,
+        requested_decisions: 2,
+        deleted_alerts: 2,
+        deleted_decisions: 2,
+        failed: [],
+      }),
+    );
     await vi.waitFor(() => {
       expect(database.getAlertDeletionTombstone('2')?.last_error).toContain('HTTP 500');
     });

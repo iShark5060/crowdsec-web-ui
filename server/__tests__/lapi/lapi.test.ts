@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, test, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
 import { getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+
 import { LapiClient, type LapiRequestInit } from '../../lapi';
 
 const passwordAuth = {
@@ -55,9 +57,13 @@ describe('LapiClient', () => {
         path: '/v1/watchers/login',
         method: 'POST',
       })
-      .reply(200, { code: 200, token: 'token-userland-undici' }, {
-        headers: { 'content-type': 'application/json' },
-      });
+      .reply(
+        200,
+        { code: 200, token: 'token-userland-undici' },
+        {
+          headers: { 'content-type': 'application/json' },
+        },
+      );
 
     let globalFetchCalled = false;
     setGlobalDispatcher(mockAgent);
@@ -127,11 +133,13 @@ describe('LapiClient', () => {
     expect(secondFailure.lastError).toBe('Still down');
 
     client.updateStatus(true);
-    expect(client.getStatus()).toEqual(expect.objectContaining({
-      isConnected: true,
-      lastError: null,
-      offline_since: null,
-    }));
+    expect(client.getStatus()).toEqual(
+      expect.objectContaining({
+        isConnected: true,
+        lastError: null,
+        offline_since: null,
+      }),
+    );
   });
 
   test('retries once on 401 after re-authentication', async () => {
@@ -277,15 +285,20 @@ describe('LapiClient', () => {
     await expect(client.getAlertById(42)).resolves.toEqual({ id: 42 });
     await expect(client.addDecision('1.2.3.4', 'ban', '4h', 'manual')).resolves.toEqual({ ok: true });
     await expect(client.addDecision('198.51.100.0/24', 'ban', '24h', 'manual')).resolves.toEqual({ ok: true });
-    const [single, range] = calls.filter((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST').map((call) => (call.body as any[])[0]);
+    const [single, range] = calls
+      .filter((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST')
+      .map((call) => (call.body as any[])[0]);
     expect(single.source).toEqual({ scope: 'ip', value: '1.2.3.4' });
     expect(single.decisions[0]).toMatchObject({ scope: 'ip', value: '1.2.3.4' });
     // Like `cscli decisions add --range`, ranges are not sent as single IPs.
     expect(range.source).toEqual({ scope: 'range', value: '198.51.100.0/24', range: '198.51.100.0/24' });
     expect(range.decisions[0]).toMatchObject({ scope: 'range', value: '198.51.100.0/24', duration: '24h' });
     // A bulk add sends one alert per value in a single request.
-    await expect(client.addDecisions(['1.2.3.5', '198.51.101.0/24'], 'ban', '4h', 'bulk')).resolves.toEqual({ ok: true });
-    const bulk = calls.filter((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST').at(-1)!.body as any[];
+    await expect(client.addDecisions(['1.2.3.5', '198.51.101.0/24'], 'ban', '4h', 'bulk')).resolves.toEqual({
+      ok: true,
+    });
+    const bulk = calls.filter((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST').at(-1)!
+      .body as any[];
     expect(bulk.map((alert) => alert.source)).toEqual([
       { scope: 'ip', value: '1.2.3.5' },
       { scope: 'range', value: '198.51.101.0/24', range: '198.51.101.0/24' },
@@ -294,9 +307,21 @@ describe('LapiClient', () => {
     await expect(client.deleteDecision(10)).resolves.toEqual({ ok: true });
     await expect(client.deleteAlert(42)).resolves.toEqual({ id: 42 });
 
-    expect(calls.some((call) => call.url.includes('/v1/alerts?since=1h&limit=0&simulated=true&include_capi=false') && !call.url.includes('scope='))).toBe(true);
-    expect(calls.some((call) => call.url.includes('/v1/alerts?since=1h&limit=0&simulated=true&include_capi=false&scope=ip'))).toBe(true);
-    expect(calls.some((call) => call.url.includes('/v1/alerts?since=1h&limit=0&simulated=true&include_capi=false&scope=range'))).toBe(true);
+    expect(
+      calls.some(
+        (call) =>
+          call.url.includes('/v1/alerts?since=1h&limit=0&simulated=true&include_capi=false') &&
+          !call.url.includes('scope='),
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) => call.url.includes('/v1/alerts?since=1h&limit=0&simulated=true&include_capi=false&scope=ip')),
+    ).toBe(true);
+    expect(
+      calls.some((call) =>
+        call.url.includes('/v1/alerts?since=1h&limit=0&simulated=true&include_capi=false&scope=range'),
+      ),
+    ).toBe(true);
     expect(calls.some((call) => call.url.endsWith('/v1/alerts/42') && call.method === 'GET')).toBe(true);
     expect(calls.some((call) => call.url.endsWith('/v1/alerts') && call.method === 'POST')).toBe(true);
     expect(calls.some((call) => call.url.endsWith('/v1/decisions/10') && call.method === 'DELETE')).toBe(true);
@@ -313,15 +338,20 @@ describe('LapiClient', () => {
         const url = String(input);
         urls.push(url);
         if (url.endsWith('/v1/watchers/login')) return Response.json({ code: 200, token: 'token' });
-        if (url.endsWith('/v1/allowlists?with_content=true')) return Response.json([{ name: 'office', items: [{ value: '10.0.0.0/8' }] }]);
-        if (url.endsWith('/v1/allowlists/check/10.1.0.0%2F16')) return Response.json({ allowlisted: true, reason: '10.0.0.0/8 from office' });
+        if (url.endsWith('/v1/allowlists?with_content=true'))
+          return Response.json([{ name: 'office', items: [{ value: '10.0.0.0/8' }] }]);
+        if (url.endsWith('/v1/allowlists/check/10.1.0.0%2F16'))
+          return Response.json({ allowlisted: true, reason: '10.0.0.0/8 from office' });
         return Response.json({});
       },
     });
     await client.login();
 
     await expect(client.fetchAllowlists()).resolves.toEqual([{ name: 'office', items: [{ value: '10.0.0.0/8' }] }]);
-    await expect(client.checkAllowlist('10.1.0.0/16')).resolves.toEqual({ allowlisted: true, reason: '10.0.0.0/8 from office' });
+    await expect(client.checkAllowlist('10.1.0.0/16')).resolves.toEqual({
+      allowlisted: true,
+      reason: '10.0.0.0/8 from office',
+    });
     // CrowdSec omits `allowlisted` when it is false.
     await expect(client.checkAllowlist('192.0.2.1')).resolves.toEqual({ allowlisted: false });
     expect(urls).toContain('http://crowdsec:8080/v1/allowlists/check/192.0.2.1');
@@ -563,13 +593,15 @@ describe('LapiClient', () => {
       },
     });
 
-    await expect(client.fetchAlerts('unused', 'unused', {
-      relativeWindow: {
-        startMs: 940_000,
-        endMs: 970_000,
-        paddingMs: 5_000,
-      },
-    })).resolves.toEqual([]);
+    await expect(
+      client.fetchAlerts('unused', 'unused', {
+        relativeWindow: {
+          startMs: 940_000,
+          endMs: 970_000,
+          paddingMs: 5_000,
+        },
+      }),
+    ).resolves.toEqual([]);
 
     const params = calls.map((call) => new URL(call).searchParams);
     expect(params.map((value) => value.get('since'))).toEqual(['0h1m5s', '0h1m7s', '0h1m9s']);

@@ -1,9 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
+import { fetchConfig } from '../../lib/api';
 import { RefreshProvider } from '../RefreshContext';
 import { useRefresh } from '../useRefresh';
-import { fetchConfig } from '../../lib/api';
 
 class MockWebSocket {
   static readonly CONNECTING = 0;
@@ -110,10 +111,16 @@ function ManualRefreshConsumer({ onError }: { onError?: (error: unknown) => void
     <div>
       <span data-testid="manual-sync">{syncStatus?.message}</span>
       <span data-testid="manual-instances">
-        {syncStatus?.instances?.map((instance) => `${instance.instance_id}:${instance.state}:${instance.progress}`).join('|')}
+        {syncStatus?.instances
+          ?.map((instance) => `${instance.instance_id}:${instance.state}:${instance.progress}`)
+          .join('|')}
       </span>
-      <button type="button" onClick={() => void refreshNow?.('full').catch(reportError)}>full-refresh</button>
-      <button type="button" onClick={() => void refreshNow?.('delta').catch(reportError)}>delta-refresh</button>
+      <button type="button" onClick={() => void refreshNow?.('full').catch(reportError)}>
+        full-refresh
+      </button>
+      <button type="button" onClick={() => void refreshNow?.('delta').catch(reportError)}>
+        delta-refresh
+      </button>
     </div>
   );
 }
@@ -145,9 +152,12 @@ function makeConfig(
 describe('RefreshContext', () => {
   test('shows historical sync status immediately while a full refresh runs', async () => {
     let releaseRefresh: ((response: Response) => void) | null = null;
-    const fetchSpy = vi.fn(async () => new Promise<Response>((resolve) => {
-      releaseRefresh = resolve;
-    }));
+    const fetchSpy = vi.fn(
+      async () =>
+        new Promise<Response>((resolve) => {
+          releaseRefresh = resolve;
+        }),
+    );
     vi.stubGlobal('fetch', fetchSpy);
     const completedConfig = makeConfig({
       sync_status: {
@@ -195,10 +205,13 @@ describe('RefreshContext', () => {
     await userEvent.click(screen.getByRole('button', { name: 'full-refresh' }));
     expect(screen.getByTestId('manual-sync')).toHaveTextContent('Starting historical data sync...');
     expect(screen.getByTestId('manual-instances')).toHaveTextContent('primary:syncing:0|secondary:idle:0');
-    expect(fetchSpy).toHaveBeenCalledWith('/api/cache/refresh', expect.objectContaining({
-      method: 'POST',
-      body: JSON.stringify({ mode: 'full' }),
-    }));
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/cache/refresh',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ mode: 'full' }),
+      }),
+    );
 
     const release = releaseRefresh as unknown;
     if (typeof release !== 'function') throw new Error('Refresh request was not held');
@@ -209,7 +222,7 @@ describe('RefreshContext', () => {
 
   test('uses the backend cache revision for the last refresh time', async () => {
     vi.mocked(fetchConfig).mockResolvedValueOnce({
-      ...await vi.mocked(fetchConfig)(),
+      ...(await vi.mocked(fetchConfig)()),
       cache_last_update: '2026-07-17T07:59:00.000Z',
     });
 
@@ -224,20 +237,26 @@ describe('RefreshContext', () => {
 
   test('normalizes invalid, null, and valid backend refresh timestamps', async () => {
     vi.mocked(fetchConfig)
-      .mockResolvedValueOnce(makeConfig({
-        refresh_interval: 0,
-        cache_last_update: 'invalid-cache-date',
-        next_refresh_at: 'invalid-next-date',
-      }))
-      .mockResolvedValueOnce(makeConfig({
-        refresh_interval: 0,
-        cache_last_update: '2026-07-17T07:59:00.000Z',
-        next_refresh_at: null,
-      }))
-      .mockResolvedValueOnce(makeConfig({
-        refresh_interval: 0,
-        next_refresh_at: '2026-07-17T08:05:00.000Z',
-      }));
+      .mockResolvedValueOnce(
+        makeConfig({
+          refresh_interval: 0,
+          cache_last_update: 'invalid-cache-date',
+          next_refresh_at: 'invalid-next-date',
+        }),
+      )
+      .mockResolvedValueOnce(
+        makeConfig({
+          refresh_interval: 0,
+          cache_last_update: '2026-07-17T07:59:00.000Z',
+          next_refresh_at: null,
+        }),
+      )
+      .mockResolvedValueOnce(
+        makeConfig({
+          refresh_interval: 0,
+          next_refresh_at: '2026-07-17T08:05:00.000Z',
+        }),
+      );
 
     const invalidDates = render(
       <RefreshProvider>
@@ -344,13 +363,16 @@ describe('RefreshContext', () => {
   });
 
   test('normalizes scheduler timestamps returned by interval updates', async () => {
-    const fetchSpy = vi.fn()
+    const fetchSpy = vi
+      .fn()
       .mockResolvedValueOnce(Response.json({ new_interval_ms: 30000, next_refresh_at: null }))
       .mockResolvedValueOnce(Response.json({ new_interval_ms: 30000, next_refresh_at: 'invalid-date' }))
-      .mockResolvedValueOnce(Response.json({
-        new_interval_ms: 30000,
-        next_refresh_at: '2026-07-17T08:10:00.000Z',
-      }));
+      .mockResolvedValueOnce(
+        Response.json({
+          new_interval_ms: 30000,
+          next_refresh_at: '2026-07-17T08:10:00.000Z',
+        }),
+      );
     vi.stubGlobal('fetch', fetchSpy);
 
     render(
@@ -373,7 +395,8 @@ describe('RefreshContext', () => {
   });
 
   test('surfaces delta refresh errors and falls back when the response is not JSON', async () => {
-    const fetchSpy = vi.fn()
+    const fetchSpy = vi
+      .fn()
       .mockResolvedValueOnce(Response.json({ error: 'Backend refresh failed' }, { status: 500 }))
       .mockResolvedValueOnce(new Response('not-json', { status: 500 }));
     const errorSpy = vi.fn();
@@ -387,14 +410,22 @@ describe('RefreshContext', () => {
     await waitFor(() => expect(screen.getByTestId('manual-sync')).toHaveTextContent('done'));
 
     await userEvent.click(screen.getByRole('button', { name: 'delta-refresh' }));
-    await waitFor(() => expect(errorSpy).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'Backend refresh failed',
-    })));
+    await waitFor(() =>
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Backend refresh failed',
+        }),
+      ),
+    );
 
     await userEvent.click(screen.getByRole('button', { name: 'delta-refresh' }));
-    await waitFor(() => expect(errorSpy).toHaveBeenCalledWith(expect.objectContaining({
-      message: 'Refresh failed',
-    })));
+    await waitFor(() =>
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Refresh failed',
+        }),
+      ),
+    );
   });
 
   test('ignores unsupported push messages and handles socket errors', async () => {
@@ -456,44 +487,49 @@ describe('RefreshContext', () => {
   });
 
   test('polls while syncing and logs update failures without crashing', async () => {
-    vi.mocked(fetchConfig).mockResolvedValueOnce({
-      refresh_interval: 1000,
-      sync_status: {
-        isSyncing: true,
-        progress: 50,
-        message: 'syncing',
-        startedAt: null,
-        completedAt: null,
-      },
-      lookback_period: '1h',
-      lookback_hours: 1,
-      lookback_days: 1,
-      current_interval_name: '5s',
-      lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
-      simulations_enabled: true,
-      machine_features_enabled: false,
-      origin_features_enabled: false,
-    }).mockResolvedValueOnce({
-      refresh_interval: 1000,
-      sync_status: {
-        isSyncing: false,
-        progress: 100,
-        message: 'done',
-        startedAt: null,
-        completedAt: null,
-      },
-      lookback_period: '1h',
-      lookback_hours: 1,
-      lookback_days: 1,
-      current_interval_name: '5s',
-      lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
-      simulations_enabled: true,
-      machine_features_enabled: false,
-      origin_features_enabled: false,
-    });
+    vi.mocked(fetchConfig)
+      .mockResolvedValueOnce({
+        refresh_interval: 1000,
+        sync_status: {
+          isSyncing: true,
+          progress: 50,
+          message: 'syncing',
+          startedAt: null,
+          completedAt: null,
+        },
+        lookback_period: '1h',
+        lookback_hours: 1,
+        lookback_days: 1,
+        current_interval_name: '5s',
+        lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
+        simulations_enabled: true,
+        machine_features_enabled: false,
+        origin_features_enabled: false,
+      })
+      .mockResolvedValueOnce({
+        refresh_interval: 1000,
+        sync_status: {
+          isSyncing: false,
+          progress: 100,
+          message: 'done',
+          startedAt: null,
+          completedAt: null,
+        },
+        lookback_period: '1h',
+        lookback_hours: 1,
+        lookback_days: 1,
+        current_interval_name: '5s',
+        lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
+        simulations_enabled: true,
+        machine_features_enabled: false,
+        origin_features_enabled: false,
+      });
 
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 500 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 500 })),
+    );
 
     render(
       <RefreshProvider>

@@ -22,9 +22,7 @@ function timestampWriter(writer: ConsoleWriter): ConsoleWriter {
 }
 
 export function prefixMultilineLogArguments(args: unknown[], prefix: string): unknown[] {
-  return args.map((argument) => (
-    typeof argument === 'string'
-      ? argument.replace(/\n/g, `\n${prefix} `)
-      : argument
-  ));
+  return args.map((argument) =>
+    typeof argument === 'string' ? argument.replace(/\n/g, `\n${prefix} `) : argument,
+  );
 }

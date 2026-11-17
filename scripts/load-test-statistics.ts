@@ -4,6 +4,7 @@
 // history before the cache window, so the two join without a visible seam.
 import { rmSync } from 'node:fs';
 import path from 'node:path';
+
 import { StatisticsStore } from '../server/statistics-store';
 import { statisticsCutoff } from '../shared/statistics';
 
@@ -15,25 +16,127 @@ export const STATISTICS_DATABASE_FILE = 'statistics.db';
  * decision: AppSec virtual patches block in-band, and the custom scenario is
  * deliberately not covered by a profile (a remediation gap).
  */
-const SCENARIOS: Array<{ name: string; reason: string; target: string; weight: number; bans: boolean; newWithinDays?: number }> = [
-  { name: 'crowdsecurity/ssh-bf', reason: 'SSH brute force', target: 'ssh', weight: 22, bans: true },
-  { name: 'crowdsecurity/http-probing', reason: 'HTTP probing', target: 'reverse-proxy', weight: 16, bans: true },
-  { name: 'crowdsecurity/iptables-scan-multi_ports', reason: 'Port scan', target: 'firewall', weight: 8, bans: true },
-  { name: 'crowdsecurity/http-crawl-non_statics', reason: 'Aggressive crawl', target: 'reverse-proxy', weight: 7, bans: true },
-  { name: 'crowdsecurity/vpatch-env-access', reason: 'AppSec: .env access', target: 'appsec', weight: 8, bans: false },
-  { name: 'crowdsecurity/vpatch-git-config', reason: 'AppSec: .git/config access', target: 'appsec', weight: 4, bans: false },
-  { name: 'custom/http-admin-probing', reason: 'Admin panel probing (no profile)', target: 'reverse-proxy', weight: 5, bans: false },
-  { name: 'crowdsecurity/http-cve-probing', reason: 'HTTP CVE probing', target: 'app', weight: 6, bans: true },
-  { name: 'crowdsecurity/http-bad-user-agent', reason: 'Bad user agent', target: 'reverse-proxy', weight: 6, bans: true },
-  { name: 'crowdsecurity/nginx-req-limit-exceeded', reason: 'HTTP rate limit exceeded', target: 'reverse-proxy', weight: 6, bans: true },
-  { name: 'crowdsecurity/mysql-bf', reason: 'MySQL brute force', target: 'database', weight: 4, bans: true },
-  { name: 'crowdsecurity/postfix-spam', reason: 'Postfix spam attempt', target: 'mail', weight: 4, bans: true },
+const SCENARIOS: Array<{
+  name: string;
+  reason: string;
+  target: string;
+  weight: number;
+  bans: boolean;
+  newWithinDays?: number;
+}> = [
+  {
+    name: 'crowdsecurity/ssh-bf',
+    reason: 'SSH brute force',
+    target: 'ssh',
+    weight: 22,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/http-probing',
+    reason: 'HTTP probing',
+    target: 'reverse-proxy',
+    weight: 16,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/iptables-scan-multi_ports',
+    reason: 'Port scan',
+    target: 'firewall',
+    weight: 8,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/http-crawl-non_statics',
+    reason: 'Aggressive crawl',
+    target: 'reverse-proxy',
+    weight: 7,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/vpatch-env-access',
+    reason: 'AppSec: .env access',
+    target: 'appsec',
+    weight: 8,
+    bans: false,
+  },
+  {
+    name: 'crowdsecurity/vpatch-git-config',
+    reason: 'AppSec: .git/config access',
+    target: 'appsec',
+    weight: 4,
+    bans: false,
+  },
+  {
+    name: 'custom/http-admin-probing',
+    reason: 'Admin panel probing (no profile)',
+    target: 'reverse-proxy',
+    weight: 5,
+    bans: false,
+  },
+  {
+    name: 'crowdsecurity/http-cve-probing',
+    reason: 'HTTP CVE probing',
+    target: 'app',
+    weight: 6,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/http-bad-user-agent',
+    reason: 'Bad user agent',
+    target: 'reverse-proxy',
+    weight: 6,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/nginx-req-limit-exceeded',
+    reason: 'HTTP rate limit exceeded',
+    target: 'reverse-proxy',
+    weight: 6,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/mysql-bf',
+    reason: 'MySQL brute force',
+    target: 'database',
+    weight: 4,
+    bans: true,
+  },
+  {
+    name: 'crowdsecurity/postfix-spam',
+    reason: 'Postfix spam attempt',
+    target: 'mail',
+    weight: 4,
+    bans: true,
+  },
   // New attack types that only appear in the last days.
-  { name: 'crowdsecurity/http-generic-bf', reason: 'HTTP login brute force', target: 'app', weight: 10, bans: true, newWithinDays: 5 },
-  { name: 'crowdsecurity/vpatch-CVE-2025-29927', reason: 'AppSec: Next.js middleware bypass', target: 'appsec', weight: 6, bans: false, newWithinDays: 5 },
+  {
+    name: 'crowdsecurity/http-generic-bf',
+    reason: 'HTTP login brute force',
+    target: 'app',
+    weight: 10,
+    bans: true,
+    newWithinDays: 5,
+  },
+  {
+    name: 'crowdsecurity/vpatch-CVE-2025-29927',
+    reason: 'AppSec: Next.js middleware bypass',
+    target: 'appsec',
+    weight: 6,
+    bans: false,
+    newWithinDays: 5,
+  },
 ];
 
-const MACHINES = ['edge-gateway-01', 'edge-gateway-02', 'proxy-01', 'proxy-02', 'appsec-01', 'mail-01', 'database-01', 'dev-bastion'] as const;
+const MACHINES = [
+  'edge-gateway-01',
+  'edge-gateway-02',
+  'proxy-01',
+  'proxy-02',
+  'appsec-01',
+  'mail-01',
+  'database-01',
+  'dev-bastion',
+] as const;
 /** Stops reporting this many days before the seed, like a stopped agent. */
 const QUIET_MACHINE = 'dev-bastion';
 const QUIET_DAYS = 12;
@@ -42,9 +145,16 @@ const SPIKE_MACHINE = 'proxy-02';
 const SPIKE_DAYS = 7;
 
 const OTHER_NETWORKS: ReadonlyArray<readonly [string, number]> = [
-  ['DigitalOcean LLC', 14061], ['OVH SAS', 16276], ['Amazon.com, Inc.', 16509], ['Microsoft Corporation', 8075],
-  ['Akamai Technologies', 20940], ['Comcast Cable', 7922], ['Telecom Italia', 3269], ['NTT Communications', 2914],
-  ['Chinanet', 4134], ['Contabo GmbH', 51167],
+  ['DigitalOcean LLC', 14061],
+  ['OVH SAS', 16276],
+  ['Amazon.com, Inc.', 16509],
+  ['Microsoft Corporation', 8075],
+  ['Akamai Technologies', 20940],
+  ['Comcast Cable', 7922],
+  ['Telecom Italia', 3269],
+  ['NTT Communications', 2914],
+  ['Chinanet', 4134],
+  ['Contabo GmbH', 51167],
 ];
 const COUNTRIES = ['US', 'DE', 'NL', 'FR', 'GB', 'BR', 'IN', 'JP', 'SG', 'AU'] as const;
 
@@ -97,12 +207,20 @@ function ipv4(value: number): string {
  * returning IPs, wide scanners), one-off addresses (high cardinality) and IPv6
  * hosts in a few /64s.
  */
-function source(index: number, seed: number): Pick<StatisticsAlertShape, 'ip' | 'country' | 'asName' | 'asNumber'> {
+function source(
+  index: number,
+  seed: number,
+): Pick<StatisticsAlertShape, 'ip' | 'country' | 'asName' | 'asNumber'> {
   const population = fraction(index, seed, 101);
   if (population < 0.35) {
     const range = hash32(index, seed + 7) % 60;
     const host = 1 + (hash32(index, seed + 11) % 40);
-    return { ip: `34.${64 + (range % 40)}.${1 + ((range * 37) % 250)}.${host}`, country: 'US', asName: 'Google LLC', asNumber: 15169 };
+    return {
+      ip: `34.${64 + (range % 40)}.${1 + ((range * 37) % 250)}.${host}`,
+      country: 'US',
+      asName: 'Google LLC',
+      asNumber: 15169,
+    };
   }
   const network = (value: number) => OTHER_NETWORKS[value % OTHER_NETWORKS.length];
   const country = (value: number) => COUNTRIES[value % COUNTRIES.length];
@@ -120,7 +238,12 @@ function source(index: number, seed: number): Pick<StatisticsAlertShape, 'ip' | 
   }
   const range = hash32(index, seed + 19) % 20;
   const host = 1 + (hash32(index, seed + 23) % 30);
-  return { ip: `2a01:4f8:${(0x1000 + range).toString(16)}:${((range * 13) % 0xffff).toString(16)}::${host.toString(16)}`, country: 'DE', asName: 'Hetzner Online GmbH', asNumber: 24940 };
+  return {
+    ip: `2a01:4f8:${(0x1000 + range).toString(16)}:${((range * 13) % 0xffff).toString(16)}::${host.toString(16)}`,
+    country: 'DE',
+    asName: 'Hetzner Online GmbH',
+    asNumber: 24940,
+  };
 }
 
 /** Whether CrowdSec issues a decision for alerts of this statistics-profile scenario. */
@@ -133,9 +256,18 @@ export function statisticsScenarioBans(scenario: string | undefined): boolean {
  * share `sourceSeed`, so their attacker pools overlap like real attackers that
  * reach several sites.
  */
-export function statisticsAlertShape(index: number, atMs: number, nowMs: number, seed: number, sourceSeed = seed): StatisticsAlertShape {
+export function statisticsAlertShape(
+  index: number,
+  atMs: number,
+  nowMs: number,
+  seed: number,
+  sourceSeed = seed,
+): StatisticsAlertShape {
   const daysAgo = (nowMs - atMs) / DAY_MS;
-  const scenario = weighted(SCENARIOS.filter((item) => item.newWithinDays === undefined || daysAgo < item.newWithinDays), fraction(index, seed, 107));
+  const scenario = weighted(
+    SCENARIOS.filter((item) => item.newWithinDays === undefined || daysAgo < item.newWithinDays),
+    fraction(index, seed, 107),
+  );
   let machine: string = MACHINES[hash32(index, seed + 29) % MACHINES.length];
   if (machine === QUIET_MACHINE && daysAgo < QUIET_DAYS) machine = 'edge-gateway-01';
   if (daysAgo < SPIKE_DAYS && fraction(index, seed, 109) < 0.3) machine = SPIKE_MACHINE;
@@ -153,7 +285,8 @@ export function statisticsAlertShape(index: number, atMs: number, nowMs: number,
 }
 
 export function removeStatisticsDatabase(dbDir: string): void {
-  for (const suffix of ['', '-shm', '-wal', '-journal']) rmSync(path.join(dbDir, `${STATISTICS_DATABASE_FILE}${suffix}`), { force: true });
+  for (const suffix of ['', '-shm', '-wal', '-journal'])
+    rmSync(path.join(dbDir, `${STATISTICS_DATABASE_FILE}${suffix}`), { force: true });
 }
 
 /**
@@ -162,21 +295,53 @@ export function removeStatisticsDatabase(dbDir: string): void {
  * of the cache window by one day, so the first collection job joins both spans.
  */
 export function seedStatisticsArchive(options: {
-  dbDir: string; instanceId: string; seed: number; sourceSeed?: number; nowMs: number;
-  historyDays: number; cacheStartMs: number; dailyAlerts: number; retentionDays: number;
+  dbDir: string;
+  instanceId: string;
+  seed: number;
+  sourceSeed?: number;
+  nowMs: number;
+  historyDays: number;
+  cacheStartMs: number;
+  dailyAlerts: number;
+  retentionDays: number;
   log: (message: string) => void;
 }): { alerts: number; decisions: number } {
-  const { dbDir, instanceId, seed, sourceSeed = seed, nowMs, historyDays, cacheStartMs, dailyAlerts, retentionDays, log } = options;
+  const {
+    dbDir,
+    instanceId,
+    seed,
+    sourceSeed = seed,
+    nowMs,
+    historyDays,
+    cacheStartMs,
+    dailyAlerts,
+    retentionDays,
+    log,
+  } = options;
   const store = new StatisticsStore(path.join(dbDir, STATISTICS_DATABASE_FILE));
   const nowIso = new Date(nowMs).toISOString();
   const cutoff = statisticsCutoff(retentionDays, nowMs);
-  const historyStartMs = Math.max(Date.parse(`${cutoff}T00:00:00.000Z`), nowMs - historyDays * DAY_MS);
-  const context = { cutoff, epoch: 'loadtest-archive', enabled: false, caughtUp: false, coverageFrom: {}, instances: [instanceId], now: nowIso };
+  const historyStartMs = Math.max(
+    Date.parse(`${cutoff}T00:00:00.000Z`),
+    nowMs - historyDays * DAY_MS,
+  );
+  const context = {
+    cutoff,
+    epoch: 'loadtest-archive',
+    enabled: false,
+    caughtUp: false,
+    coverageFrom: {},
+    instances: [instanceId],
+    now: nowIso,
+  };
   let rows: Array<{ seq: number; identity: string; day: string; payload: string }> = [];
   let sequence = 0;
   let alerts = 0;
   let decisions = 0;
-  const flush = () => { if (rows.length) store.consolidate(rows, context); rows = []; };
+  const flush = () => {
+    if (rows.length) store.consolidate(rows, context);
+    rows = [];
+  };
   try {
     const totalDays = Math.max(0, Math.ceil((cacheStartMs - historyStartMs) / DAY_MS));
     for (let dayIndex = 0; dayIndex < totalDays; dayIndex += 1) {
@@ -184,7 +349,11 @@ export function seedStatisticsArchive(options: {
       const dayEndMs = Math.min(cacheStartMs, dayStartMs + DAY_MS);
       const weekday = new Date(dayStartMs).getUTCDay();
       // Day-to-day noise plus slightly busier weekends.
-      const count = Math.round(dailyAlerts * (dayEndMs - dayStartMs) / DAY_MS * (0.8 + 0.4 * fraction(dayIndex, seed, 137)) * (weekday === 0 || weekday === 6 ? 1.1 : 1));
+      const count = Math.round(
+        ((dailyAlerts * (dayEndMs - dayStartMs)) / DAY_MS) *
+          (0.8 + 0.4 * fraction(dayIndex, seed, 137)) *
+          (weekday === 0 || weekday === 6 ? 1.1 : 1),
+      );
       for (let item = 0; item < count; item += 1) {
         // Archive indexes stay clear of the cached alert indexes.
         const index = 50_000_000 + alerts;
@@ -192,23 +361,75 @@ export function seedStatisticsArchive(options: {
         const at = new Date(atMs).toISOString();
         const shape = statisticsAlertShape(index, atMs, nowMs, seed, sourceSeed);
         const identity = ['loadtest-archive', instanceId, index];
-        rows.push({ seq: ++sequence, identity: JSON.stringify(identity), day: at.slice(0, 10), payload: JSON.stringify([1, 'a', at, instanceId, shape.ip,
-          shape.country, shape.asNumber, shape.asName, shape.machine, shape.machine, shape.scenario, shape.simulated ? 1 : 0, shape.eventsCount, shape.target]) });
+        rows.push({
+          seq: ++sequence,
+          identity: JSON.stringify(identity),
+          day: at.slice(0, 10),
+          payload: JSON.stringify([
+            1,
+            'a',
+            at,
+            instanceId,
+            shape.ip,
+            shape.country,
+            shape.asNumber,
+            shape.asName,
+            shape.machine,
+            shape.machine,
+            shape.scenario,
+            shape.simulated ? 1 : 0,
+            shape.eventsCount,
+            shape.target,
+          ]),
+        });
         alerts += 1;
         if (shape.bans) {
-          rows.push({ seq: ++sequence, identity: JSON.stringify(['loadtest-archive-decision', instanceId, index]), day: at.slice(0, 10), payload: JSON.stringify([1, 'd', at, instanceId,
-            shape.ip, shape.country, shape.asNumber, shape.asName, shape.machine, shape.machine, shape.scenario, shape.simulated ? 1 : 0,
-            at, shape.simulated ? 1 : 0, shape.decisionType, 'crowdsec', identity, shape.target]) });
+          rows.push({
+            seq: ++sequence,
+            identity: JSON.stringify(['loadtest-archive-decision', instanceId, index]),
+            day: at.slice(0, 10),
+            payload: JSON.stringify([
+              1,
+              'd',
+              at,
+              instanceId,
+              shape.ip,
+              shape.country,
+              shape.asNumber,
+              shape.asName,
+              shape.machine,
+              shape.machine,
+              shape.scenario,
+              shape.simulated ? 1 : 0,
+              at,
+              shape.simulated ? 1 : 0,
+              shape.decisionType,
+              'crowdsec',
+              identity,
+              shape.target,
+            ]),
+          });
           decisions += 1;
         }
         if (rows.length >= 20_000) flush();
       }
-      if (dayIndex % 30 === 29 || dayIndex === totalDays - 1) log(`statistics archive: ${dayIndex + 1}/${totalDays} days, ${alerts.toLocaleString('en-US')} alerts`);
+      if (dayIndex % 30 === 29 || dayIndex === totalDays - 1)
+        log(
+          `statistics archive: ${dayIndex + 1}/${totalDays} days, ${alerts.toLocaleString('en-US')} alerts`,
+        );
     }
     flush();
     if (alerts > 0) {
-      store.db.prepare('INSERT OR REPLACE INTO coverage(epoch, instance, start, through) VALUES (?, ?, ?, ?)')
-        .run('loadtest-archive', instanceId, new Date(historyStartMs).toISOString(), new Date(Math.min(nowMs, cacheStartMs + DAY_MS)).toISOString());
+      store.db
+        .prepare(
+          'INSERT OR REPLACE INTO coverage(epoch, instance, start, through) VALUES (?, ?, ?, ?)',
+        )
+        .run(
+          'loadtest-archive',
+          instanceId,
+          new Date(historyStartMs).toISOString(),
+          new Date(Math.min(nowMs, cacheStartMs + DAY_MS)).toISOString(),
+        );
     }
   } finally {
     store.close();

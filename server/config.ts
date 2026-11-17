@@ -1,12 +1,18 @@
-import { DEFAULT_STATISTICS_SETTINGS, type StatisticsSettings } from '../shared/statistics';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+
+import type { ManagedSettingSource } from '../shared/contracts';
 import { isValidDateFormat, type DateFormat } from '../shared/date-format';
 import { parseDurationMs } from '../shared/duration';
-import type { ManagedSettingSource } from '../shared/contracts';
+import { DEFAULT_STATISTICS_SETTINGS, type StatisticsSettings } from '../shared/statistics';
 export type { DateFormat } from '../shared/date-format';
 import { createCrowdsecAuthConfig, type CrowdsecAuthConfig } from './auth';
+import {
+  ConfigurationEnvironmentError,
+  ConfigurationLoadError,
+  isConfigurationError,
+} from './config-error';
 import {
   type AppliedConfigEnvironmentOverride,
   DEPRECATED_CONFIG_ENV,
@@ -20,9 +26,12 @@ import {
   saveApplicationConfig,
   type ParsedConfigFile,
 } from './config-file';
-import { ConfigurationEnvironmentError, ConfigurationLoadError, isConfigurationError } from './config-error';
 import { resolveSecretEnv } from './env-secrets';
-import { hasLegacyConnectionEnvironment, loadInstancesConfig, type CrowdsecInstanceConfig } from './instances-config';
+import {
+  hasLegacyConnectionEnvironment,
+  loadInstancesConfig,
+  type CrowdsecInstanceConfig,
+} from './instances-config';
 
 export type AlertFilterMode = 'default' | 'new' | 'legacy';
 export type TimeFormat = 'browser' | '12h' | '24h';
@@ -46,7 +55,7 @@ const OIDC_SETTING_ENV = [
   ['oidcAutoLinkUsername', 'AUTH_OIDC_AUTO_LINK_USERNAME', 'auth.oidc.autoLinkUsername'],
 ] as const;
 
-export type OidcSetting = typeof OIDC_SETTING_ENV[number][0];
+export type OidcSetting = (typeof OIDC_SETTING_ENV)[number][0];
 
 export const OIDC_SETTING_PATHS = Object.fromEntries(
   OIDC_SETTING_ENV.map(([setting, , configPath]) => [setting, configPath]),
@@ -64,9 +73,9 @@ export function resolveManagedSettingSource(
 ): ManagedSettingSource {
   const keys = configPath.split('.');
   // Section variables cover the whole setting and indexed variables part of it; the last applied one wins.
-  const override = overrides.findLast((candidate) => (
-    candidate.path.slice(0, keys.length).every((key, index) => key === keys[index])
-  ));
+  const override = overrides.findLast((candidate) =>
+    candidate.path.slice(0, keys.length).every((key, index) => key === keys[index]),
+  );
   return override ? { path: configPath, env: override.name } : { path: configPath };
 }
 
@@ -183,7 +192,9 @@ export function parseTimeZone(value: string | undefined): string | null {
   try {
     return new Intl.DateTimeFormat('en', { timeZone }).resolvedOptions().timeZone;
   } catch {
-    throw new Error(`Invalid TZ value "${timeZone}". Use an IANA time zone such as Europe/Berlin or UTC.`);
+    throw new Error(
+      `Invalid TZ value "${timeZone}". Use an IANA time zone such as Europe/Berlin or UTC.`,
+    );
   }
 }
 
@@ -193,8 +204,14 @@ export function parseHostname(value: string | undefined): string | undefined {
   const hostname = value?.trim();
   if (!hostname) return undefined;
   if (net.isIP(hostname)) return hostname;
-  if (hostname.length <= 253 && hostname.split('.').every((label) => HOSTNAME_LABEL_PATTERN.test(label))) return hostname;
-  throw new Error(`Invalid server.hostname value "${hostname}". Use a hostname such as crowdsec.example.com or an IP address.`);
+  if (
+    hostname.length <= 253 &&
+    hostname.split('.').every((label) => HOSTNAME_LABEL_PATTERN.test(label))
+  )
+    return hostname;
+  throw new Error(
+    `Invalid server.hostname value "${hostname}". Use a hostname such as crowdsec.example.com or an IP address.`,
+  );
 }
 
 export function parseTimeFormat(value: string | undefined): TimeFormat {
@@ -208,14 +225,18 @@ export function parseDateFormat(value: string | undefined): DateFormat {
   const dateFormat = value?.trim();
   if (!dateFormat || dateFormat.toLowerCase() === 'browser') return 'browser';
   if (isValidDateFormat(dateFormat)) return dateFormat;
-  throw new Error('Invalid DATE_FORMAT value. Use browser or a pattern containing one day, month, and year token (for example dd/mm/yyyy).');
+  throw new Error(
+    'Invalid DATE_FORMAT value. Use browser or a pattern containing one day, month, and year token (for example dd/mm/yyyy).',
+  );
 }
 
 export function parseTotpSeed(value: string | undefined): string | undefined {
   const seed = value?.trim().replace(/\s+/g, '').replace(/=+$/g, '').toUpperCase();
   if (!seed) return undefined;
   if (seed.length < 26 || !/^[A-Z2-7]+$/.test(seed)) {
-    throw new Error('Invalid AUTH_TOTP_SEED value. Must be a base32 seed containing at least 26 characters (128 bits).');
+    throw new Error(
+      'Invalid AUTH_TOTP_SEED value. Must be a base32 seed containing at least 26 characters (128 bits).',
+    );
   }
   return seed;
 }
@@ -263,8 +284,11 @@ export function parseOptionalBooleanEnv(value: string | undefined): boolean | nu
 export function parseOidcUnmatchedRole(value: string | undefined): OidcUnmatchedRole {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return 'deny';
-  if (normalized === 'deny' || normalized === 'admin' || normalized === 'read-only') return normalized;
-  throw new Error('Invalid AUTH_OIDC_UNMATCHED_ROLE value. Must be one of: deny, admin, read-only.');
+  if (normalized === 'deny' || normalized === 'admin' || normalized === 'read-only')
+    return normalized;
+  throw new Error(
+    'Invalid AUTH_OIDC_UNMATCHED_ROLE value. Must be one of: deny, admin, read-only.',
+  );
 }
 
 export function parseOidcScope(value: string | undefined): string {
@@ -301,11 +325,19 @@ function hasEnv(env: NodeJS.ProcessEnv, name: string): boolean {
   return Object.prototype.hasOwnProperty.call(env, name);
 }
 
-function resolveRenamedEnv(env: NodeJS.ProcessEnv, name: string, legacyName: string): string | undefined {
+function resolveRenamedEnv(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  legacyName: string,
+): string | undefined {
   return hasEnv(env, name) ? env[name] : env[legacyName];
 }
 
-function resolveRenamedSecretEnv(env: NodeJS.ProcessEnv, name: string, legacyName: string): string | undefined {
+function resolveRenamedSecretEnv(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  legacyName: string,
+): string | undefined {
   if (hasEnv(env, name) || hasEnv(env, `${name}_FILE`)) {
     return resolveSecretEnv(name, env);
   }
@@ -315,26 +347,50 @@ function resolveRenamedSecretEnv(env: NodeJS.ProcessEnv, name: string, legacyNam
 function parseDashboardAuthConfig(env: NodeJS.ProcessEnv): DashboardAuthConfig {
   return {
     enabled: resolveDashboardAuthEnabled(env),
-    sessionSecret: resolveRenamedSecretEnv(env, 'AUTH_SECRET', 'CROWDSEC_AUTH_SECRET')?.trim() || undefined,
-    totpSecret: resolveRenamedSecretEnv(env, 'AUTH_TOTP_SECRET', 'CROWDSEC_AUTH_TOTP_SECRET')?.trim() || undefined,
-    totpSeed: parseTotpSeed(resolveRenamedSecretEnv(env, 'AUTH_TOTP_SEED', 'CROWDSEC_AUTH_TOTP_SEED')),
+    sessionSecret:
+      resolveRenamedSecretEnv(env, 'AUTH_SECRET', 'CROWDSEC_AUTH_SECRET')?.trim() || undefined,
+    totpSecret:
+      resolveRenamedSecretEnv(env, 'AUTH_TOTP_SECRET', 'CROWDSEC_AUTH_TOTP_SECRET')?.trim() ||
+      undefined,
+    totpSeed: parseTotpSeed(
+      resolveRenamedSecretEnv(env, 'AUTH_TOTP_SEED', 'CROWDSEC_AUTH_TOTP_SEED'),
+    ),
     passwordLoginEnabled: parseOptionalBooleanEnv(env.AUTH_PASSWORD_LOGIN_ENABLED),
-    oidcIssuerUrl: resolveRenamedEnv(env, 'AUTH_OIDC_ISSUER_URL', 'CROWDSEC_AUTH_OIDC_ISSUER_URL')?.trim() || undefined,
-    oidcClientId: resolveRenamedEnv(env, 'AUTH_OIDC_CLIENT_ID', 'CROWDSEC_AUTH_OIDC_CLIENT_ID')?.trim() || undefined,
-    oidcClientSecret: resolveRenamedSecretEnv(env, 'AUTH_OIDC_CLIENT_SECRET', 'CROWDSEC_AUTH_OIDC_CLIENT_SECRET')?.trim() || undefined,
-    oidcScope: parseOidcScope(resolveRenamedEnv(env, 'AUTH_OIDC_SCOPE', 'CROWDSEC_AUTH_OIDC_SCOPE')),
-    oidcGroupsClaim: resolveRenamedEnv(env, 'AUTH_OIDC_GROUPS_CLAIM', 'CROWDSEC_AUTH_OIDC_GROUPS_CLAIM')?.trim() || 'groups',
-    oidcAdminGroups: parseCsvEnv(resolveRenamedEnv(env, 'AUTH_OIDC_ADMIN_GROUPS', 'CROWDSEC_AUTH_OIDC_ADMIN_GROUPS')),
-    oidcReadOnlyGroups: parseCsvEnv(resolveRenamedEnv(env, 'AUTH_OIDC_READ_ONLY_GROUPS', 'CROWDSEC_AUTH_OIDC_READ_ONLY_GROUPS')),
-    oidcUnmatchedRole: parseOidcUnmatchedRole(resolveRenamedEnv(env, 'AUTH_OIDC_UNMATCHED_ROLE', 'CROWDSEC_AUTH_OIDC_UNMATCHED_ROLE')),
+    oidcIssuerUrl:
+      resolveRenamedEnv(env, 'AUTH_OIDC_ISSUER_URL', 'CROWDSEC_AUTH_OIDC_ISSUER_URL')?.trim() ||
+      undefined,
+    oidcClientId:
+      resolveRenamedEnv(env, 'AUTH_OIDC_CLIENT_ID', 'CROWDSEC_AUTH_OIDC_CLIENT_ID')?.trim() ||
+      undefined,
+    oidcClientSecret:
+      resolveRenamedSecretEnv(
+        env,
+        'AUTH_OIDC_CLIENT_SECRET',
+        'CROWDSEC_AUTH_OIDC_CLIENT_SECRET',
+      )?.trim() || undefined,
+    oidcScope: parseOidcScope(
+      resolveRenamedEnv(env, 'AUTH_OIDC_SCOPE', 'CROWDSEC_AUTH_OIDC_SCOPE'),
+    ),
+    oidcGroupsClaim:
+      resolveRenamedEnv(env, 'AUTH_OIDC_GROUPS_CLAIM', 'CROWDSEC_AUTH_OIDC_GROUPS_CLAIM')?.trim() ||
+      'groups',
+    oidcAdminGroups: parseCsvEnv(
+      resolveRenamedEnv(env, 'AUTH_OIDC_ADMIN_GROUPS', 'CROWDSEC_AUTH_OIDC_ADMIN_GROUPS'),
+    ),
+    oidcReadOnlyGroups: parseCsvEnv(
+      resolveRenamedEnv(env, 'AUTH_OIDC_READ_ONLY_GROUPS', 'CROWDSEC_AUTH_OIDC_READ_ONLY_GROUPS'),
+    ),
+    oidcUnmatchedRole: parseOidcUnmatchedRole(
+      resolveRenamedEnv(env, 'AUTH_OIDC_UNMATCHED_ROLE', 'CROWDSEC_AUTH_OIDC_UNMATCHED_ROLE'),
+    ),
     oidcEndSession: parseOptionalBooleanEnv(env.AUTH_OIDC_END_SESSION),
     oidcAutoLogin: parseBooleanEnv(env.AUTH_OIDC_AUTO_LOGIN, false),
     oidcBackchannelLogout: parseBooleanEnv(env.AUTH_OIDC_BACKCHANNEL_LOGOUT, false),
     oidcAutoLinkUsername: parseBooleanEnv(env.AUTH_OIDC_AUTO_LINK_USERNAME, false),
     // Secrets may also be referenced through a _FILE variable.
-    managedOidcSettings: OIDC_SETTING_ENV
-      .filter(([, name]) => hasEnv(env, name) || hasEnv(env, `${name}_FILE`))
-      .map(([setting]) => setting),
+    managedOidcSettings: OIDC_SETTING_ENV.filter(
+      ([, name]) => hasEnv(env, name) || hasEnv(env, `${name}_FILE`),
+    ).map(([setting]) => setting),
   };
 }
 
@@ -374,7 +430,9 @@ function parsePositiveIntegerEnv(value: string | undefined, defaultValue: number
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
-function parseAlertFilterConfig(env: NodeJS.ProcessEnv): Pick<
+function parseAlertFilterConfig(
+  env: NodeJS.ProcessEnv,
+): Pick<
   RuntimeConfig,
   | 'alertFilterMode'
   | 'alertIncludeOrigins'
@@ -387,13 +445,14 @@ function parseAlertFilterConfig(env: NodeJS.ProcessEnv): Pick<
 > {
   const includeOriginEmpty = env.CROWDSEC_ALERT_INCLUDE_ORIGIN_EMPTY;
   const excludeOriginEmpty = env.CROWDSEC_ALERT_EXCLUDE_ORIGIN_EMPTY;
-  const hasNewAlertFilters = env.CROWDSEC_ALERT_INCLUDE_ORIGINS !== undefined
-    || env.CROWDSEC_ALERT_EXCLUDE_ORIGINS !== undefined
-    || env.CROWDSEC_ALERT_INCLUDE_CAPI !== undefined
-    || includeOriginEmpty !== undefined
-    || excludeOriginEmpty !== undefined;
-  const hasLegacyAlertFilters = env.CROWDSEC_ALERT_ORIGINS !== undefined
-    || env.CROWDSEC_ALERT_EXTRA_SCENARIOS !== undefined;
+  const hasNewAlertFilters =
+    env.CROWDSEC_ALERT_INCLUDE_ORIGINS !== undefined ||
+    env.CROWDSEC_ALERT_EXCLUDE_ORIGINS !== undefined ||
+    env.CROWDSEC_ALERT_INCLUDE_CAPI !== undefined ||
+    includeOriginEmpty !== undefined ||
+    excludeOriginEmpty !== undefined;
+  const hasLegacyAlertFilters =
+    env.CROWDSEC_ALERT_ORIGINS !== undefined || env.CROWDSEC_ALERT_EXTRA_SCENARIOS !== undefined;
 
   const legacyAlertOrigins = parseCsvEnv(env.CROWDSEC_ALERT_ORIGINS);
   const legacyAlertExtraScenarios = parseCsvEnv(env.CROWDSEC_ALERT_EXTRA_SCENARIOS);
@@ -467,7 +526,8 @@ function createRuntimeConfigFromEnvironment(env: NodeJS.ProcessEnv): RuntimeConf
   const lookbackPeriod = env.CROWDSEC_LOOKBACK_PERIOD || '168h';
   const refreshIntervalMs = parseRefreshInterval(env.CROWDSEC_REFRESH_INTERVAL || '1m');
   const crowdsecAuth = createCrowdsecAuthConfig(env);
-  const notificationSecretKey = resolveSecretEnv('NOTIFICATION_SECRET_KEY', env)?.trim() || undefined;
+  const notificationSecretKey =
+    resolveSecretEnv('NOTIFICATION_SECRET_KEY', env)?.trim() || undefined;
   const alertFilterConfig = parseAlertFilterConfig(env);
   warnRemovedColumnVisibilityEnv(env);
 
@@ -501,19 +561,34 @@ function createRuntimeConfigFromEnvironment(env: NodeJS.ProcessEnv): RuntimeConf
     idleRefreshIntervalMs: parseRefreshInterval(env.CROWDSEC_IDLE_REFRESH_INTERVAL || '10m'),
     idleThresholdMs: parseRefreshInterval(env.CROWDSEC_IDLE_THRESHOLD || '2m'),
     lapiRequestTimeoutMs: parsePositiveIntervalEnv(env.CROWDSEC_LAPI_REQUEST_TIMEOUT, '30s'),
-    bouncerPropagationDelayMs: parseNonNegativeIntervalEnv(env.CROWDSEC_BOUNCER_PROPAGATION_DELAY, '15s'),
+    bouncerPropagationDelayMs: parseNonNegativeIntervalEnv(
+      env.CROWDSEC_BOUNCER_PROPAGATION_DELAY,
+      '15s',
+    ),
     deletionQueueMaxAgeMs: parseNonNegativeIntervalEnv(env.CROWDSEC_DELETION_QUEUE_MAX_AGE, '24h'),
     prometheusUrl: env.CROWDSEC_PROMETHEUS_URL?.trim() || undefined,
-    prometheusRequestTimeoutMs: parsePositiveIntervalEnv(env.CROWDSEC_PROMETHEUS_REQUEST_TIMEOUT, '5s'),
+    prometheusRequestTimeoutMs: parsePositiveIntervalEnv(
+      env.CROWDSEC_PROMETHEUS_REQUEST_TIMEOUT,
+      '5s',
+    ),
     heartbeatIntervalMs: parseRefreshInterval(env.CROWDSEC_HEARTBEAT_INTERVAL || '30s'),
     alertSyncChunkMs: parsePositiveIntervalEnv(env.CROWDSEC_ALERT_SYNC_CHUNK, '12h'),
     alertSyncMinChunkMs: parsePositiveIntervalEnv(env.CROWDSEC_ALERT_SYNC_MIN_CHUNK, '15m'),
     reconcileWindowMs: parsePositiveIntervalEnv(env.CROWDSEC_RECONCILE_WINDOW, '1h'),
     reconcileRecentAgeMs: parsePositiveIntervalEnv(env.CROWDSEC_RECONCILE_RECENT_AGE, '24h'),
-    reconcileRecentIntervalMs: parsePositiveIntervalEnv(env.CROWDSEC_RECONCILE_RECENT_INTERVAL, '15m'),
-    reconcileActiveIntervalMs: parsePositiveIntervalEnv(env.CROWDSEC_RECONCILE_ACTIVE_INTERVAL, '5m'),
+    reconcileRecentIntervalMs: parsePositiveIntervalEnv(
+      env.CROWDSEC_RECONCILE_RECENT_INTERVAL,
+      '15m',
+    ),
+    reconcileActiveIntervalMs: parsePositiveIntervalEnv(
+      env.CROWDSEC_RECONCILE_ACTIVE_INTERVAL,
+      '5m',
+    ),
     reconcileOldIntervalMs: parsePositiveIntervalEnv(env.CROWDSEC_RECONCILE_OLD_INTERVAL, '3h'),
-    reconcileWindowsPerRefresh: parsePositiveIntegerEnv(env.CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH, 2),
+    reconcileWindowsPerRefresh: parsePositiveIntegerEnv(
+      env.CROWDSEC_RECONCILE_WINDOWS_PER_REFRESH,
+      2,
+    ),
     bootstrapRetryDelayMs: parseRefreshInterval(env.CROWDSEC_BOOTSTRAP_RETRY_DELAY || '30s'),
     bootstrapRetryEnabled: parseBooleanEnv(env.CROWDSEC_BOOTSTRAP_RETRY_ENABLED, true),
     dockerImageRef: (env.DOCKER_IMAGE_REF || 'theduffman85/crowdsec-web-ui').toLowerCase(),
@@ -522,9 +597,8 @@ function createRuntimeConfigFromEnvironment(env: NodeJS.ProcessEnv): RuntimeConf
     commitHash: env.VITE_COMMIT_HASH || '',
     updateCheckEnabled: Boolean(env.VITE_COMMIT_HASH || env.VITE_VERSION),
     deploymentMode: env.CROWDSEC_WEB_UI_MODE === 'load-test' ? 'load-test' : 'standard',
-    loadTestProfile: env.CROWDSEC_WEB_UI_MODE === 'load-test'
-      ? env.LOADTEST_PROFILE?.trim() || 'default'
-      : null,
+    loadTestProfile:
+      env.CROWDSEC_WEB_UI_MODE === 'load-test' ? env.LOADTEST_PROFILE?.trim() || 'default' : null,
     dbDir: env.DB_DIR || '/app/data',
     dbCacheDir: env.DB_CACHE_DIR?.trim() || undefined,
     geonamesDumpDir: env.GEONAMES_DUMP_DIR || path.resolve(process.cwd(), 'geonames'),
@@ -534,7 +608,10 @@ function createRuntimeConfigFromEnvironment(env: NodeJS.ProcessEnv): RuntimeConf
     dbQueryTimeoutMs: parsePositiveIntervalEnv(env.DB_QUERY_TIMEOUT, '30s'),
     dbAnalyticsQueryTimeoutMs: parsePositiveIntervalEnv(env.DB_ANALYTICS_QUERY_TIMEOUT, '60s'),
     notificationSecretKey,
-    notificationAllowPrivateAddresses: parseBooleanEnv(env.NOTIFICATION_ALLOW_PRIVATE_ADDRESSES, true),
+    notificationAllowPrivateAddresses: parseBooleanEnv(
+      env.NOTIFICATION_ALLOW_PRIVATE_ADDRESSES,
+      true,
+    ),
     notificationDebugPayloads: parseBooleanEnv(env.NOTIFICATION_DEBUG_PAYLOADS, false),
     timeZone: parseTimeZone(env.TZ),
     timeFormat: parseTimeFormat(resolveRenamedEnv(env, 'TIME_FORMAT', 'CROWDSEC_TIME_FORMAT')),
@@ -551,31 +628,39 @@ function createRuntimeConfigFromEnvironment(env: NodeJS.ProcessEnv): RuntimeConf
   if (instancesFile) {
     const legacyVariables = hasLegacyConnectionEnvironment(env);
     if (legacyVariables.length > 0) {
-      throw new Error(`Configuration error: CROWDSEC_INSTANCES_CONFIG_FILE cannot be combined with legacy connection variables: ${legacyVariables.join(', ')}.`);
+      throw new Error(
+        `Configuration error: CROWDSEC_INSTANCES_CONFIG_FILE cannot be combined with legacy connection variables: ${legacyVariables.join(', ')}.`,
+      );
     }
     runtimeConfig.instances = loadInstancesConfig(instancesFile, env);
   } else {
-    runtimeConfig.instances = [{
-      id: 'default',
-      name: env.CROWDSEC_INSTANCE_NAME?.trim() || 'CrowdSec',
-      icon: env.CROWDSEC_INSTANCE_ICON?.trim() || undefined,
-      lapiUrl: runtimeConfig.crowdsecUrl,
-      lapiAuth: runtimeConfig.crowdsecAuth,
-      lapiTls: {
-        caFile: runtimeConfig.crowdsecTlsCaCertPath,
-        certFile: runtimeConfig.crowdsecTlsCertPath,
-        keyFile: runtimeConfig.crowdsecTlsKeyPath,
-      },
-      prometheus: runtimeConfig.prometheusUrl ? [{
+    runtimeConfig.instances = [
+      {
         id: 'default',
-        name: 'CrowdSec',
-        url: runtimeConfig.prometheusUrl,
-        auth: { type: 'none' },
-        tls: {},
-        requestTimeoutMs: runtimeConfig.prometheusRequestTimeoutMs,
-      }] : [],
-      sync: {},
-    }];
+        name: env.CROWDSEC_INSTANCE_NAME?.trim() || 'CrowdSec',
+        icon: env.CROWDSEC_INSTANCE_ICON?.trim() || undefined,
+        lapiUrl: runtimeConfig.crowdsecUrl,
+        lapiAuth: runtimeConfig.crowdsecAuth,
+        lapiTls: {
+          caFile: runtimeConfig.crowdsecTlsCaCertPath,
+          certFile: runtimeConfig.crowdsecTlsCertPath,
+          keyFile: runtimeConfig.crowdsecTlsKeyPath,
+        },
+        prometheus: runtimeConfig.prometheusUrl
+          ? [
+              {
+                id: 'default',
+                name: 'CrowdSec',
+                url: runtimeConfig.prometheusUrl,
+                auth: { type: 'none' },
+                tls: {},
+                requestTimeoutMs: runtimeConfig.prometheusRequestTimeoutMs,
+              },
+            ]
+          : [],
+        sync: {},
+      },
+    ];
   }
 
   return runtimeConfig;
@@ -592,12 +677,12 @@ function warnDeprecatedEnvironment(
   const names = configuredDeprecatedEnvironment(env);
   if (names.length === 0) return;
   console.warn(
-    `Deprecated environment-based settings detected: ${names.join(', ')}. `
-    + (options.migrated
-      ? `They were migrated into the generated YAML at "${options.configFile}". `
-        + 'This YAML is now authoritative; these variables no longer affect application settings and can be removed.'
-      : `The application YAML at "${options.configFile}" takes precedence; `
-        + 'these variables do not affect application settings and can be removed.'),
+    `Deprecated environment-based settings detected: ${names.join(', ')}. ` +
+      (options.migrated
+        ? `They were migrated into the generated YAML at "${options.configFile}". ` +
+          'This YAML is now authoritative; these variables no longer affect application settings and can be removed.'
+        : `The application YAML at "${options.configFile}" takes precedence; ` +
+          'these variables do not affect application settings and can be removed.'),
   );
 }
 
@@ -612,15 +697,17 @@ function createRuntimeConfigFromParsedConfig(parsed: ParsedConfigFile): RuntimeC
   runtimeConfig.manualDecisionScenarios = parsed.manualDecisionScenarios;
   const primaryInstance = parsed.instances[0];
   runtimeConfig.crowdsecUrl = primaryInstance.lapiUrl;
-  runtimeConfig.crowdsecAuth = primaryInstance.lapiAuth.mode === 'mtls'
-    ? { ...primaryInstance.lapiAuth, caCertPath: primaryInstance.lapiTls.caFile }
-    : primaryInstance.lapiAuth;
+  runtimeConfig.crowdsecAuth =
+    primaryInstance.lapiAuth.mode === 'mtls'
+      ? { ...primaryInstance.lapiAuth, caCertPath: primaryInstance.lapiTls.caFile }
+      : primaryInstance.lapiAuth;
   runtimeConfig.crowdsecAuthMode = primaryInstance.lapiAuth.mode;
   runtimeConfig.crowdsecTlsCertPath = primaryInstance.lapiTls.certFile;
   runtimeConfig.crowdsecTlsKeyPath = primaryInstance.lapiTls.keyFile;
   runtimeConfig.crowdsecTlsCaCertPath = primaryInstance.lapiTls.caFile;
   runtimeConfig.prometheusUrl = primaryInstance.prometheus[0]?.url;
-  if (parsed.updateCheckEnabled !== undefined) runtimeConfig.updateCheckEnabled = parsed.updateCheckEnabled;
+  if (parsed.updateCheckEnabled !== undefined)
+    runtimeConfig.updateCheckEnabled = parsed.updateCheckEnabled;
   return runtimeConfig;
 }
 
@@ -668,17 +755,22 @@ function redactConfigLogValue(value: unknown, path: readonly (string | number)[]
     return value.map((item, index) => redactConfigLogValue(item, [...path, index]));
   }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([entryKey, entryValue]) => (
-      [entryKey, redactConfigLogValue(entryValue, [...path, entryKey])]
-    )));
+    return Object.fromEntries(
+      Object.entries(value).map(([entryKey, entryValue]) => [
+        entryKey,
+        redactConfigLogValue(entryValue, [...path, entryKey]),
+      ]),
+    );
   }
   return value;
 }
 
 function formatConfigPath(path: readonly (string | number)[]): string {
-  return path.map((part, index) => (
-    typeof part === 'number' ? `[${part}]` : `${index === 0 ? '' : '.'}${part}`
-  )).join('');
+  return path
+    .map((part, index) =>
+      typeof part === 'number' ? `[${part}]` : `${index === 0 ? '' : '.'}${part}`,
+    )
+    .join('');
 }
 
 function formatConfigLogValue(value: unknown, path: readonly (string | number)[]): string {
@@ -687,7 +779,9 @@ function formatConfigLogValue(value: unknown, path: readonly (string | number)[]
   return JSON.stringify(redacted) ?? String(redacted);
 }
 
-function logConfigEnvironmentOverrides(overrides: readonly AppliedConfigEnvironmentOverride[]): void {
+function logConfigEnvironmentOverrides(
+  overrides: readonly AppliedConfigEnvironmentOverride[],
+): void {
   for (const override of overrides) {
     const configPath = formatConfigPath(override.path);
     const previousValue = formatConfigLogValue(override.previousValue, override.path);
@@ -698,7 +792,9 @@ function logConfigEnvironmentOverrides(overrides: readonly AppliedConfigEnvironm
 
 function defaultApplicationConfigFile(): string {
   const dockerDataDir = '/app/data';
-  const dataDir = fs.existsSync(dockerDataDir) ? dockerDataDir : path.resolve(process.cwd(), 'data');
+  const dataDir = fs.existsSync(dockerDataDir)
+    ? dockerDataDir
+    : path.resolve(process.cwd(), 'data');
   return path.join(dataDir, 'config.yaml');
 }
 
@@ -740,7 +836,9 @@ export function createRuntimeConfig(
       parsedConfig = parseApplicationConfig(mergedConfig.document, env);
       if (persistEnvironmentOverrides) {
         persistApplicationConfig(configFile, mergedConfig.yaml);
-        console.log(`Applied CONFIG_ overrides and persisted application configuration to ${configFile}.`);
+        console.log(
+          `Applied CONFIG_ overrides and persisted application configuration to ${configFile}.`,
+        );
       } else {
         console.log(`Applied CONFIG_ overrides to application configuration from ${configFile}.`);
       }
@@ -748,16 +846,21 @@ export function createRuntimeConfig(
     }
 
     warnDeprecatedEnvironment(env, { configFile, migrated });
-    const runtimeConfig = createRuntimeConfigFromParsedConfig(parsedConfig || loadApplicationConfig(configFile, env));
-    runtimeConfig.configEnvironmentOverrides = appliedOverrides.map(({ name, path }) => ({ name, path }));
+    const runtimeConfig = createRuntimeConfigFromParsedConfig(
+      parsedConfig || loadApplicationConfig(configFile, env),
+    );
+    runtimeConfig.configEnvironmentOverrides = appliedOverrides.map(({ name, path }) => ({
+      name,
+      path,
+    }));
     console.log(`Loaded application configuration from ${configFile}.`);
     return runtimeConfig;
   } catch (error) {
     if (error instanceof ConfigurationLoadError) throw error;
     if (!isConfigurationError(error)) throw error;
-    const configuredOverrideNames = Object.keys(env).filter((name) => (
-      name.startsWith('CONFIG_') && !CONFIG_CONTROL_ENV.has(name)
-    ));
+    const configuredOverrideNames = Object.keys(env).filter(
+      (name) => name.startsWith('CONFIG_') && !CONFIG_CONTROL_ENV.has(name),
+    );
     const isEnvironmentError = error instanceof ConfigurationEnvironmentError;
     throw new ConfigurationLoadError(error, {
       configFile,

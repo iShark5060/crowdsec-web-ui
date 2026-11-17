@@ -1,10 +1,12 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
-import { Metrics } from '../Metrics';
-import type { CrowdsecMetricsResponse } from '../../types';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { I18nContext } from '../../lib/i18n';
+import { Provide } from '../../test/Provide';
+import type { CrowdsecMetricsResponse } from '../../types';
+import { Metrics } from '../Metrics';
 
 const {
   fetchConfigMock,
@@ -141,11 +143,16 @@ describe('Metrics page', () => {
   test('shows an endpoint selector when the selected instance has multiple endpoints', async () => {
     fetchConfigMock.mockResolvedValue({
       metrics_enabled: true,
-      instances: [{
-        id: 'primary',
-        name: 'Primary',
-        prometheus: [{ id: 'lapi', name: 'LAPI', icon: '🧠' }, { id: 'engine', name: 'Engine', icon: '🛡️' }],
-      }],
+      instances: [
+        {
+          id: 'primary',
+          name: 'Primary',
+          prometheus: [
+            { id: 'lapi', name: 'LAPI', icon: '🧠' },
+            { id: 'engine', name: 'Engine', icon: '🛡️' },
+          ],
+        },
+      ],
     });
     fetchCrowdsecMetricsMock.mockResolvedValue(buildMetricsResponse());
 
@@ -167,7 +174,12 @@ describe('Metrics page', () => {
       metrics_enabled: true,
       instances: [
         { id: 'primary', name: 'Primary', icon: '🟦', prometheus: [{ id: 'lapi', name: 'Primary LAPI', icon: '🧠' }] },
-        { id: 'secondary', name: 'Secondary', icon: '🟩', prometheus: [{ id: 'lapi', name: 'Secondary LAPI', icon: '🛰️' }] },
+        {
+          id: 'secondary',
+          name: 'Secondary',
+          icon: '🟩',
+          prometheus: [{ id: 'lapi', name: 'Secondary LAPI', icon: '🛰️' }],
+        },
       ],
     });
     fetchCrowdsecMetricsMock.mockResolvedValue(buildMetricsResponse());
@@ -200,15 +212,17 @@ describe('Metrics page', () => {
       ],
     });
     const response = buildMetricsResponse();
-    response.machines = [{
-      source_id: 'primary:lapi',
-      name: 'node-1',
-      requests: 3,
-      topRoute: '/v1/alerts',
-      topMethod: 'POST',
-      alertRequests: 3,
-      heartbeatRequests: 0,
-    }];
+    response.machines = [
+      {
+        source_id: 'primary:lapi',
+        name: 'node-1',
+        requests: 3,
+        topRoute: '/v1/alerts',
+        topMethod: 'POST',
+        alertRequests: 3,
+        heartbeatRequests: 0,
+      },
+    ];
     response.aggregation = {
       partial: true,
       sources: [
@@ -250,11 +264,16 @@ describe('Metrics page', () => {
   test('shows the retry state when a combined request fails completely', async () => {
     fetchConfigMock.mockResolvedValue({
       metrics_enabled: true,
-      instances: [{
-        id: 'primary',
-        name: 'Primary',
-        prometheus: [{ id: 'lapi', name: 'LAPI' }, { id: 'agent', name: 'Agent' }],
-      }],
+      instances: [
+        {
+          id: 'primary',
+          name: 'Primary',
+          prometheus: [
+            { id: 'lapi', name: 'LAPI' },
+            { id: 'agent', name: 'Agent' },
+          ],
+        },
+      ],
     });
     fetchCombinedCrowdsecMetricsMock.mockRejectedValue(new Error('Failed to fetch combined CrowdSec metrics'));
 
@@ -312,7 +331,10 @@ describe('Metrics page', () => {
         {
           id: 'primary',
           name: 'Primary',
-          prometheus: [{ id: 'lapi', name: 'LAPI' }, { id: 'engine', name: 'Engine' }],
+          prometheus: [
+            { id: 'lapi', name: 'LAPI' },
+            { id: 'engine', name: 'Engine' },
+          ],
         },
         {
           id: 'secondary',
@@ -324,18 +346,22 @@ describe('Metrics page', () => {
     fetchCrowdsecMetricsMock.mockResolvedValue(buildMetricsResponse());
 
     renderMetrics(
-      <I18nContext.Provider value={{
-        language: 'de',
-        preference: 'de',
-        browserLanguage: 'en',
-        setLanguagePreference: vi.fn(),
-        t: (key) => ({
-          'pages.metrics.instance': 'Instanz',
-          'pages.metrics.metricsEndpoint': 'Metrik-Endpunkt',
-        })[key] ?? key,
-      }}>
+      <Provide
+        context={I18nContext}
+        value={{
+          language: 'de',
+          preference: 'de',
+          browserLanguage: 'en',
+          setLanguagePreference: vi.fn(),
+          t: (key) =>
+            ({
+              'pages.metrics.instance': 'Instanz',
+              'pages.metrics.metricsEndpoint': 'Metrik-Endpunkt',
+            })[key] ?? key,
+        }}
+      >
         <Metrics />
-      </I18nContext.Provider>,
+      </Provide>,
     );
 
     expect(await screen.findByLabelText('Metrik-Endpunkt')).toBeInTheDocument();
@@ -374,65 +400,74 @@ describe('Metrics page', () => {
     response.totals.activeDecisions = 4;
     response.totals.alerts = 3;
     response.crowdsecVersion = 'v1.7.8';
-    response.bouncers = [{
-      name: 'stream-firewall',
-      requests: 20,
-      topRoute: '/v1/decisions/stream',
-      topMethod: 'GET',
-      mode: 'stream',
-      routes: [{ method: 'GET', route: '/v1/decisions/stream', requests: 20 }],
-    }];
-    response.machines = [{
-      name: 'processor-1',
-      requests: 13,
-      topRoute: '/v1/alerts',
-      topMethod: 'POST',
-      alertRequests: 7,
-      heartbeatRequests: 5,
-      lastHeartbeatAt: '2026-06-30T09:59:30.000Z',
-      otherRequests: 1,
-      routes: [
-        { method: 'POST', route: '/v1/alerts', requests: 7 },
-        { method: 'GET', route: '/v1/heartbeat', requests: 5 },
-      ],
-    }, {
-      name: 'processor-stale',
-      requests: 6,
-      topRoute: '/v1/alerts',
-      topMethod: 'POST',
-      alertRequests: 1,
-      heartbeatRequests: 5,
-      lastHeartbeatAt: '2026-06-30T09:50:00.000Z',
-      otherRequests: 0,
-      routes: [{ method: 'GET', route: '/v1/heartbeat', requests: 5 }],
-    }, {
-      name: 'processor-legacy',
-      requests: 2,
-      topRoute: '/v1/heartbeat',
-      topMethod: 'GET',
-      alertRequests: 1,
-      heartbeatRequests: 1,
-      otherRequests: 0,
-      routes: [{ method: 'GET', route: '/v1/heartbeat', requests: 1 }],
-    }, {
-      name: 'processor-without-heartbeat',
-      requests: 1,
-      topRoute: '/v1/alerts',
-      topMethod: 'POST',
-      alertRequests: 1,
-      heartbeatRequests: 0,
-      otherRequests: 0,
-      routes: [{ method: 'POST', route: '/v1/alerts', requests: 1 }],
-    }];
-    response.scenarios = [{
-      name: 'crowdsecurity/ssh-bf',
-      current: 2,
-      instantiations: 8,
-      overflows: 3,
-      underflows: 1,
-      canceled: 1,
-      poured: 12,
-    }];
+    response.bouncers = [
+      {
+        name: 'stream-firewall',
+        requests: 20,
+        topRoute: '/v1/decisions/stream',
+        topMethod: 'GET',
+        mode: 'stream',
+        routes: [{ method: 'GET', route: '/v1/decisions/stream', requests: 20 }],
+      },
+    ];
+    response.machines = [
+      {
+        name: 'processor-1',
+        requests: 13,
+        topRoute: '/v1/alerts',
+        topMethod: 'POST',
+        alertRequests: 7,
+        heartbeatRequests: 5,
+        lastHeartbeatAt: '2026-06-30T09:59:30.000Z',
+        otherRequests: 1,
+        routes: [
+          { method: 'POST', route: '/v1/alerts', requests: 7 },
+          { method: 'GET', route: '/v1/heartbeat', requests: 5 },
+        ],
+      },
+      {
+        name: 'processor-stale',
+        requests: 6,
+        topRoute: '/v1/alerts',
+        topMethod: 'POST',
+        alertRequests: 1,
+        heartbeatRequests: 5,
+        lastHeartbeatAt: '2026-06-30T09:50:00.000Z',
+        otherRequests: 0,
+        routes: [{ method: 'GET', route: '/v1/heartbeat', requests: 5 }],
+      },
+      {
+        name: 'processor-legacy',
+        requests: 2,
+        topRoute: '/v1/heartbeat',
+        topMethod: 'GET',
+        alertRequests: 1,
+        heartbeatRequests: 1,
+        otherRequests: 0,
+        routes: [{ method: 'GET', route: '/v1/heartbeat', requests: 1 }],
+      },
+      {
+        name: 'processor-without-heartbeat',
+        requests: 1,
+        topRoute: '/v1/alerts',
+        topMethod: 'POST',
+        alertRequests: 1,
+        heartbeatRequests: 0,
+        otherRequests: 0,
+        routes: [{ method: 'POST', route: '/v1/alerts', requests: 1 }],
+      },
+    ];
+    response.scenarios = [
+      {
+        name: 'crowdsecurity/ssh-bf',
+        current: 2,
+        instantiations: 8,
+        overflows: 3,
+        underflows: 1,
+        canceled: 1,
+        poured: 12,
+      },
+    ];
     fetchCrowdsecMetricsMock.mockResolvedValue(response);
 
     renderMetrics();
@@ -454,7 +489,9 @@ describe('Metrics page', () => {
     expect(screen.getByText(/Stream mode uses \/v1\/decisions\/stream/)).toBeInTheDocument();
     const remediationNote = screen.getByText(/These are LAPI API counters/);
     expect(remediationNote).toHaveClass('bg-blue-50', 'mt-3');
-    expect(remediationNote.compareDocumentPosition(screen.getByText('stream-firewall')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(
+      remediationNote.compareDocumentPosition(screen.getByText('stream-firewall')) & Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
   });
 
   test('collapses large bouncer and machine lists behind Show all and a name filter', async () => {
@@ -516,7 +553,11 @@ describe('Metrics page', () => {
     shrunk.machines = Array.from({ length: 3 }, (_, index) => buildMachine(index));
     fetchCrowdsecMetricsMock.mockResolvedValue(shrunk);
     refreshState.signal = 1;
-    rerender(<BrowserRouter><Metrics /></BrowserRouter>);
+    rerender(
+      <BrowserRouter>
+        <Metrics />
+      </BrowserRouter>,
+    );
 
     expect(await screen.findByText('No entries match the filter.')).toBeInTheDocument();
     await user.clear(screen.getByLabelText('Filter Log processors'));
@@ -551,13 +592,14 @@ describe('Metrics page', () => {
   });
 
   test('shows every route of a single LAPI and collapses combined LAPIs to one LAPI worth', async () => {
-    const buildRoutes = (sourceId?: string) => Array.from({ length: 15 }, (_, index) => ({
-      ...(sourceId ? { source_id: sourceId } : {}),
-      method: 'GET',
-      route: `/v1/route-${String(index + 1).padStart(2, '0')}`,
-      requests: 100 - index,
-      averageSeconds: 0.01,
-    }));
+    const buildRoutes = (sourceId?: string) =>
+      Array.from({ length: 15 }, (_, index) => ({
+        ...(sourceId ? { source_id: sourceId } : {}),
+        method: 'GET',
+        route: `/v1/route-${String(index + 1).padStart(2, '0')}`,
+        requests: 100 - index,
+        averageSeconds: 0.01,
+      }));
     const single = buildMetricsResponse();
     single.lapiRoutes = buildRoutes();
     fetchCrowdsecMetricsMock.mockResolvedValue(single);
@@ -583,7 +625,10 @@ describe('Metrics page', () => {
   test('collapses parser nodes after hiding child parsers', async () => {
     const response = buildMetricsResponse();
     response.parserNodes = Array.from({ length: 30 }, (_, index) => ({
-      name: index % 2 === 0 ? `parser-${String(index + 1).padStart(2, '0')}` : `child-parser-${String(index + 1).padStart(2, '0')}`,
+      name:
+        index % 2 === 0
+          ? `parser-${String(index + 1).padStart(2, '0')}`
+          : `child-parser-${String(index + 1).padStart(2, '0')}`,
       stage: 's01-parse',
       source: '/var/log/auth.log',
       type: 'file',
@@ -614,7 +659,9 @@ describe('Metrics page', () => {
 
     renderMetrics();
 
-    await waitFor(() => expect(screen.getByText('No LAPI route or duration metrics were exposed by CrowdSec.')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('No LAPI route or duration metrics were exposed by CrowdSec.')).toBeInTheDocument(),
+    );
     expect(screen.getByText('No AppSec engine metrics were exposed by CrowdSec.')).toBeInTheDocument();
   });
 
@@ -675,7 +722,11 @@ describe('Metrics page', () => {
 
     renderMetrics();
 
-    await waitFor(() => expect(screen.getByText('Child parser nodes are hidden. Turn on the toggle to include them.')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.getByText('Child parser nodes are hidden. Turn on the toggle to include them.'),
+      ).toBeInTheDocument(),
+    );
 
     await userEvent.click(screen.getByRole('switch', { name: 'Show child nodes' }));
 

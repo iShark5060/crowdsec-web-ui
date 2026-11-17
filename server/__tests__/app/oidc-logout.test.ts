@@ -1,7 +1,9 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { CrowdsecDatabase, OIDC_END_SESSION_LEGACY_DEFAULT_KEY } from '../../database';
 import { createAuthSessionCookie, createController } from './harness';
 
@@ -10,33 +12,41 @@ const END_SESSION_ENDPOINT = 'https://idp.example.com/application/o/crowdsec/end
 
 function stubDiscovery(metadata: Record<string, unknown> = { end_session_endpoint: END_SESSION_ENDPOINT }) {
   const originalFetch = globalThis.fetch;
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = input instanceof Request ? input.url : String(input);
-    if (url === `${ISSUER}.well-known/openid-configuration`) {
-      return new Response(JSON.stringify({
-        issuer: ISSUER,
-        authorization_endpoint: `${ISSUER}authorize/`,
-        token_endpoint: `${ISSUER}token/`,
-        jwks_uri: `${ISSUER}jwks/`,
-        ...metadata,
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-    }
-    return originalFetch(input, init);
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url === `${ISSUER}.well-known/openid-configuration`) {
+        return new Response(
+          JSON.stringify({
+            issuer: ISSUER,
+            authorization_endpoint: `${ISSUER}authorize/`,
+            token_endpoint: `${ISSUER}token/`,
+            jwks_uri: `${ISSUER}jwks/`,
+            ...metadata,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return originalFetch(input, init);
+    }),
+  );
 }
 
 // An undefined value removes the variable, for example to fall back to a default.
 function createOidcController(env: Record<string, string | undefined> = {}, database?: CrowdsecDatabase) {
   const result = createController({
     database,
-    env: Object.fromEntries(Object.entries({
-      AUTH_ENABLED: 'true',
-      AUTH_OIDC_ISSUER_URL: ISSUER,
-      AUTH_OIDC_CLIENT_ID: 'crowdsec-client',
-      AUTH_OIDC_CLIENT_SECRET: 'oidc-secret',
-      CONFIG_AUTH_OIDC_END_SESSION: 'true',
-      ...env,
-    }).filter((entry): entry is [string, string] => entry[1] !== undefined)),
+    env: Object.fromEntries(
+      Object.entries({
+        AUTH_ENABLED: 'true',
+        AUTH_OIDC_ISSUER_URL: ISSUER,
+        AUTH_OIDC_CLIENT_ID: 'crowdsec-client',
+        AUTH_OIDC_CLIENT_SECRET: 'oidc-secret',
+        CONFIG_AUTH_OIDC_END_SESSION: 'true',
+        ...env,
+      }).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    ),
   });
   const user = result.database.upsertOidcUser({
     username: 'oidc-admin',
@@ -54,10 +64,12 @@ function createOidcController(env: Record<string, string | undefined> = {}, data
 }
 
 function logout(controller: ReturnType<typeof createController>['controller'], cookie: string) {
-  return controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/logout', {
-    method: 'POST',
-    headers: { cookie },
-  }));
+  return controller.fetch(
+    new Request('https://ui.example.com/crowdsec/api/auth/logout', {
+      method: 'POST',
+      headers: { cookie },
+    }),
+  );
 }
 
 describe('OIDC RP-initiated logout', () => {
@@ -76,7 +88,7 @@ describe('OIDC RP-initiated logout', () => {
 
     const response = await logout(controller, `${sessionCookie}; crowdsec_web_ui_oidc_id_token=id-token-value`);
     expect(response.status).toBe(200);
-    const payload = await response.json() as { status: string; redirectUrl?: string };
+    const payload = (await response.json()) as { status: string; redirectUrl?: string };
     expect(payload.status).toBe('ok');
     const redirectUrl = new URL(payload.redirectUrl!);
     expect(`${redirectUrl.origin}${redirectUrl.pathname}`).toBe(END_SESSION_ENDPOINT);
@@ -93,7 +105,7 @@ describe('OIDC RP-initiated logout', () => {
     stubDiscovery();
     const { controller, sessionCookie } = createOidcController();
 
-    const payload = await (await logout(controller, sessionCookie)).json() as { redirectUrl?: string };
+    const payload = (await (await logout(controller, sessionCookie)).json()) as { redirectUrl?: string };
     const redirectUrl = new URL(payload.redirectUrl!);
     expect(redirectUrl.searchParams.has('id_token_hint')).toBe(false);
     expect(redirectUrl.searchParams.get('client_id')).toBe('crowdsec-client');
@@ -107,7 +119,10 @@ describe('OIDC RP-initiated logout', () => {
   });
 
   test('logs out locally when provider discovery fails', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('unavailable', { status: 503 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unavailable', { status: 503 })),
+    );
     const { controller, sessionCookie } = createOidcController();
 
     expect(await (await logout(controller, sessionCookie)).json()).toEqual({ status: 'ok' });
@@ -140,16 +155,22 @@ describe('OIDC RP-initiated logout', () => {
     expect(await (await logout(controller, sessionCookie)).json()).toEqual({ status: 'ok' });
   });
 
-  test('revokes the logged-out session server-side but keeps the user\'s other sessions', async () => {
+  test("revokes the logged-out session server-side but keeps the user's other sessions", async () => {
     stubDiscovery();
     const { controller, database, sessionCookie } = createOidcController({ CONFIG_AUTH_OIDC_END_SESSION: undefined });
-    const otherCookie = createAuthSessionCookie(database, {
-      userId: database.getAuthUserByUsername('oidc-admin')!.id,
-      username: 'oidc-admin',
-      role: 'admin',
-      authMethod: 'oidc',
-    }, undefined, { issuedAt: Math.floor(Date.now() / 1000) - 1 });
-    const me = (cookie: string) => controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/me', { headers: { cookie } }));
+    const otherCookie = createAuthSessionCookie(
+      database,
+      {
+        userId: database.getAuthUserByUsername('oidc-admin')!.id,
+        username: 'oidc-admin',
+        role: 'admin',
+        authMethod: 'oidc',
+      },
+      undefined,
+      { issuedAt: Math.floor(Date.now() / 1000) - 1 },
+    );
+    const me = (cookie: string) =>
+      controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/me', { headers: { cookie } }));
 
     expect((await me(sessionCookie)).status).toBe(200);
     await logout(controller, sessionCookie);
@@ -171,34 +192,46 @@ describe('OIDC RP-initiated logout', () => {
     const { controller, database } = createOidcController({ CONFIG_AUTH_OIDC_END_SESSION: undefined });
     // Logging out revokes a session, so each step signs in afresh with a token of its own.
     const now = Math.floor(Date.now() / 1000);
-    const signIn = (issuedAt: number) => createAuthSessionCookie(database, {
-      userId: database.getAuthUserByUsername('oidc-admin')!.id,
-      username: 'oidc-admin',
-      role: 'admin',
-      authMethod: 'oidc',
-    }, undefined, { issuedAt });
+    const signIn = (issuedAt: number) =>
+      createAuthSessionCookie(
+        database,
+        {
+          userId: database.getAuthUserByUsername('oidc-admin')!.id,
+          username: 'oidc-admin',
+          role: 'admin',
+          authMethod: 'oidc',
+        },
+        undefined,
+        { issuedAt },
+      );
     const adminCookie = signIn(now - 1);
 
-    const initial = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      headers: { cookie: adminCookie },
-    }));
+    const initial = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+        headers: { cookie: adminCookie },
+      }),
+    );
     expect(await initial.json()).toMatchObject({ oidcEndSession: false });
 
-    const enable = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-      body: JSON.stringify({ oidcEndSession: true }),
-    }));
+    const enable = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ oidcEndSession: true }),
+      }),
+    );
     expect(enable.status).toBe(200);
     expect(await enable.json()).toMatchObject({ settings: { oidcEndSession: true } });
-    const payload = await (await logout(controller, signIn(now - 2))).json() as { redirectUrl?: string };
+    const payload = (await (await logout(controller, signIn(now - 2))).json()) as { redirectUrl?: string };
     expect(payload.redirectUrl).toContain(END_SESSION_ENDPOINT);
 
-    const disable = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-      body: JSON.stringify({ oidcEndSession: false }),
-    }));
+    const disable = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ oidcEndSession: false }),
+      }),
+    );
     expect(await disable.json()).toMatchObject({ settings: { oidcEndSession: false } });
     expect(await (await logout(controller, signIn(now - 3))).json()).toEqual({ status: 'ok' });
   });
@@ -215,9 +248,11 @@ describe('OIDC RP-initiated logout', () => {
     // A value saved in Settings earlier no longer applies once the config sets one.
     database.setMeta('auth_oidc_end_session', 'false');
 
-    const initial = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      headers: { cookie: adminCookie },
-    }));
+    const initial = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+        headers: { cookie: adminCookie },
+      }),
+    );
     expect(await initial.json()).toMatchObject({
       oidcEndSession: true,
       managedSettings: {
@@ -228,14 +263,16 @@ describe('OIDC RP-initiated logout', () => {
       },
     });
 
-    const change = await controller.fetch(new Request('https://ui.example.com/crowdsec/api/auth/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', cookie: adminCookie },
-      body: JSON.stringify({ oidcEndSession: false }),
-    }));
+    const change = await controller.fetch(
+      new Request('https://ui.example.com/crowdsec/api/auth/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', cookie: adminCookie },
+        body: JSON.stringify({ oidcEndSession: false }),
+      }),
+    );
     expect(change.status).toBe(409);
     expect(await change.json()).toMatchObject({ code: 'MANAGED_BY_CONFIG' });
-    const payload = await (await logout(controller, sessionCookie)).json() as { redirectUrl?: string };
+    const payload = (await (await logout(controller, sessionCookie)).json()) as { redirectUrl?: string };
     expect(payload.redirectUrl).toContain(END_SESSION_ENDPOINT);
   });
 });
@@ -277,13 +314,16 @@ describe('OIDC end-session default for existing installations', () => {
     const { controller, sessionCookie } = createOidcController({ CONFIG_AUTH_OIDC_END_SESSION: undefined }, database);
 
     expect(database.getMeta(OIDC_END_SESSION_LEGACY_DEFAULT_KEY)?.value).toBe('true');
-    const payload = await (await logout(controller, sessionCookie)).json() as { redirectUrl?: string };
+    const payload = (await (await logout(controller, sessionCookie)).json()) as { redirectUrl?: string };
     expect(payload.redirectUrl).toContain(END_SESSION_ENDPOINT);
   });
 
   test('the application config still overrides the kept default', async () => {
     stubDiscovery();
-    const { controller, sessionCookie } = createOidcController({ CONFIG_AUTH_OIDC_END_SESSION: 'false' }, openExistingInstallDatabase());
+    const { controller, sessionCookie } = createOidcController(
+      { CONFIG_AUTH_OIDC_END_SESSION: 'false' },
+      openExistingInstallDatabase(),
+    );
 
     expect(await (await logout(controller, sessionCookie)).json()).toEqual({ status: 'ok' });
   });

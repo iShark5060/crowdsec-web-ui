@@ -1,11 +1,11 @@
-import { initStatisticsCaptureSchema } from './statistics-capture';
 import fs from 'fs';
-import path from 'path';
 import crypto from 'node:crypto';
+import path from 'path';
+
 import BetterSqlite3 from 'better-sqlite3';
+
 import type { AlertDecision, AlertRecord } from '../shared/contracts';
 import { matchesIpSearchValue } from '../shared/search';
-import { deriveAlertIndexValues, deriveAlertIndexValuesFromRecord, deriveDecisionIndexValues, deriveDecisionIndexValuesFromRecord } from './record-index';
 import {
   ALERT_RECORD_COLUMNS,
   DECISION_RECORD_COLUMNS,
@@ -19,6 +19,13 @@ import {
   type NormalizedAlertRow,
   type NormalizedDecisionRow,
 } from './normalized-record';
+import {
+  deriveAlertIndexValues,
+  deriveAlertIndexValuesFromRecord,
+  deriveDecisionIndexValues,
+  deriveDecisionIndexValuesFromRecord,
+} from './record-index';
+import { initStatisticsCaptureSchema } from './statistics-capture';
 import { normalizeIsoTimestamp, normalizeTimestampJson } from './utils/date-time';
 
 type SqliteStatement = {
@@ -67,7 +74,8 @@ const DEFAULT_JOURNAL_SIZE_LIMIT_BYTES = 128 * 1024 * 1024;
 const INCREMENTAL_VACUUM_META_KEY = 'sqlite_incremental_vacuum_at';
 const SQLITE_RECLAIM_WARNING_MIN_BYTES = 128 * 1024 * 1024;
 const SQLITE_RECLAIM_WARNING_MIN_RATIO = 0.25;
-const SQLITE_MAINTENANCE_GUIDE_URL = 'https://github.com/TheDuffman85/crowdsec-web-ui#sqlite-database-maintenance';
+const SQLITE_MAINTENANCE_GUIDE_URL =
+  'https://github.com/TheDuffman85/crowdsec-web-ui#sqlite-database-maintenance';
 
 const SYNC_SECONDARY_INDEX_NAMES = [
   'idx_alerts_created_at',
@@ -256,22 +264,31 @@ export interface IncrementalVacuumResult {
 }
 
 export function isStateSettingKey(key: string): boolean {
-  return STATE_SETTING_KEYS.has(key) || STATE_SETTING_PREFIXES.some((prefix) => key.startsWith(prefix));
+  return (
+    STATE_SETTING_KEYS.has(key) || STATE_SETTING_PREFIXES.some((prefix) => key.startsWith(prefix))
+  );
 }
 
 export function getSqliteMaintenanceWarning(storage: SqliteStorageStats): string | null {
   if (
-    storage.autoVacuum !== 0
-    || storage.freeRatio < SQLITE_RECLAIM_WARNING_MIN_RATIO
-    || storage.reclaimableBytes < SQLITE_RECLAIM_WARNING_MIN_BYTES
-  ) return null;
-  const size = storage.reclaimableBytes >= 1024 ** 3
-    ? `${(storage.reclaimableBytes / 1024 ** 3).toFixed(1).replace(/\.0$/, '')} GiB`
-    : `${Math.round(storage.reclaimableBytes / 1024 ** 2)} MiB`;
+    storage.autoVacuum !== 0 ||
+    storage.freeRatio < SQLITE_RECLAIM_WARNING_MIN_RATIO ||
+    storage.reclaimableBytes < SQLITE_RECLAIM_WARNING_MIN_BYTES
+  )
+    return null;
+  const size =
+    storage.reclaimableBytes >= 1024 ** 3
+      ? `${(storage.reclaimableBytes / 1024 ** 3).toFixed(1).replace(/\.0$/, '')} GiB`
+      : `${Math.round(storage.reclaimableBytes / 1024 ** 2)} MiB`;
   return `SQLite can reclaim ~${size}. Stop the app and delete cache.db to rebuild it with incremental vacuum: ${SQLITE_MAINTENANCE_GUIDE_URL}`;
 }
 
-type RowWithRawData = { raw_data: string; created_at?: string; stop_at?: string; alert_id?: string | number | null };
+type RowWithRawData = {
+  raw_data: string;
+  created_at?: string;
+  stop_at?: string;
+  alert_id?: string | number | null;
+};
 export type AlertDataRow = NormalizedAlertRow;
 export type DecisionDataRow = NormalizedDecisionRow;
 export type AlertDecisionSnapshotRow = {
@@ -479,7 +496,8 @@ export class CrowdsecDatabase {
 
   constructor(options: DatabaseOptions = {}) {
     const paths = resolveDatabasePaths(options);
-    if (paths.legacyPath && paths.statePath) migrateLegacyDatabase(paths.legacyPath, paths.statePath);
+    if (paths.legacyPath && paths.statePath)
+      migrateLegacyDatabase(paths.legacyPath, paths.statePath);
     this.cachePath = paths.cachePath;
     this.statePath = paths.statePath;
     const opened = openDatabase(
@@ -726,8 +744,12 @@ export class CrowdsecDatabase {
     `);
 
     this.deleteDecisionStatement = this.db.query('DELETE FROM decisions WHERE id = $id');
-    this.getDecisionByIdStatement = this.db.query(`SELECT ${DECISION_RECORD_COLUMNS} FROM decisions WHERE id = $id`);
-    this.getDecisionIdsByAlertIdStatement = this.db.query('SELECT id FROM decisions WHERE alert_id = $alert_id');
+    this.getDecisionByIdStatement = this.db.query(
+      `SELECT ${DECISION_RECORD_COLUMNS} FROM decisions WHERE id = $id`,
+    );
+    this.getDecisionIdsByAlertIdStatement = this.db.query(
+      'SELECT id FROM decisions WHERE alert_id = $alert_id',
+    );
     this.getActiveDecisionByValueStatement = this.db.query(`
       SELECT ${DECISION_RECORD_COLUMNS} FROM decisions
       WHERE value = $value AND stop_at > $now AND id NOT LIKE 'dup\\_%' ESCAPE '\\'
@@ -735,18 +757,24 @@ export class CrowdsecDatabase {
       LIMIT 1
     `);
     this.deleteAlertStatement = this.db.query('DELETE FROM alerts WHERE id = $id');
-    this.deleteDecisionsByAlertIdStatement = this.db.query('DELETE FROM decisions WHERE alert_id = $alert_id');
+    this.deleteDecisionsByAlertIdStatement = this.db.query(
+      'DELETE FROM decisions WHERE alert_id = $alert_id',
+    );
     this.getMetaStatement = this.db.query('SELECT value FROM meta WHERE key = ?');
     this.setMetaStatement = this.db.query('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)');
     this.getSettingStatement = this.stateQuery('SELECT value FROM settings WHERE key = ?');
-    this.setSettingStatement = this.stateQuery('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    this.setSettingStatement = this.stateQuery(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+    );
     this.countAuthUsersStatement = this.stateQuery('SELECT COUNT(*) as count FROM auth_users');
     this.createAuthUserStatement = this.stateQuery(`
       INSERT INTO auth_users (username, password_hash, role, auth_provider, password_change_required, oidc_auto_link_blocked, created_at, updated_at)
       VALUES ($username, $password_hash, $role, $auth_provider, $password_change_required, $oidc_auto_link_blocked, $created_at, $updated_at)
     `);
     this.getAuthUserByIdStatement = this.stateQuery('SELECT * FROM auth_users WHERE id = $id');
-    this.getAuthUserByUsernameStatement = this.stateQuery('SELECT * FROM auth_users WHERE username = $username');
+    this.getAuthUserByUsernameStatement = this.stateQuery(
+      'SELECT * FROM auth_users WHERE username = $username',
+    );
     this.getAuthUserByOidcIdentityStatement = this.stateQuery(`
       SELECT * FROM auth_users
       WHERE oidc_issuer = $oidc_issuer AND oidc_subject = $oidc_subject
@@ -810,7 +838,9 @@ export class CrowdsecDatabase {
       INSERT OR REPLACE INTO oidc_revoked_sessions (issuer, session_id, expires_at)
       VALUES ($issuer, $session_id, $expires_at)
     `);
-    this.pruneRevokedOidcSessionsStatement = this.stateQuery('DELETE FROM oidc_revoked_sessions WHERE expires_at <= $now');
+    this.pruneRevokedOidcSessionsStatement = this.stateQuery(
+      'DELETE FROM oidc_revoked_sessions WHERE expires_at <= $now',
+    );
     this.getRevokedOidcSessionStatement = this.stateQuery(`
       SELECT 1 FROM oidc_revoked_sessions
       WHERE issuer = $issuer AND session_id = $session_id AND expires_at > $now
@@ -819,7 +849,9 @@ export class CrowdsecDatabase {
       INSERT OR REPLACE INTO revoked_auth_sessions (session_id, expires_at)
       VALUES ($session_id, $expires_at)
     `);
-    this.pruneRevokedAuthSessionsStatement = this.stateQuery('DELETE FROM revoked_auth_sessions WHERE expires_at <= $now');
+    this.pruneRevokedAuthSessionsStatement = this.stateQuery(
+      'DELETE FROM revoked_auth_sessions WHERE expires_at <= $now',
+    );
     this.getRevokedAuthSessionStatement = this.stateQuery(`
       SELECT 1 FROM revoked_auth_sessions
       WHERE session_id = $session_id AND expires_at > $now
@@ -828,7 +860,9 @@ export class CrowdsecDatabase {
       INSERT OR IGNORE INTO oidc_processed_logouts (issuer, token_id, expires_at)
       VALUES ($issuer, $token_id, $expires_at)
     `);
-    this.pruneProcessedOidcLogoutsStatement = this.stateQuery('DELETE FROM oidc_processed_logouts WHERE expires_at <= $now');
+    this.pruneProcessedOidcLogoutsStatement = this.stateQuery(
+      'DELETE FROM oidc_processed_logouts WHERE expires_at <= $now',
+    );
     this.bumpOidcLogoutVersionStatement = this.stateQuery(`
       INSERT INTO oidc_logout_versions (issuer, subject, version)
       SELECT $issuer, $subject, ${INITIAL_OIDC_LOGOUT_VERSION + 1}
@@ -853,7 +887,9 @@ export class CrowdsecDatabase {
       INSERT INTO webauthn_credentials (user_id, credential_id, public_key, sign_count, transports, name, created_at)
       VALUES ($user_id, $credential_id, $public_key, $sign_count, $transports, $name, $created_at)
     `);
-    this.getWebAuthnCredentialByCredentialIdStatement = this.stateQuery('SELECT * FROM webauthn_credentials WHERE credential_id = $credential_id');
+    this.getWebAuthnCredentialByCredentialIdStatement = this.stateQuery(
+      'SELECT * FROM webauthn_credentials WHERE credential_id = $credential_id',
+    );
     this.updateWebAuthnCredentialCounterStatement = this.stateQuery(`
       UPDATE webauthn_credentials
       SET sign_count = $sign_count
@@ -864,7 +900,9 @@ export class CrowdsecDatabase {
       SET name = $name
       WHERE id = $id AND user_id = $user_id
     `);
-    this.deleteWebAuthnCredentialStatement = this.stateQuery('DELETE FROM webauthn_credentials WHERE id = $id AND user_id = $user_id');
+    this.deleteWebAuthnCredentialStatement = this.stateQuery(
+      'DELETE FROM webauthn_credentials WHERE id = $id AND user_id = $user_id',
+    );
     this.listNotificationChannelsStatement = this.stateQuery(`
       SELECT id, created_at, updated_at, name, type, enabled, config_json
       FROM notification_channels
@@ -879,7 +917,9 @@ export class CrowdsecDatabase {
       INSERT OR REPLACE INTO notification_channels (id, created_at, updated_at, name, type, enabled, config_json)
       VALUES ($id, $created_at, $updated_at, $name, $type, $enabled, $config_json)
     `);
-    this.deleteNotificationChannelStatement = this.stateQuery('DELETE FROM notification_channels WHERE id = $id');
+    this.deleteNotificationChannelStatement = this.stateQuery(
+      'DELETE FROM notification_channels WHERE id = $id',
+    );
     this.listNotificationRulesStatement = this.stateQuery(`
       SELECT id, created_at, updated_at, name, type, enabled, severity, channel_ids_json, config_json
       FROM notification_rules
@@ -896,14 +936,18 @@ export class CrowdsecDatabase {
       )
       VALUES ($id, $created_at, $updated_at, $name, $type, $enabled, $severity, $channel_ids_json, $config_json)
     `);
-    this.deleteNotificationRuleStatement = this.stateQuery('DELETE FROM notification_rules WHERE id = $id');
+    this.deleteNotificationRuleStatement = this.stateQuery(
+      'DELETE FROM notification_rules WHERE id = $id',
+    );
     this.listNotificationsPageStatement = this.stateQuery(`
       SELECT id, created_at, updated_at, rule_id, rule_name, rule_type, severity, title, message, read_at, metadata_json, deliveries_json, dedupe_key
       FROM notifications
       ORDER BY created_at DESC
       LIMIT $limit OFFSET $offset
     `);
-    this.countNotificationsStatement = this.stateQuery('SELECT COUNT(*) as count FROM notifications');
+    this.countNotificationsStatement = this.stateQuery(
+      'SELECT COUNT(*) as count FROM notifications',
+    );
     this.listNotificationIdsStatement = this.stateQuery(`
       SELECT id
       FROM notifications
@@ -932,20 +976,28 @@ export class CrowdsecDatabase {
       SET resolved_at = $resolved_at, last_seen_at = $last_seen_at
       WHERE rule_id = $rule_id AND incident_key = $incident_key AND resolved_at IS NULL
     `);
-    this.deleteNotificationIncidentsByRuleStatement = this.stateQuery('DELETE FROM notification_incidents WHERE rule_id = $rule_id');
+    this.deleteNotificationIncidentsByRuleStatement = this.stateQuery(
+      'DELETE FROM notification_incidents WHERE rule_id = $rule_id',
+    );
     this.deleteNotificationStatement = this.stateQuery('DELETE FROM notifications WHERE id = $id');
     this.deleteNotificationByRuleAndDedupeKeyStatement = this.stateQuery(`
       DELETE FROM notifications
       WHERE rule_id = $rule_id AND dedupe_key = $dedupe_key
     `);
-    this.markNotificationReadStatement = this.stateQuery('UPDATE notifications SET read_at = $read_at, updated_at = $updated_at WHERE id = $id');
+    this.markNotificationReadStatement = this.stateQuery(
+      'UPDATE notifications SET read_at = $read_at, updated_at = $updated_at WHERE id = $id',
+    );
     this.markAllNotificationsReadStatement = this.stateQuery(`
       UPDATE notifications
       SET read_at = $read_at, updated_at = $updated_at
       WHERE read_at IS NULL
     `);
-    this.deleteReadNotificationsStatement = this.stateQuery('DELETE FROM notifications WHERE read_at IS NOT NULL');
-    this.countUnreadNotificationsStatement = this.stateQuery('SELECT COUNT(*) as count FROM notifications WHERE read_at IS NULL');
+    this.deleteReadNotificationsStatement = this.stateQuery(
+      'DELETE FROM notifications WHERE read_at IS NOT NULL',
+    );
+    this.countUnreadNotificationsStatement = this.stateQuery(
+      'SELECT COUNT(*) as count FROM notifications WHERE read_at IS NULL',
+    );
     this.getCveCacheEntryStatement = this.db.query(`
       SELECT id, published_at, fetched_at
       FROM cve_cache
@@ -1032,12 +1084,15 @@ export class CrowdsecDatabase {
   }
 
   clearSyncData(): void {
-    const dashboardTrackingEnabled = this.getMeta('dashboard_change_tracking_enabled')?.value !== 'false';
+    const dashboardTrackingEnabled =
+      this.getMeta('dashboard_change_tracking_enabled')?.value !== 'false';
     if (dashboardTrackingEnabled) this.setMeta('dashboard_change_tracking_enabled', 'false');
     try {
       this.db.exec('DELETE FROM decisions');
       this.db.exec('DELETE FROM alerts');
-      this.db.exec("DELETE FROM meta WHERE key IN ('statistics_backfill_alerts', 'statistics_backfill_decisions')");
+      this.db.exec(
+        "DELETE FROM meta WHERE key IN ('statistics_backfill_alerts', 'statistics_backfill_decisions')",
+      );
       this.db.exec('DELETE FROM allowlists');
       this.db.exec('DELETE FROM allowlist_items');
       this.db.exec(`DELETE FROM meta WHERE key LIKE '${ALLOWLIST_SYNC_META_PREFIX}%'`);
@@ -1046,14 +1101,16 @@ export class CrowdsecDatabase {
       this.lastDecisionDuplicateRefreshAt = null;
       this.ownsDecisionDuplicateDirtyMarker = false;
       this.decisionDuplicateDirtyKeys.clear();
-      this.db.prepare(`
+      this.db
+        .prepare(`
         DELETE FROM meta
         WHERE key IN (
           'decision_duplicate_refresh_at',
           'decision_duplicate_flags_dirty',
           'decision_duplicate_rank_version'
         )
-      `).run();
+      `)
+        .run();
       this.clearSearchIndexes();
     } finally {
       if (dashboardTrackingEnabled) {
@@ -1069,21 +1126,27 @@ export class CrowdsecDatabase {
     this.searchIndexUpdatesDeferred = true;
     if (dropSecondaryIndexes) {
       const deferDashboardChanges = this.db.transaction(() => {
-        this.db.prepare(`
+        this.db
+          .prepare(`
           INSERT INTO meta(key, value)
           VALUES ('dashboard_change_tracking_enabled', 'false')
           ON CONFLICT(key) DO UPDATE SET value = 'false'
-        `).run();
-        this.db.prepare(`
+        `)
+          .run();
+        this.db
+          .prepare(`
           INSERT INTO meta(key, value)
           VALUES ('dashboard_change_epoch', '2')
           ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1
-        `).run();
-        this.db.prepare(`
+        `)
+          .run();
+        this.db
+          .prepare(`
           INSERT INTO meta(key, value)
           VALUES ('dashboard_change_floor', '0')
           ON CONFLICT(key) DO UPDATE SET value = '0'
-        `).run();
+        `)
+          .run();
         this.db.exec('DELETE FROM dashboard_record_changes');
       });
       deferDashboardChanges();
@@ -1112,22 +1175,28 @@ export class CrowdsecDatabase {
       this.searchIndexUpdatesDeferred = false;
       if (this.dashboardChangeTrackingDeferred) {
         const publishDashboardChanges = this.db.transaction(() => {
-          this.db.prepare(`
+          this.db
+            .prepare(`
             INSERT INTO meta(key, value)
             VALUES ('dashboard_change_epoch', '2')
             ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1
-          `).run();
-          this.db.prepare(`
+          `)
+            .run();
+          this.db
+            .prepare(`
             INSERT INTO meta(key, value)
             VALUES ('dashboard_change_floor', '0')
             ON CONFLICT(key) DO UPDATE SET value = '0'
-          `).run();
+          `)
+            .run();
           this.db.exec('DELETE FROM dashboard_record_changes');
-          this.db.prepare(`
+          this.db
+            .prepare(`
             INSERT INTO meta(key, value)
             VALUES ('dashboard_change_tracking_enabled', 'true')
             ON CONFLICT(key) DO UPDATE SET value = 'true'
-          `).run();
+          `)
+            .run();
         });
         publishDashboardChanges();
         this.dashboardChangeTrackingDeferred = false;
@@ -1137,39 +1206,54 @@ export class CrowdsecDatabase {
 
   pruneDashboardRecordChanges(changeEpoch: number, throughRevision: number): void {
     const currentEpoch = Number(this.getMeta('dashboard_change_epoch')?.value || 0);
-    if (currentEpoch !== changeEpoch || !Number.isFinite(throughRevision) || throughRevision <= 0) return;
+    if (currentEpoch !== changeEpoch || !Number.isFinite(throughRevision) || throughRevision <= 0)
+      return;
     this.runNonBlockingDashboardMaintenance(() => {
       const prune = this.db.transaction(() => {
-        this.db.prepare(`
+        this.db
+          .prepare(`
           INSERT INTO meta(key, value)
           VALUES ('dashboard_change_floor', ?)
           ON CONFLICT(key) DO UPDATE SET value = MAX(CAST(value AS INTEGER), CAST(excluded.value AS INTEGER))
-        `).run(String(throughRevision));
-        this.db.prepare('DELETE FROM dashboard_record_changes WHERE revision <= ?').run(throughRevision);
+        `)
+          .run(String(throughRevision));
+        this.db
+          .prepare('DELETE FROM dashboard_record_changes WHERE revision <= ?')
+          .run(throughRevision);
       });
       prune();
     });
   }
 
   countDashboardRecordChanges(): number {
-    return Number((
-      this.db.prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes').get() as CountRow
-    ).count) || 0;
+    return (
+      Number(
+        (
+          this.db
+            .prepare('SELECT COUNT(*) AS count FROM dashboard_record_changes')
+            .get() as CountRow
+        ).count,
+      ) || 0
+    );
   }
 
   resetDashboardRecordChanges(): void {
     this.runNonBlockingDashboardMaintenance(() => {
       const reset = this.db.transaction(() => {
-        this.db.prepare(`
+        this.db
+          .prepare(`
           INSERT INTO meta(key, value)
           VALUES ('dashboard_change_epoch', '2')
           ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1
-        `).run();
-        this.db.prepare(`
+        `)
+          .run();
+        this.db
+          .prepare(`
           INSERT INTO meta(key, value)
           VALUES ('dashboard_change_floor', '0')
           ON CONFLICT(key) DO UPDATE SET value = '0'
-        `).run();
+        `)
+          .run();
         this.db.exec('DELETE FROM dashboard_record_changes');
       });
       reset();
@@ -1183,8 +1267,10 @@ export class CrowdsecDatabase {
     try {
       action();
     } catch (error) {
-      const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-      if (!message.includes('database is locked') && !message.includes('database is busy')) throw error;
+      const message =
+        error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      if (!message.includes('database is locked') && !message.includes('database is busy'))
+        throw error;
     } finally {
       this.db.exec(`PRAGMA busy_timeout = ${busyTimeout}`);
     }
@@ -1203,13 +1289,15 @@ export class CrowdsecDatabase {
         const chunk = alertIds.slice(offset, offset + 900);
         if (chunk.length === 0) continue;
         const placeholders = chunk.map(() => '?').join(',');
-        const rows = this.db.prepare(`
+        const rows = this.db
+          .prepare(`
           SELECT id, search_text
           FROM alerts
           WHERE id IN (${placeholders})
             AND search_text IS NOT NULL
             AND search_text <> ''
-        `).all(...chunk) as Array<{ id: string | number; search_text: string }>;
+        `)
+          .all(...chunk) as Array<{ id: string | number; search_text: string }>;
         for (const row of rows) {
           const numericId = Number(row.id);
           if (!Number.isSafeInteger(numericId) || numericId === 0) continue;
@@ -1221,13 +1309,15 @@ export class CrowdsecDatabase {
         const chunk = decisionIds.slice(offset, offset + 900);
         if (chunk.length === 0) continue;
         const placeholders = chunk.map(() => '?').join(',');
-        const rows = this.db.prepare(`
+        const rows = this.db
+          .prepare(`
           SELECT id, search_text
           FROM decisions
           WHERE id IN (${placeholders})
             AND search_text IS NOT NULL
             AND search_text <> ''
-        `).all(...chunk) as Array<{ id: string | number; search_text: string }>;
+        `)
+          .all(...chunk) as Array<{ id: string | number; search_text: string }>;
         for (const row of rows) {
           this.insertDecisionSearchIndexRow(String(row.id), row.search_text);
         }
@@ -1236,7 +1326,10 @@ export class CrowdsecDatabase {
     rebuild();
   }
 
-  async rebuildSearchIndexesCooperative(yieldControl: () => Promise<void>, batchSize = 1_000): Promise<void> {
+  async rebuildSearchIndexesCooperative(
+    yieldControl: () => Promise<void>,
+    batchSize = 1_000,
+  ): Promise<void> {
     if (!this.searchIndexAvailable) {
       return;
     }
@@ -1251,7 +1344,11 @@ export class CrowdsecDatabase {
   insertAlert(params: AlertInsertParams): boolean {
     const instanceId = params.$instance_id || 'default';
     const tombstoneId = `${instanceId}\u0000${params.$id}`;
-    if (this.alertDeletionTombstones.has(tombstoneId) || (instanceId === 'default' && this.alertDeletionTombstones.has(String(params.$id)))) return false;
+    if (
+      this.alertDeletionTombstones.has(tombstoneId) ||
+      (instanceId === 'default' && this.alertDeletionTombstones.has(String(params.$id)))
+    )
+      return false;
     const rawData = params.$raw_data || '{}';
     const alert = params.$record || parseAlertPayload(rawData);
     const source = alert?.source || null;
@@ -1264,7 +1361,7 @@ export class CrowdsecDatabase {
     const index = params.$record
       ? deriveAlertIndexValuesFromRecord(params.$record, fallback)
       : deriveAlertIndexValues(rawData, fallback);
-    const { $record, $raw_data: _rawData, ...dbParams } = params;
+    const { $record: _record, $raw_data: _rawData, ...dbParams } = params;
     const result = this.insertAlertStatement.run({
       ...dbParams,
       $id: String(params.$id),
@@ -1279,7 +1376,10 @@ export class CrowdsecDatabase {
       $source_value: readOptionalString(source?.value),
       $source_scope: readOptionalString(source?.scope),
       $source_range: readOptionalString(source?.range),
-      $source_as_number: source?.as_number === undefined || source?.as_number === null ? null : String(source.as_number),
+      $source_as_number:
+        source?.as_number === undefined || source?.as_number === null
+          ? null
+          : String(source.as_number),
       $source_extra_data: serializeAlertSourceExtras(source),
       $machine_id: readOptionalString(alert?.machine_id),
       $machine_alias: readOptionalString(alert?.machine_alias),
@@ -1315,24 +1415,35 @@ export class CrowdsecDatabase {
   }
 
   getAlertsSince(since: string): RowWithRawData[] {
-    return alertRowsToLegacyPayloads(this.getAlertsStatement.all({ $since: since }) as AlertDataRow[]);
+    return alertRowsToLegacyPayloads(
+      this.getAlertsStatement.all({ $since: since }) as AlertDataRow[],
+    );
   }
 
   getAlertsBetween(start: string, end: string): RowWithRawData[] {
-    return alertRowsToLegacyPayloads(this.getAlertsBetweenStatement.all({ $start: start, $end: end }) as AlertDataRow[]);
+    return alertRowsToLegacyPayloads(
+      this.getAlertsBetweenStatement.all({ $start: start, $end: end }) as AlertDataRow[],
+    );
   }
 
-  getAlertDecisionSnapshot(id: string | number, instanceId?: string): AlertDecisionSnapshotRow | null {
+  getAlertDecisionSnapshot(
+    id: string | number,
+    instanceId?: string,
+  ): AlertDecisionSnapshotRow | null {
     const internalId = instanceId ? this.getAlertInternalId(instanceId, id) : id;
     if (internalId === null) return null;
-    const row = this.getAlertDecisionSnapshotStatement.get({ $id: internalId }) as (AlertDataRow & Omit<AlertDecisionSnapshotRow, 'raw_data'>) | null;
-    return row ? {
-      raw_data: JSON.stringify(alertFromRow(row)),
-      metadata_hash: row.metadata_hash,
-      decision_count: row.decision_count,
-      origins: row.origins,
-      simulated: row.simulated ? 1 : 0,
-    } : null;
+    const row = this.getAlertDecisionSnapshotStatement.get({ $id: internalId }) as
+      | (AlertDataRow & Omit<AlertDecisionSnapshotRow, 'raw_data'>)
+      | null;
+    return row
+      ? {
+          raw_data: JSON.stringify(alertFromRow(row)),
+          metadata_hash: row.metadata_hash,
+          decision_count: row.decision_count,
+          origins: row.origins,
+          simulated: row.simulated ? 1 : 0,
+        }
+      : null;
   }
 
   updateAlertRawData(id: string | number, _rawData?: string, instanceId?: string): boolean {
@@ -1340,9 +1451,11 @@ export class CrowdsecDatabase {
     if (this.alertDeletionTombstones.has(tombstoneId)) return false;
     const internalId = instanceId ? this.getAlertInternalId(instanceId, id) : id;
     if (internalId === null) return false;
-    return this.updateAlertRawDataStatement.run({
-      $id: internalId,
-    }).changes > 0;
+    return (
+      this.updateAlertRawDataStatement.run({
+        $id: internalId,
+      }).changes > 0
+    );
   }
 
   deleteAlertsMissingBetween(
@@ -1353,19 +1466,27 @@ export class CrowdsecDatabase {
   ): { alerts: number; decisions: number } {
     const keepSet = new Set(keepIds.map(String));
     const rows = instanceId
-      ? this.db.prepare(`
+      ? (this.db
+          .prepare(`
           SELECT id, COALESCE(upstream_id, CAST(id AS TEXT)) AS upstream_id
           FROM alerts
           WHERE instance_id = ? AND created_at >= ? AND created_at < ?
-        `).all(instanceId, start, end) as Array<IdRow & { upstream_id: string }>
-      : this.getAlertIdsBetweenStatement.all({ $start: start, $end: end }) as Array<IdRow & { upstream_id?: string }>;
+        `)
+          .all(instanceId, start, end) as Array<IdRow & { upstream_id: string }>)
+      : (this.getAlertIdsBetweenStatement.all({ $start: start, $end: end }) as Array<
+          IdRow & { upstream_id?: string }
+        >);
     const staleIds = rows
       .filter((row) => !keepSet.has(String(row.upstream_id ?? row.id)))
       .map((row) => String(row.id));
 
     this.deleteDecisionSearchIndexesByAlertIds(staleIds);
     this.markDecisionDuplicateKeysByAlertIds(staleIds);
-    const decisions = runChunkedIdMutation(this.db, 'DELETE FROM decisions WHERE alert_id IN', staleIds);
+    const decisions = runChunkedIdMutation(
+      this.db,
+      'DELETE FROM decisions WHERE alert_id IN',
+      staleIds,
+    );
     const alerts = runChunkedIdMutation(this.db, 'DELETE FROM alerts WHERE id IN', staleIds);
     this.deleteAlertSearchIndexes(staleIds);
     return { alerts, decisions };
@@ -1373,14 +1494,22 @@ export class CrowdsecDatabase {
 
   countAlerts(instanceId?: string): number {
     if (instanceId) {
-      return (this.db.prepare('SELECT COUNT(*) as count FROM alerts WHERE instance_id = ?').get(instanceId) as CountRow).count;
+      return (
+        this.db
+          .prepare('SELECT COUNT(*) as count FROM alerts WHERE instance_id = ?')
+          .get(instanceId) as CountRow
+      ).count;
     }
     return (this.countAlertsStatement.get() as CountRow).count;
   }
 
   countDecisions(instanceId?: string): number {
     if (instanceId) {
-      return (this.db.prepare('SELECT COUNT(*) as count FROM decisions WHERE instance_id = ?').get(instanceId) as CountRow).count;
+      return (
+        this.db
+          .prepare('SELECT COUNT(*) as count FROM decisions WHERE instance_id = ?')
+          .get(instanceId) as CountRow
+      ).count;
     }
     return (this.countDecisionsStatement.get() as CountRow).count;
   }
@@ -1390,7 +1519,9 @@ export class CrowdsecDatabase {
     let remaining = limit;
     const selectOldAlerts = this.db.prepare('SELECT id FROM alerts WHERE created_at < ? LIMIT ?');
     while (remaining > 0) {
-      const ids = (selectOldAlerts.all(cutoff, Math.min(900, remaining)) as IdRow[]).map((row) => String(row.id));
+      const ids = (selectOldAlerts.all(cutoff, Math.min(900, remaining)) as IdRow[]).map((row) =>
+        String(row.id),
+      );
       if (ids.length === 0) break;
       remaining -= ids.length;
       changes += runChunkedIdMutation(this.db, 'DELETE FROM alerts WHERE id IN', ids);
@@ -1402,7 +1533,11 @@ export class CrowdsecDatabase {
   insertDecision(params: DecisionInsertParams): boolean {
     const instanceId = params.$instance_id || 'default';
     const tombstoneId = `${instanceId}\u0000${params.$alert_id}`;
-    if (this.alertDeletionTombstones.has(tombstoneId) || (instanceId === 'default' && this.alertDeletionTombstones.has(String(params.$alert_id)))) return false;
+    if (
+      this.alertDeletionTombstones.has(tombstoneId) ||
+      (instanceId === 'default' && this.alertDeletionTombstones.has(String(params.$alert_id)))
+    )
+      return false;
     const rawData = params.$raw_data || '{}';
     const decision = params.$record || parseDecisionPayload(rawData);
     const fallback = {
@@ -1414,7 +1549,7 @@ export class CrowdsecDatabase {
     const index = decision
       ? deriveDecisionIndexValuesFromRecord(decision, fallback)
       : deriveDecisionIndexValues(rawData, fallback);
-    const { $record, $raw_data: _rawData, ...dbParams } = params;
+    const { $record: _record, $raw_data: _rawData, ...dbParams } = params;
     const result = this.insertDecisionStatement.run({
       ...dbParams,
       $id: String(params.$id),
@@ -1442,34 +1577,50 @@ export class CrowdsecDatabase {
       $search_text: index.searchText,
     });
     if (result.changes > 0) {
-      this.markDecisionDuplicateKey(params.$value ?? readOptionalString(decision?.value), index.simulated);
-      this.upsertDecisionSearchIndex(this.resolveDecisionInternalId(instanceId, params.$id), index.searchText);
+      this.markDecisionDuplicateKey(
+        params.$value ?? readOptionalString(decision?.value),
+        index.simulated,
+      );
+      this.upsertDecisionSearchIndex(
+        this.resolveDecisionInternalId(instanceId, params.$id),
+        index.searchText,
+      );
       return true;
     }
     return false;
   }
 
   private resolveAlertInternalId(instanceId: string, upstreamId: string | number): number {
-    const existing = this.db.prepare('SELECT id FROM alerts WHERE instance_id = ? AND upstream_id = ?')
+    const existing = this.db
+      .prepare('SELECT id FROM alerts WHERE instance_id = ? AND upstream_id = ?')
       .get(instanceId, String(upstreamId)) as { id: number } | undefined;
     if (existing) return Number(existing.id);
     const numeric = Number(upstreamId);
     const primaryId = this.getMeta('multi_instance_primary_id')?.value || 'default';
-    const numericOwner = Number.isSafeInteger(numeric) && numeric > 0
-      ? this.db.prepare('SELECT instance_id FROM alerts WHERE id = ?').get(numeric) as { instance_id: string } | undefined
-      : undefined;
-    if (instanceId === primaryId && Number.isSafeInteger(numeric) && numeric > 0 && !numericOwner) return numeric;
-    const row = this.db.prepare('SELECT MIN(id) AS minimum FROM alerts').get() as { minimum: number | null };
+    const numericOwner =
+      Number.isSafeInteger(numeric) && numeric > 0
+        ? (this.db.prepare('SELECT instance_id FROM alerts WHERE id = ?').get(numeric) as
+            | { instance_id: string }
+            | undefined)
+        : undefined;
+    if (instanceId === primaryId && Number.isSafeInteger(numeric) && numeric > 0 && !numericOwner)
+      return numeric;
+    const row = this.db.prepare('SELECT MIN(id) AS minimum FROM alerts').get() as {
+      minimum: number | null;
+    };
     return row.minimum === null || row.minimum >= 0 ? -1 : row.minimum - 1;
   }
 
   private resolveDecisionInternalId(instanceId: string, upstreamId: string | number): string {
-    const existing = this.db.prepare('SELECT id FROM decisions WHERE instance_id = ? AND upstream_id = ?')
+    const existing = this.db
+      .prepare('SELECT id FROM decisions WHERE instance_id = ? AND upstream_id = ?')
       .get(instanceId, String(upstreamId)) as { id: string } | undefined;
     if (existing) return String(existing.id);
     const rawId = String(upstreamId);
     const primaryId = this.getMeta('multi_instance_primary_id')?.value || 'default';
-    const owner = this.db.prepare('SELECT instance_id FROM decisions WHERE id = ?').get(rawId) as { instance_id: string } | undefined;
+    const owner = this.db.prepare('SELECT instance_id FROM decisions WHERE id = ?').get(rawId) as
+      | { instance_id: string }
+      | undefined;
     return instanceId === primaryId && !owner ? rawId : `${instanceId}\u001f${rawId}`;
   }
 
@@ -1477,12 +1628,14 @@ export class CrowdsecDatabase {
     const existing = this.getDecisionById(params.$id);
     if (existing) this.markDecisionDuplicateKey(existing.value, existing.simulated);
     const decision = parseDecisionPayload(params.$raw_data);
-    const fallback = existing ? {
-      value: existing.value,
-      type: existing.type,
-      origin: existing.origin,
-      scenario: existing.scenario,
-    } : {};
+    const fallback = existing
+      ? {
+          value: existing.value,
+          type: existing.type,
+          origin: existing.origin,
+          scenario: existing.scenario,
+        }
+      : {};
     const index = decision
       ? deriveDecisionIndexValuesFromRecord(decision, fallback)
       : deriveDecisionIndexValues(params.$raw_data, fallback);
@@ -1502,7 +1655,10 @@ export class CrowdsecDatabase {
       $simulated: index.simulated,
       $search_text: index.searchText,
     });
-    this.markDecisionDuplicateKey(existing?.value ?? readOptionalString(decision?.value), index.simulated);
+    this.markDecisionDuplicateKey(
+      existing?.value ?? readOptionalString(decision?.value),
+      index.simulated,
+    );
     this.upsertDecisionSearchIndex(params.$id, index.searchText);
   }
 
@@ -1514,16 +1670,22 @@ export class CrowdsecDatabase {
     return this.getActiveDecisionsStatement.all({ $now: now }) as DecisionDataRow[];
   }
 
-  deleteActiveAlertsMissing(keepIds: Array<string | number>, now: string, since: string): { alerts: number; decisions: number } {
+  deleteActiveAlertsMissing(
+    keepIds: Array<string | number>,
+    now: string,
+    since: string,
+  ): { alerts: number; decisions: number } {
     const keepSet = new Set(keepIds.map(String));
     const rows = this.getActiveAlertIdsStatement.all({ $now: now, $since: since }) as IdRow[];
-    const staleIds = rows
-      .map((row) => String(row.id))
-      .filter((id) => !keepSet.has(id));
+    const staleIds = rows.map((row) => String(row.id)).filter((id) => !keepSet.has(id));
 
     this.deleteDecisionSearchIndexesByAlertIds(staleIds);
     this.markDecisionDuplicateKeysByAlertIds(staleIds);
-    const decisions = runChunkedIdMutation(this.db, 'DELETE FROM decisions WHERE alert_id IN', staleIds);
+    const decisions = runChunkedIdMutation(
+      this.db,
+      'DELETE FROM decisions WHERE alert_id IN',
+      staleIds,
+    );
     const alerts = runChunkedIdMutation(this.db, 'DELETE FROM alerts WHERE id IN', staleIds);
     this.deleteAlertSearchIndexes(staleIds);
     return { alerts, decisions };
@@ -1537,7 +1699,9 @@ export class CrowdsecDatabase {
     if (limit !== undefined) {
       const deleteBatch = this.db.transaction((threshold: string) => {
         const ids = (
-          this.db.prepare('SELECT id FROM decisions WHERE stop_at < ? LIMIT ?').all(threshold, limit) as IdRow[]
+          this.db
+            .prepare('SELECT id FROM decisions WHERE stop_at < ? LIMIT ?')
+            .all(threshold, limit) as IdRow[]
         ).map((row) => String(row.id));
         if (!this.searchIndexUpdatesDeferred) this.deleteDecisionSearchIndexes(ids);
         return runChunkedIdMutation(this.db, 'DELETE FROM decisions WHERE id IN', ids);
@@ -1547,7 +1711,8 @@ export class CrowdsecDatabase {
 
     const cleanup = this.db.transaction((threshold: string) => {
       if (!this.searchIndexUpdatesDeferred && this.searchIndexAvailable) {
-        this.db.prepare(`
+        this.db
+          .prepare(`
           DELETE FROM decisions_fts
           WHERE rowid IN (
             SELECT search_rows.fts_rowid
@@ -1555,15 +1720,18 @@ export class CrowdsecDatabase {
             JOIN decisions ON decisions.id = search_rows.decision_id
             WHERE decisions.stop_at < ?
           )
-        `).run(threshold);
-        this.db.prepare(`
+        `)
+          .run(threshold);
+        this.db
+          .prepare(`
           DELETE FROM decision_fts_rows
           WHERE decision_id IN (
             SELECT id
             FROM decisions
             WHERE stop_at < ?
           )
-        `).run(threshold);
+        `)
+          .run(threshold);
       }
 
       return this.db.prepare('DELETE FROM decisions WHERE stop_at < ?').run(threshold).changes;
@@ -1585,7 +1753,11 @@ export class CrowdsecDatabase {
     const normalizedIds = ids.map(String);
     this.deleteDecisionSearchIndexesByAlertIds(normalizedIds);
     this.markDecisionDuplicateKeysByAlertIds(normalizedIds);
-    const decisions = runChunkedIdMutation(this.db, 'DELETE FROM decisions WHERE alert_id IN', normalizedIds);
+    const decisions = runChunkedIdMutation(
+      this.db,
+      'DELETE FROM decisions WHERE alert_id IN',
+      normalizedIds,
+    );
     const alerts = runChunkedIdMutation(this.db, 'DELETE FROM alerts WHERE id IN', normalizedIds);
     this.deleteAlertSearchIndexes(normalizedIds);
     return { alerts, decisions };
@@ -1594,7 +1766,11 @@ export class CrowdsecDatabase {
   deleteCachedDecisions(ids: Array<string | number>): number {
     const normalizedIds = ids.map(String);
     this.markDecisionDuplicateKeysByIds(normalizedIds);
-    const changes = runChunkedIdMutation(this.db, 'DELETE FROM decisions WHERE id IN', normalizedIds);
+    const changes = runChunkedIdMutation(
+      this.db,
+      'DELETE FROM decisions WHERE id IN',
+      normalizedIds,
+    );
     this.deleteDecisionSearchIndexes(normalizedIds);
     return changes;
   }
@@ -1604,15 +1780,25 @@ export class CrowdsecDatabase {
    * writing only rows that were added, changed, or removed, and stores the
    * instance's sync state with them. A null snapshot only updates the state.
    */
-  replaceAllowlists(instanceId: string, allowlists: CachedAllowlist[] | null, syncState: string): { changed: boolean } {
+  replaceAllowlists(
+    instanceId: string,
+    allowlists: CachedAllowlist[] | null,
+    syncState: string,
+  ): { changed: boolean } {
     let changed = false;
     const replace = this.db.transaction(() => {
       this.setMeta(`${ALLOWLIST_SYNC_META_PREFIX}${instanceId}`, syncState);
       if (!allowlists) return;
-      const cachedLists = new Map((this.db.prepare(`
+      const cachedLists = new Map(
+        (
+          this.db
+            .prepare(`
         SELECT name, allowlist_id, description, created_at, updated_at, console_managed
         FROM allowlists WHERE instance_id = ?
-      `).all(instanceId) as Array<Record<string, string | number | null>>).map((row) => [String(row.name), row]));
+      `)
+            .all(instanceId) as Array<Record<string, string | number | null>>
+        ).map((row) => [String(row.name), row]),
+      );
       const upsertList = this.db.prepare(`
         INSERT INTO allowlists (instance_id, name, allowlist_id, description, created_at, updated_at, console_managed)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -1633,13 +1819,26 @@ export class CrowdsecDatabase {
         ];
         const cached = cachedLists.get(allowlist.name);
         cachedLists.delete(allowlist.name);
-        if (cached && [cached.allowlist_id, cached.description, cached.created_at, cached.updated_at, cached.console_managed]
-          .every((value, index) => value === values[index])) continue;
+        if (
+          cached &&
+          [
+            cached.allowlist_id,
+            cached.description,
+            cached.created_at,
+            cached.updated_at,
+            cached.console_managed,
+          ].every((value, index) => value === values[index])
+        )
+          continue;
         upsertList.run(instanceId, allowlist.name, ...values);
         changed = true;
       }
-      const deleteList = this.db.prepare('DELETE FROM allowlists WHERE instance_id = ? AND name = ?');
-      const deleteListItems = this.db.prepare('DELETE FROM allowlist_items WHERE instance_id = ? AND allowlist_name = ?');
+      const deleteList = this.db.prepare(
+        'DELETE FROM allowlists WHERE instance_id = ? AND name = ?',
+      );
+      const deleteListItems = this.db.prepare(
+        'DELETE FROM allowlist_items WHERE instance_id = ? AND allowlist_name = ?',
+      );
       for (const name of cachedLists.keys()) {
         deleteList.run(instanceId, name);
         deleteListItems.run(instanceId, name);
@@ -1647,10 +1846,12 @@ export class CrowdsecDatabase {
       }
 
       const cachedItems = new Map<string, Record<string, string | null>>();
-      for (const row of this.db.prepare(`
+      for (const row of this.db
+        .prepare(`
         SELECT allowlist_name, value, description, created_at, expiration
         FROM allowlist_items WHERE instance_id = ?
-      `).all(instanceId) as Array<Record<string, string | null>>) {
+      `)
+        .all(instanceId) as Array<Record<string, string | null>>) {
         cachedItems.set(`${row.allowlist_name}\u0000${row.value}`, row);
       }
       const upsertItem = this.db.prepare(`
@@ -1667,12 +1868,20 @@ export class CrowdsecDatabase {
           const values = [item.description ?? null, item.created_at ?? null, item.expiration];
           const cached = cachedItems.get(key);
           cachedItems.delete(key);
-          if (cached && cached.description === values[0] && cached.created_at === values[1] && cached.expiration === values[2]) continue;
+          if (
+            cached &&
+            cached.description === values[0] &&
+            cached.created_at === values[1] &&
+            cached.expiration === values[2]
+          )
+            continue;
           upsertItem.run(instanceId, allowlist.name, item.value, ...values);
           changed = true;
         }
       }
-      const deleteItem = this.db.prepare('DELETE FROM allowlist_items WHERE instance_id = ? AND allowlist_name = ? AND value = ?');
+      const deleteItem = this.db.prepare(
+        'DELETE FROM allowlist_items WHERE instance_id = ? AND allowlist_name = ? AND value = ?',
+      );
       for (const row of cachedItems.values()) {
         deleteItem.run(instanceId, row.allowlist_name, row.value);
         changed = true;
@@ -1683,17 +1892,21 @@ export class CrowdsecDatabase {
   }
 
   getDecisionById(id: string | number): DecisionDataRow | null {
-    return (this.getDecisionByIdStatement.get({ $id: String(id) }) as DecisionDataRow | null) || null;
+    return (
+      (this.getDecisionByIdStatement.get({ $id: String(id) }) as DecisionDataRow | null) || null
+    );
   }
 
   getAlertInternalId(instanceId: string, upstreamId: string | number): number | null {
-    const row = this.db.prepare('SELECT id FROM alerts WHERE instance_id = ? AND upstream_id = ?')
+    const row = this.db
+      .prepare('SELECT id FROM alerts WHERE instance_id = ? AND upstream_id = ?')
       .get(instanceId, String(upstreamId)) as { id: number } | undefined;
     return row ? Number(row.id) : null;
   }
 
   getDecisionInternalId(instanceId: string, upstreamId: string | number): string | null {
-    const row = this.db.prepare('SELECT id FROM decisions WHERE instance_id = ? AND upstream_id = ?')
+    const row = this.db
+      .prepare('SELECT id FROM decisions WHERE instance_id = ? AND upstream_id = ?')
       .get(instanceId, String(upstreamId)) as { id: string } | undefined;
     return row ? String(row.id) : null;
   }
@@ -1712,14 +1925,21 @@ export class CrowdsecDatabase {
     const internalAlertId = instanceId ? this.getAlertInternalId(instanceId, alertId) : alertId;
     if (internalAlertId === null) return [];
     if (instanceId) {
-      return (this.db.prepare(`
+      return (
+        this.db
+          .prepare(`
         SELECT COALESCE(upstream_id, CAST(id AS TEXT)) AS id
         FROM decisions
         WHERE instance_id = ? AND alert_id = ?
-      `).all(instanceId, internalAlertId) as Array<{ id: string | number }>).map((row) => String(row.id));
+      `)
+          .all(instanceId, internalAlertId) as Array<{ id: string | number }>
+      ).map((row) => String(row.id));
     }
-    return (this.getDecisionIdsByAlertIdStatement.all({ $alert_id: internalAlertId }) as Array<{ id: string | number }>)
-      .map((row) => String(row.id));
+    return (
+      this.getDecisionIdsByAlertIdStatement.all({ $alert_id: internalAlertId }) as Array<{
+        id: string | number;
+      }>
+    ).map((row) => String(row.id));
   }
 
   getDecisionDataByAlertIds(alertIds: Array<string | number>): Map<string, DecisionDataRow[]> {
@@ -1728,12 +1948,14 @@ export class CrowdsecDatabase {
     for (let offset = 0; offset < uniqueIds.length; offset += 900) {
       const chunk = uniqueIds.slice(offset, offset + 900);
       const placeholders = chunk.map(() => '?').join(',');
-      const rows = this.db.prepare(`
+      const rows = this.db
+        .prepare(`
         SELECT ${DECISION_RECORD_COLUMNS}
         FROM decisions
         WHERE alert_id IN (${placeholders})
         ORDER BY created_at DESC, id DESC
-      `).all(...chunk) as DecisionDataRow[];
+      `)
+        .all(...chunk) as DecisionDataRow[];
       for (const row of rows) {
         const key = String(row.alert_id);
         const items = result.get(key);
@@ -1744,17 +1966,26 @@ export class CrowdsecDatabase {
     return result;
   }
 
-  deleteDecisionsByAlertIdExcept(alertId: string | number, keepIds: string[], instanceId?: string): number {
+  deleteDecisionsByAlertIdExcept(
+    alertId: string | number,
+    keepIds: string[],
+    instanceId?: string,
+  ): number {
     const keepSet = new Set(keepIds.map(String));
     const internalAlertId = instanceId ? this.getAlertInternalId(instanceId, alertId) : alertId;
     if (internalAlertId === null) return 0;
     const rows = instanceId
-      ? this.db.prepare(`
+      ? (this.db
+          .prepare(`
           SELECT id, COALESCE(upstream_id, CAST(id AS TEXT)) AS upstream_id
           FROM decisions
           WHERE instance_id = ? AND alert_id = ?
-        `).all(instanceId, internalAlertId) as Array<{ id: string | number; upstream_id: string }>
-      : this.getDecisionIdsByAlertIdStatement.all({ $alert_id: internalAlertId }) as Array<{ id: string | number; upstream_id?: string }>;
+        `)
+          .all(instanceId, internalAlertId) as Array<{ id: string | number; upstream_id: string }>)
+      : (this.getDecisionIdsByAlertIdStatement.all({ $alert_id: internalAlertId }) as Array<{
+          id: string | number;
+          upstream_id?: string;
+        }>);
     const staleIds = rows
       .filter((row) => !keepSet.has(String(row.upstream_id ?? row.id)))
       .map((row) => String(row.id));
@@ -1792,7 +2023,10 @@ export class CrowdsecDatabase {
             WHERE instance_id = ? AND upstream_id IN (${placeholders})
           `)
         : this.db.prepare(`SELECT id, stop_at FROM decisions WHERE id IN (${placeholders})`);
-      const rows = statement.all(...(instanceId ? [instanceId, ...chunk] : chunk)) as Array<{ id: string; stop_at: string }>;
+      const rows = statement.all(...(instanceId ? [instanceId, ...chunk] : chunk)) as Array<{
+        id: string;
+        stop_at: string;
+      }>;
       for (const row of rows) {
         result.set(String(row.id), row.stop_at);
       }
@@ -1810,11 +2044,13 @@ export class CrowdsecDatabase {
     for (let offset = 0; offset < uniqueIds.length; offset += chunkSize) {
       const chunk = uniqueIds.slice(offset, offset + chunkSize);
       const placeholders = chunk.map(() => '?').join(',');
-      const rows = this.db.prepare(`
+      const rows = this.db
+        .prepare(`
         SELECT ${DECISION_RECORD_COLUMNS}
         FROM decisions
         WHERE id IN (${placeholders})
-      `).all(...chunk) as Array<DecisionDataRow & { id: string | number }>;
+      `)
+        .all(...chunk) as Array<DecisionDataRow & { id: string | number }>;
       for (const row of rows) {
         result.set(String(row.id), row);
       }
@@ -1824,7 +2060,12 @@ export class CrowdsecDatabase {
   }
 
   getActiveDecisionByValue(value: string, now: string): DecisionDataRow | null {
-    return (this.getActiveDecisionByValueStatement.get({ $value: value, $now: now }) as DecisionDataRow | null) || null;
+    return (
+      (this.getActiveDecisionByValueStatement.get({
+        $value: value,
+        $now: now,
+      }) as DecisionDataRow | null) || null
+    );
   }
 
   deleteAlert(id: string | number): void {
@@ -1833,86 +2074,118 @@ export class CrowdsecDatabase {
   }
 
   queueAlertDeletion(alertId: string | number, decisionIds: string[], requestedAt: string): void {
-    this.db.prepare(`
+    this.db
+      .prepare(`
       INSERT INTO pending_alert_deletions (
         alert_id, decision_ids_json, requested_at, decisions_deleted_at,
         delete_after, completed_at, attempt_count, last_attempt_at, last_error
       ) VALUES (?, ?, ?, NULL, NULL, NULL, 0, NULL, NULL)
       ON CONFLICT(alert_id) DO NOTHING
-    `).run(String(alertId), JSON.stringify(Array.from(new Set(decisionIds.map(String)))), requestedAt);
-    this.db.prepare('INSERT OR IGNORE INTO alert_deletion_tombstones (alert_id) VALUES (?)').run(String(alertId));
+    `)
+      .run(
+        String(alertId),
+        JSON.stringify(Array.from(new Set(decisionIds.map(String)))),
+        requestedAt,
+      );
+    this.db
+      .prepare('INSERT OR IGNORE INTO alert_deletion_tombstones (alert_id) VALUES (?)')
+      .run(String(alertId));
     this.alertDeletionTombstones.add(String(alertId));
   }
 
   // The deletion queue lives in state.db; the sync worker only sees cache.db, so the
   // queued alert IDs are mirrored into alert_deletion_tombstones to keep sync from restoring them.
   refreshAlertDeletionTombstones(): void {
-    const rows = this.db.prepare('SELECT alert_id FROM alert_deletion_tombstones').all() as Array<{ alert_id: string }>;
+    const rows = this.db.prepare('SELECT alert_id FROM alert_deletion_tombstones').all() as Array<{
+      alert_id: string;
+    }>;
     this.alertDeletionTombstones = new Set(rows.map((row) => row.alert_id));
   }
 
   getPendingAlertDeletions(): PendingAlertDeletionRow[] {
-    return this.db.prepare(`
+    return this.db
+      .prepare(`
       SELECT alert_id, decision_ids_json, requested_at, decisions_deleted_at,
              delete_after, completed_at, attempt_count, last_attempt_at, last_error
       FROM pending_alert_deletions
       WHERE completed_at IS NULL
       ORDER BY requested_at, alert_id
-    `).all() as PendingAlertDeletionRow[];
+    `)
+      .all() as PendingAlertDeletionRow[];
   }
 
-  markAlertDeletionDecisionsExpired(alertId: string | number, deletedAt: string, deleteAfter: string): void {
-    this.db.prepare(`
+  markAlertDeletionDecisionsExpired(
+    alertId: string | number,
+    deletedAt: string,
+    deleteAfter: string,
+  ): void {
+    this.db
+      .prepare(`
       UPDATE pending_alert_deletions
       SET decisions_deleted_at = ?, delete_after = ?,
           attempt_count = attempt_count + 1, last_attempt_at = ?, last_error = NULL
       WHERE alert_id = ? AND completed_at IS NULL
-    `).run(deletedAt, deleteAfter, deletedAt, String(alertId));
+    `)
+      .run(deletedAt, deleteAfter, deletedAt, String(alertId));
   }
 
   recordAlertDeletionFailure(alertId: string | number, attemptedAt: string, error: string): void {
-    this.db.prepare(`
+    this.db
+      .prepare(`
       UPDATE pending_alert_deletions
       SET attempt_count = attempt_count + 1, last_attempt_at = ?, last_error = ?
       WHERE alert_id = ? AND completed_at IS NULL
-    `).run(attemptedAt, error, String(alertId));
+    `)
+      .run(attemptedAt, error, String(alertId));
   }
 
   completeAlertDeletion(alertId: string | number, completedAt: string): void {
-    this.db.prepare(`
+    this.db
+      .prepare(`
       UPDATE pending_alert_deletions
       SET completed_at = ?, last_attempt_at = ?, last_error = NULL
       WHERE alert_id = ? AND completed_at IS NULL
-    `).run(completedAt, completedAt, String(alertId));
+    `)
+      .run(completedAt, completedAt, String(alertId));
   }
 
   expireAlertDeletion(alertId: string | number, completedAt: string, error: string): void {
-    this.db.prepare(`
+    this.db
+      .prepare(`
       UPDATE pending_alert_deletions
       SET completed_at = ?, last_attempt_at = ?, last_error = ?
       WHERE alert_id = ? AND completed_at IS NULL
-    `).run(completedAt, completedAt, error, String(alertId));
+    `)
+      .run(completedAt, completedAt, error, String(alertId));
   }
 
   purgeCompletedAlertDeletions(completedBefore: string): number {
-    const changes = this.db.prepare(`
+    const changes = this.db
+      .prepare(`
       DELETE FROM pending_alert_deletions
       WHERE completed_at IS NOT NULL AND completed_at < ?
-    `).run(completedBefore).changes;
+    `)
+      .run(completedBefore).changes;
     if (changes > 0) {
-      this.db.exec('DELETE FROM alert_deletion_tombstones WHERE alert_id NOT IN (SELECT alert_id FROM pending_alert_deletions)');
+      this.db.exec(
+        'DELETE FROM alert_deletion_tombstones WHERE alert_id NOT IN (SELECT alert_id FROM pending_alert_deletions)',
+      );
       this.refreshAlertDeletionTombstones();
     }
     return changes;
   }
 
   getAlertDeletionTombstone(alertId: string | number): PendingAlertDeletionRow | null {
-    return (this.db.prepare(`
+    return (
+      (this.db
+        .prepare(`
       SELECT alert_id, decision_ids_json, requested_at, decisions_deleted_at,
              delete_after, completed_at, attempt_count, last_attempt_at, last_error
       FROM pending_alert_deletions
       WHERE alert_id = ?
-    `).get(String(alertId)) as PendingAlertDeletionRow | null) || null;
+    `)
+        .get(String(alertId)) as PendingAlertDeletionRow | null) || null
+    );
   }
 
   deleteDecisionsByAlertId(alertId: string | number): void {
@@ -1922,7 +2195,8 @@ export class CrowdsecDatabase {
   }
 
   private loadDecisionDuplicateRefreshState(): void {
-    const rows = this.db.prepare(`
+    const rows = this.db
+      .prepare(`
       SELECT key, value
       FROM meta
       WHERE key IN (
@@ -1930,10 +2204,12 @@ export class CrowdsecDatabase {
         'decision_duplicate_flags_dirty',
         'decision_duplicate_rank_version'
       )
-    `).all() as Array<{ key: string; value: string }>;
+    `)
+      .all() as Array<{ key: string; value: string }>;
     const state = new Map(rows.map((row) => [row.key, row.value]));
     const refreshAt = state.get('decision_duplicate_refresh_at') || null;
-    const rankVersionMatches = state.get('decision_duplicate_rank_version') === DECISION_DUPLICATE_RANK_VERSION;
+    const rankVersionMatches =
+      state.get('decision_duplicate_rank_version') === DECISION_DUPLICATE_RANK_VERSION;
     const dirty = state.get('decision_duplicate_flags_dirty') === 'true' || !rankVersionMatches;
     this.lastDecisionDuplicateRefreshAt = refreshAt;
     this.decisionDuplicateFlagsInitialized = refreshAt !== null && !dirty;
@@ -1941,7 +2217,10 @@ export class CrowdsecDatabase {
     this.ownsDecisionDuplicateDirtyMarker = false;
   }
 
-  private markDecisionDuplicateKey(value: string | null | undefined, simulated: number | boolean | null | undefined): void {
+  private markDecisionDuplicateKey(
+    value: string | null | undefined,
+    simulated: number | boolean | null | undefined,
+  ): void {
     if (!this.decisionDuplicateFlagsInitialized && this.decisionDuplicateDirtyKeys.size === 0) {
       this.loadDecisionDuplicateRefreshState();
     }
@@ -1954,11 +2233,13 @@ export class CrowdsecDatabase {
       key,
     );
     if (!this.decisionDuplicateFlagsDirty) {
-      this.db.prepare(`
+      this.db
+        .prepare(`
         INSERT INTO meta(key, value)
         VALUES ('decision_duplicate_flags_dirty', 'true')
         ON CONFLICT(key) DO UPDATE SET value = 'true'
-      `).run();
+      `)
+        .run();
       this.ownsDecisionDuplicateDirtyMarker = true;
     }
     this.decisionDuplicateFlagsDirty = true;
@@ -1978,11 +2259,13 @@ export class CrowdsecDatabase {
       const chunk = uniqueValues.slice(offset, offset + 900);
       if (chunk.length === 0) continue;
       const placeholders = chunk.map(() => '?').join(',');
-      const rows = this.db.prepare(`
+      const rows = this.db
+        .prepare(`
         SELECT DISTINCT value, simulated
         FROM decisions
         WHERE ${column} IN (${placeholders})
-      `).all(...chunk) as DecisionDuplicateKeyRow[];
+      `)
+        .all(...chunk) as DecisionDuplicateKeyRow[];
       for (const row of rows) this.markDecisionDuplicateKey(row.value, row.simulated);
     }
   }
@@ -1998,11 +2281,15 @@ export class CrowdsecDatabase {
     if (!this.decisionDuplicateFlagsInitialized && this.decisionDuplicateDirtyKeys.size === 0) {
       this.loadDecisionDuplicateRefreshState();
     }
-    const mustRefreshAll = force
-      || !this.decisionDuplicateFlagsInitialized
-      || (this.decisionDuplicateFlagsDirty && !this.ownsDecisionDuplicateDirtyMarker && this.decisionDuplicateDirtyKeys.size === 0);
+    const mustRefreshAll =
+      force ||
+      !this.decisionDuplicateFlagsInitialized ||
+      (this.decisionDuplicateFlagsDirty &&
+        !this.ownsDecisionDuplicateDirtyMarker &&
+        this.decisionDuplicateDirtyKeys.size === 0);
     if (mustRefreshAll) {
-      const result = this.db.prepare(`
+      const result = this.db
+        .prepare(`
       WITH ranked AS (
         SELECT
           id,
@@ -2027,7 +2314,8 @@ export class CrowdsecDatabase {
       FROM desired
       WHERE decisions.id = desired.id
         AND decisions.is_duplicate <> desired.is_duplicate
-      `).run(now);
+      `)
+        .run(now);
       this.decisionDuplicateDirtyKeys.clear();
       this.decisionDuplicateFlagsDirty = false;
       this.decisionDuplicateFlagsInitialized = true;
@@ -2042,11 +2330,13 @@ export class CrowdsecDatabase {
       // Expirations since the last refresh can number in the hundreds of
       // thousands (e.g. imported blocklists), so they are added one by one:
       // spreading them into a call would exceed the engine's argument limit.
-      const expiredKeys = this.db.prepare(`
+      const expiredKeys = this.db
+        .prepare(`
         SELECT DISTINCT value, simulated
         FROM decisions
         WHERE stop_at > ? AND stop_at <= ?
-      `).all(this.lastDecisionDuplicateRefreshAt, now) as DecisionDuplicateKeyRow[];
+      `)
+        .all(this.lastDecisionDuplicateRefreshAt, now) as DecisionDuplicateKeyRow[];
       for (const key of expiredKeys) {
         uniqueKeys.set(
           `${key.simulated}\u0000${key.value === null ? '\u0001' : `\u0002${key.value}`}`,
@@ -2082,7 +2372,8 @@ export class CrowdsecDatabase {
       VALUES (?, ?, ?)
     `);
     const populateKeys = (keys: DecisionDuplicateKeyRow[]) => {
-      for (const key of keys) insertKey.run(key.value ?? '', key.value === null ? 1 : 0, key.simulated);
+      for (const key of keys)
+        insertKey.run(key.value ?? '', key.value === null ? 1 : 0, key.simulated);
     };
 
     const populateUpdates = this.db.prepare(`
@@ -2148,21 +2439,27 @@ export class CrowdsecDatabase {
 
   private persistDecisionDuplicateRefreshState(now: string): void {
     const persist = this.db.transaction(() => {
-      this.db.prepare(`
+      this.db
+        .prepare(`
         INSERT INTO meta(key, value)
         VALUES ('decision_duplicate_refresh_at', ?)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
-      `).run(now);
-      this.db.prepare(`
+      `)
+        .run(now);
+      this.db
+        .prepare(`
         INSERT INTO meta(key, value)
         VALUES ('decision_duplicate_flags_dirty', 'false')
         ON CONFLICT(key) DO UPDATE SET value = 'false'
-      `).run();
-      this.db.prepare(`
+      `)
+        .run();
+      this.db
+        .prepare(`
         INSERT INTO meta(key, value)
         VALUES ('decision_duplicate_rank_version', ?)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value
-      `).run(DECISION_DUPLICATE_RANK_VERSION);
+      `)
+        .run(DECISION_DUPLICATE_RANK_VERSION);
     });
     persist();
   }
@@ -2217,73 +2514,101 @@ export class CrowdsecDatabase {
   }
 
   getAuthUserByUsername(username: string): AuthUserRow | null {
-    return (this.getAuthUserByUsernameStatement.get({ $username: username }) as AuthUserRow | null) || null;
+    return (
+      (this.getAuthUserByUsernameStatement.get({ $username: username }) as AuthUserRow | null) ||
+      null
+    );
   }
 
   getAuthUserByOidcIdentity(issuer: string, subject: string): AuthUserRow | null {
-    return (this.getAuthUserByOidcIdentityStatement.get({
-      $oidc_issuer: issuer,
-      $oidc_subject: subject,
-    }) as AuthUserRow | null) || null;
+    return (
+      (this.getAuthUserByOidcIdentityStatement.get({
+        $oidc_issuer: issuer,
+        $oidc_subject: subject,
+      }) as AuthUserRow | null) || null
+    );
   }
 
   updateAuthUserPassword(id: number, passwordHash: string): boolean {
-    return this.updateAuthUserPasswordStatement.run({
-      $id: id,
-      $password_hash: passwordHash,
-      $updated_at: new Date().toISOString(),
-    }).changes > 0;
+    return (
+      this.updateAuthUserPasswordStatement.run({
+        $id: id,
+        $password_hash: passwordHash,
+        $updated_at: new Date().toISOString(),
+      }).changes > 0
+    );
   }
 
   listAuthUsers(): AuthUserListRow[] {
-    return this.db.prepare(`
+    return this.db
+      .prepare(`
       SELECT users.*, (SELECT COUNT(*) FROM webauthn_credentials credentials WHERE credentials.user_id = users.id) AS passkey_count
       FROM auth_users users
       ORDER BY users.username COLLATE NOCASE, users.id
-    `).all() as AuthUserListRow[];
+    `)
+      .all() as AuthUserListRow[];
   }
 
   /** Counts administrators who can still sign in, optionally leaving one account out. */
   countActiveAdmins(excludingId?: number): number {
-    return (this.db.prepare(`
+    return (
+      this.db
+        .prepare(`
       SELECT COUNT(*) AS count FROM auth_users WHERE role = 'admin' AND disabled = 0 AND id <> ?
-    `).get(excludingId ?? -1) as CountRow).count;
+    `)
+        .get(excludingId ?? -1) as CountRow
+    ).count;
   }
 
   updateAuthUserRole(id: number, role: 'admin' | 'read-only'): boolean {
-    return this.db.prepare('UPDATE auth_users SET role = ?, updated_at = ? WHERE id = ?')
-      .run(role, new Date().toISOString(), id).changes > 0;
+    return (
+      this.db
+        .prepare('UPDATE auth_users SET role = ?, updated_at = ? WHERE id = ?')
+        .run(role, new Date().toISOString(), id).changes > 0
+    );
   }
 
   /** Disabling an account also ends its sessions. */
   setAuthUserDisabled(id: number, disabled: boolean): boolean {
-    return this.db.prepare(`
+    return (
+      this.db
+        .prepare(`
       UPDATE auth_users
       SET disabled = ?,
           session_version = CASE WHEN ? = 1 THEN session_version + 1 ELSE session_version END,
           updated_at = ?
       WHERE id = ?
-    `).run(disabled ? 1 : 0, disabled ? 1 : 0, new Date().toISOString(), id).changes > 0;
+    `)
+        .run(disabled ? 1 : 0, disabled ? 1 : 0, new Date().toISOString(), id).changes > 0
+    );
   }
 
   /** Sets a password chosen by an administrator and ends the account's sessions. */
   resetAuthUserPassword(id: number, passwordHash: string, changeRequired: boolean): boolean {
-    return this.db.prepare(`
+    return (
+      this.db
+        .prepare(`
       UPDATE auth_users
       SET password_hash = ?, password_change_required = ?, session_version = session_version + 1, updated_at = ?
       WHERE id = ?
-    `).run(passwordHash, changeRequired ? 1 : 0, new Date().toISOString(), id).changes > 0;
+    `)
+        .run(passwordHash, changeRequired ? 1 : 0, new Date().toISOString(), id).changes > 0
+    );
   }
 
   /** Removes the account's TOTP secret and passkeys and ends its sessions. */
   resetAuthUserSecondFactors(id: number): boolean {
     return this.db.transaction(() => {
       this.db.prepare('DELETE FROM webauthn_credentials WHERE user_id = ?').run(id);
-      return this.db.prepare(`
+      return (
+        this.db
+          .prepare(`
         UPDATE auth_users
         SET totp_secret = NULL, totp_enabled = 0, totp_last_step = NULL, session_version = session_version + 1, updated_at = ?
         WHERE id = ?
-      `).run(new Date().toISOString(), id).changes > 0;
+      `)
+          .run(new Date().toISOString(), id).changes > 0
+      );
     })();
   }
 
@@ -2299,33 +2624,41 @@ export class CrowdsecDatabase {
   }
 
   getUserPreferences(userId: number): Record<string, string> {
-    const rows = this.db.prepare('SELECT key, value FROM user_preferences WHERE user_id = ?').all(userId) as Array<{ key: string; value: string }>;
+    const rows = this.db
+      .prepare('SELECT key, value FROM user_preferences WHERE user_id = ?')
+      .all(userId) as Array<{ key: string; value: string }>;
     return Object.fromEntries(rows.map((row) => [row.key, row.value]));
   }
 
   setUserPreference(userId: number, key: string, value: string): void {
-    this.db.prepare(`
+    this.db
+      .prepare(`
       INSERT INTO user_preferences (user_id, key, value) VALUES (?, ?, ?)
       ON CONFLICT (user_id, key) DO UPDATE SET value = excluded.value
-    `).run(userId, key, value);
+    `)
+      .run(userId, key, value);
   }
 
   updateAuthUserTotp(id: number, secret: string | null, enabled: boolean): boolean {
-    return this.updateAuthUserTotpStatement.run({
-      $id: id,
-      $totp_secret: secret,
-      $totp_enabled: enabled ? 1 : 0,
-      $totp_last_step: null,
-      $updated_at: new Date().toISOString(),
-    }).changes > 0;
+    return (
+      this.updateAuthUserTotpStatement.run({
+        $id: id,
+        $totp_secret: secret,
+        $totp_enabled: enabled ? 1 : 0,
+        $totp_last_step: null,
+        $updated_at: new Date().toISOString(),
+      }).changes > 0
+    );
   }
 
   updateAuthUserTotpLastStep(id: number, lastStep: number): boolean {
-    return this.updateAuthUserTotpLastStepStatement.run({
-      $id: id,
-      $totp_last_step: lastStep,
-      $updated_at: new Date().toISOString(),
-    }).changes > 0;
+    return (
+      this.updateAuthUserTotpLastStepStatement.run({
+        $id: id,
+        $totp_last_step: lastStep,
+        $updated_at: new Date().toISOString(),
+      }).changes > 0
+    );
   }
 
   upsertOidcUser(params: OidcUserUpsertParams): AuthUserRow {
@@ -2334,14 +2667,16 @@ export class CrowdsecDatabase {
 
     // A linked account keeps its local username, role and sessions.
     if (user?.oidc_linked_at) {
-      this.db.query(`
+      this.db
+        .query(`
         UPDATE auth_users
         SET oidc_username = $username,
             oidc_role = $role,
             oidc_session_version = CASE WHEN oidc_role IS NOT $role THEN oidc_session_version + 1 ELSE oidc_session_version END,
             updated_at = $updated_at
         WHERE id = $id
-      `).run({ $id: user.id, $username: params.username, $role: params.role, $updated_at: now });
+      `)
+        .run({ $id: user.id, $username: params.username, $role: params.role, $updated_at: now });
       return this.getAuthUserById(user.id)!;
     }
 
@@ -2361,9 +2696,10 @@ export class CrowdsecDatabase {
       .update(`${params.issuer}\n${params.subject}`, 'utf8')
       .digest('hex')
       .slice(0, 10);
-    const storedUsername = !usernameOwner || usernameOwner.id === user?.id
-      ? params.username
-      : `${params.username}#oidc-${identitySuffix}`;
+    const storedUsername =
+      !usernameOwner || usernameOwner.id === user?.id
+        ? params.username
+        : `${params.username}#oidc-${identitySuffix}`;
 
     if (!user) {
       const result = this.createOidcUserStatement.run({
@@ -2391,7 +2727,12 @@ export class CrowdsecDatabase {
   /** The local account an SSO sign-in with this username may link to automatically. */
   findOidcAutoLinkTarget(username: string): AuthUserRow | null {
     const user = this.getAuthUserByUsername(username);
-    return user?.password_hash && !user.disabled && !user.oidc_auto_link_blocked && !user.oidc_subject ? user : null;
+    return user?.password_hash &&
+      !user.disabled &&
+      !user.oidc_auto_link_blocked &&
+      !user.oidc_subject
+      ? user
+      : null;
   }
 
   /**
@@ -2402,7 +2743,11 @@ export class CrowdsecDatabase {
    * account, so one is left alone.
    * Returns false when the identity belongs to a disabled account or one with local credentials.
    */
-  linkOidcIdentity(userId: number, identity: OidcUserUpsertParams, method: OidcLinkMethod): boolean {
+  linkOidcIdentity(
+    userId: number,
+    identity: OidcUserUpsertParams,
+    method: OidcLinkMethod,
+  ): boolean {
     return this.db.transaction(() => {
       const target = this.getAuthUserById(userId);
       if (!target?.password_hash || target.oidc_linked_at) return false;
@@ -2411,12 +2756,15 @@ export class CrowdsecDatabase {
       if (owner && owner.id !== target.id) {
         if (owner.password_hash || owner.disabled) return false;
         // A filter whose name the local account already uses stays behind and is removed with the account.
-        this.db.prepare('UPDATE OR IGNORE saved_search_filters SET owner_id = ? WHERE owner_id = ?').run(target.id, owner.id);
+        this.db
+          .prepare('UPDATE OR IGNORE saved_search_filters SET owner_id = ? WHERE owner_id = ?')
+          .run(target.id, owner.id);
         this.deleteAuthUser(owner.id);
       }
 
       const now = new Date().toISOString();
-      this.db.query(`
+      this.db
+        .query(`
         UPDATE auth_users
         SET auth_provider = 'oidc',
             oidc_issuer = $issuer,
@@ -2429,16 +2777,17 @@ export class CrowdsecDatabase {
             session_version = session_version + $session_bump,
             updated_at = $now
         WHERE id = $id
-      `).run({
-        $id: target.id,
-        $issuer: identity.issuer,
-        $subject: identity.subject,
-        $username: identity.username,
-        $role: identity.role,
-        $now: now,
-        $method: method,
-        $session_bump: method === 'verified' ? 1 : 0,
-      });
+      `)
+        .run({
+          $id: target.id,
+          $issuer: identity.issuer,
+          $subject: identity.subject,
+          $username: identity.username,
+          $role: identity.role,
+          $now: now,
+          $method: method,
+          $session_bump: method === 'verified' ? 1 : 0,
+        });
       return true;
     })();
   }
@@ -2448,7 +2797,9 @@ export class CrowdsecDatabase {
    * separate account again instead of linking automatically.
    */
   unlinkOidcIdentity(userId: number): boolean {
-    return this.db.prepare(`
+    return (
+      this.db
+        .prepare(`
       UPDATE auth_users
       SET auth_provider = 'password',
           oidc_issuer = NULL,
@@ -2461,7 +2812,9 @@ export class CrowdsecDatabase {
           session_version = session_version + 1,
           updated_at = ?
       WHERE id = ?
-    `).run(new Date().toISOString(), userId).changes > 0;
+    `)
+        .run(new Date().toISOString(), userId).changes > 0
+    );
   }
 
   /** Atomically records a logout event and revokes its sessions, so retries cannot revoke later sign-ins. */
@@ -2500,11 +2853,13 @@ export class CrowdsecDatabase {
    * this identity linked keeps its local sessions, so the identity provider cannot sign out the recovery path.
    */
   revokeOidcUserSessions(issuer: string, subject: string): boolean {
-    return this.revokeOidcUserSessionsStatement.run({
-      $oidc_issuer: issuer,
-      $oidc_subject: subject,
-      $updated_at: new Date().toISOString(),
-    }).changes > 0;
+    return (
+      this.revokeOidcUserSessionsStatement.run({
+        $oidc_issuer: issuer,
+        $oidc_subject: subject,
+        $updated_at: new Date().toISOString(),
+      }).changes > 0
+    );
   }
 
   /**
@@ -2513,17 +2868,23 @@ export class CrowdsecDatabase {
    * password on the account keeps its local role, which the provider has no say over.
    */
   denyOidcIdentity(issuer: string, subject: string): boolean {
-    return this.denyOidcIdentityStatement.run({
-      $oidc_issuer: issuer,
-      $oidc_subject: subject,
-      $updated_at: new Date().toISOString(),
-    }).changes > 0;
+    return (
+      this.denyOidcIdentityStatement.run({
+        $oidc_issuer: issuer,
+        $oidc_subject: subject,
+        $updated_at: new Date().toISOString(),
+      }).changes > 0
+    );
   }
 
   /** Records a provider session ID as logged out until the dashboard sessions bound to it have expired. */
   revokeOidcSession(issuer: string, sessionId: string, expiresAt: number): void {
     this.pruneRevokedOidcSessionsStatement.run({ $now: Math.floor(Date.now() / 1000) });
-    this.insertRevokedOidcSessionStatement.run({ $issuer: issuer, $session_id: sessionId, $expires_at: expiresAt });
+    this.insertRevokedOidcSessionStatement.run({
+      $issuer: issuer,
+      $session_id: sessionId,
+      $expires_at: expiresAt,
+    });
   }
 
   /** Ends the OIDC sessions of an identity that are not bound to a provider session ID. */
@@ -2533,16 +2894,20 @@ export class CrowdsecDatabase {
 
   /** Version that new sessions without a provider session ID are bound to; absent rows are the initial version. */
   getOidcLogoutVersion(issuer: string, subject: string): number {
-    const row = this.getOidcLogoutVersionStatement.get({ $issuer: issuer, $subject: subject }) as { version: number } | null;
+    const row = this.getOidcLogoutVersionStatement.get({ $issuer: issuer, $subject: subject }) as {
+      version: number;
+    } | null;
     return row?.version ?? INITIAL_OIDC_LOGOUT_VERSION;
   }
 
   isOidcSessionRevoked(issuer: string, sessionId: string): boolean {
-    return Boolean(this.getRevokedOidcSessionStatement.get({
-      $issuer: issuer,
-      $session_id: sessionId,
-      $now: Math.floor(Date.now() / 1000),
-    }));
+    return Boolean(
+      this.getRevokedOidcSessionStatement.get({
+        $issuer: issuer,
+        $session_id: sessionId,
+        $now: Math.floor(Date.now() / 1000),
+      }),
+    );
   }
 
   /** Records a dashboard session as logged out until every token of it has expired. */
@@ -2552,14 +2917,18 @@ export class CrowdsecDatabase {
   }
 
   isAuthSessionRevoked(sessionId: string): boolean {
-    return Boolean(this.getRevokedAuthSessionStatement.get({
-      $session_id: sessionId,
-      $now: Math.floor(Date.now() / 1000),
-    }));
+    return Boolean(
+      this.getRevokedAuthSessionStatement.get({
+        $session_id: sessionId,
+        $now: Math.floor(Date.now() / 1000),
+      }),
+    );
   }
 
   listWebAuthnCredentialsByUser(userId: number): WebAuthnCredentialRow[] {
-    return this.listWebAuthnCredentialsByUserStatement.all({ $user_id: userId }) as WebAuthnCredentialRow[];
+    return this.listWebAuthnCredentialsByUserStatement.all({
+      $user_id: userId,
+    }) as WebAuthnCredentialRow[];
   }
 
   countWebAuthnCredentials(): number {
@@ -2587,7 +2956,11 @@ export class CrowdsecDatabase {
   }
 
   getWebAuthnCredentialByCredentialId(credentialId: string): WebAuthnCredentialRow | null {
-    return (this.getWebAuthnCredentialByCredentialIdStatement.get({ $credential_id: credentialId }) as WebAuthnCredentialRow | null) || null;
+    return (
+      (this.getWebAuthnCredentialByCredentialIdStatement.get({
+        $credential_id: credentialId,
+      }) as WebAuthnCredentialRow | null) || null
+    );
   }
 
   updateWebAuthnCredentialCounter(id: number, signCount: number): void {
@@ -2595,7 +2968,10 @@ export class CrowdsecDatabase {
   }
 
   renameWebAuthnCredential(id: number, userId: number, name: string | null): boolean {
-    return this.renameWebAuthnCredentialStatement.run({ $id: id, $user_id: userId, $name: name }).changes > 0;
+    return (
+      this.renameWebAuthnCredentialStatement.run({ $id: id, $user_id: userId, $name: name })
+        .changes > 0
+    );
   }
 
   deleteWebAuthnCredential(id: number, userId: number): boolean {
@@ -2678,7 +3054,9 @@ export class CrowdsecDatabase {
   }
 
   listNotificationIds(): string[] {
-    return (this.listNotificationIdsStatement.all() as Array<{ id: string }>).map((row) => String(row.id));
+    return (this.listNotificationIdsStatement.all() as Array<{ id: string }>).map((row) =>
+      String(row.id),
+    );
   }
 
   insertNotification(params: {
@@ -2696,14 +3074,16 @@ export class CrowdsecDatabase {
     $deliveries_json: string;
     $dedupe_key: string;
   }): boolean {
-    return this.insertNotificationStatement.run({
-      ...params,
-      $created_at: normalizeIsoTimestamp(params.$created_at),
-      $updated_at: normalizeIsoTimestamp(params.$updated_at),
-      $read_at: params.$read_at === null ? null : normalizeIsoTimestamp(params.$read_at),
-      $metadata_json: normalizeTimestampJson(params.$metadata_json),
-      $deliveries_json: normalizeTimestampJson(params.$deliveries_json),
-    }).changes > 0;
+    return (
+      this.insertNotificationStatement.run({
+        ...params,
+        $created_at: normalizeIsoTimestamp(params.$created_at),
+        $updated_at: normalizeIsoTimestamp(params.$updated_at),
+        $read_at: params.$read_at === null ? null : normalizeIsoTimestamp(params.$read_at),
+        $metadata_json: normalizeTimestampJson(params.$metadata_json),
+        $deliveries_json: normalizeTimestampJson(params.$deliveries_json),
+      }).changes > 0
+    );
   }
 
   listNotificationIncidentsByRule(ruleId: string): JsonRow[] {
@@ -2721,18 +3101,21 @@ export class CrowdsecDatabase {
       ...params,
       $first_seen_at: normalizeIsoTimestamp(params.$first_seen_at),
       $last_seen_at: normalizeIsoTimestamp(params.$last_seen_at),
-      $resolved_at: params.$resolved_at === null ? null : normalizeIsoTimestamp(params.$resolved_at),
+      $resolved_at:
+        params.$resolved_at === null ? null : normalizeIsoTimestamp(params.$resolved_at),
     });
   }
 
   resolveNotificationIncident(ruleId: string, incidentKey: string, resolvedAt: string): boolean {
     const normalizedResolvedAt = normalizeIsoTimestamp(resolvedAt);
-    return this.resolveNotificationIncidentStatement.run({
-      $rule_id: ruleId,
-      $incident_key: incidentKey,
-      $resolved_at: normalizedResolvedAt,
-      $last_seen_at: normalizedResolvedAt,
-    }).changes > 0;
+    return (
+      this.resolveNotificationIncidentStatement.run({
+        $rule_id: ruleId,
+        $incident_key: incidentKey,
+        $resolved_at: normalizedResolvedAt,
+        $last_seen_at: normalizedResolvedAt,
+      }).changes > 0
+    );
   }
 
   deleteNotificationIncidentsByRule(ruleId: string): void {
@@ -2744,10 +3127,12 @@ export class CrowdsecDatabase {
   }
 
   deleteNotificationByRuleAndDedupeKey(ruleId: string, dedupeKey: string): boolean {
-    return this.deleteNotificationByRuleAndDedupeKeyStatement.run({
-      $rule_id: ruleId,
-      $dedupe_key: dedupeKey,
-    }).changes > 0;
+    return (
+      this.deleteNotificationByRuleAndDedupeKeyStatement.run({
+        $rule_id: ruleId,
+        $dedupe_key: dedupeKey,
+      }).changes > 0
+    );
   }
 
   deleteNotifications(ids: string[]): number {
@@ -2756,11 +3141,13 @@ export class CrowdsecDatabase {
 
   markNotificationRead(id: string, readAt: string): boolean {
     const normalizedReadAt = normalizeIsoTimestamp(readAt);
-    return this.markNotificationReadStatement.run({
-      $id: id,
-      $read_at: normalizedReadAt,
-      $updated_at: normalizedReadAt,
-    }).changes > 0;
+    return (
+      this.markNotificationReadStatement.run({
+        $id: id,
+        $read_at: normalizedReadAt,
+        $updated_at: normalizedReadAt,
+      }).changes > 0
+    );
   }
 
   markNotificationsRead(ids: string[], readAt: string): number {
@@ -2822,7 +3209,12 @@ export class CrowdsecDatabase {
 
   private upsertAlertSearchIndex(id: string | number, searchText: string): void {
     if (this.searchIndexUpdatesDeferred) return;
-    if (!this.searchIndexAvailable || !this.deleteAlertSearchIndexStatement || !this.insertAlertSearchIndexStatement) return;
+    if (
+      !this.searchIndexAvailable ||
+      !this.deleteAlertSearchIndexStatement ||
+      !this.insertAlertSearchIndexStatement
+    )
+      return;
     const numericId = Number(id);
     if (!Number.isSafeInteger(numericId) || numericId === 0) return;
     try {
@@ -2835,7 +3227,12 @@ export class CrowdsecDatabase {
 
   private upsertDecisionSearchIndex(id: string | number, searchText: string): void {
     if (this.searchIndexUpdatesDeferred) return;
-    if (!this.searchIndexAvailable || !this.deleteDecisionSearchIndexStatement || !this.insertDecisionSearchIndexStatement) return;
+    if (
+      !this.searchIndexAvailable ||
+      !this.deleteDecisionSearchIndexStatement ||
+      !this.insertDecisionSearchIndexStatement
+    )
+      return;
     try {
       this.deleteDecisionSearchIndex(id);
       this.insertDecisionSearchIndexRow(String(id), searchText);
@@ -2868,7 +3265,12 @@ export class CrowdsecDatabase {
   }
 
   private deleteDecisionSearchIndex(id: string | number): void {
-    if (!this.searchIndexAvailable || !this.deleteDecisionSearchIndexStatement || !this.deleteDecisionSearchRowStatement) return;
+    if (
+      !this.searchIndexAvailable ||
+      !this.deleteDecisionSearchIndexStatement ||
+      !this.deleteDecisionSearchRowStatement
+    )
+      return;
     try {
       this.deleteDecisionSearchIndexStatement.run(String(id));
       this.deleteDecisionSearchRowStatement.run(String(id));
@@ -2883,15 +3285,19 @@ export class CrowdsecDatabase {
     for (let offset = 0; offset < ids.length; offset += chunkSize) {
       const chunk = ids.slice(offset, offset + chunkSize);
       const placeholders = chunk.map(() => '?').join(',');
-      this.db.prepare(`
+      this.db
+        .prepare(`
         DELETE FROM decisions_fts
         WHERE rowid IN (
           SELECT fts_rowid
           FROM decision_fts_rows
           WHERE decision_id IN (${placeholders})
         )
-      `).run(...chunk);
-      this.db.prepare(`DELETE FROM decision_fts_rows WHERE decision_id IN (${placeholders})`).run(...chunk);
+      `)
+        .run(...chunk);
+      this.db
+        .prepare(`DELETE FROM decision_fts_rows WHERE decision_id IN (${placeholders})`)
+        .run(...chunk);
     }
   }
 
@@ -2903,7 +3309,9 @@ export class CrowdsecDatabase {
     for (let offset = 0; offset < alertIds.length; offset += chunkSize) {
       const chunk = alertIds.slice(offset, offset + chunkSize);
       const placeholders = chunk.map(() => '?').join(',');
-      const rows = this.db.prepare(`SELECT id FROM decisions WHERE alert_id IN (${placeholders})`).all(...chunk) as Array<{ id: string | number }>;
+      const rows = this.db
+        .prepare(`SELECT id FROM decisions WHERE alert_id IN (${placeholders})`)
+        .all(...chunk) as Array<{ id: string | number }>;
       // One imported-blocklist alert can own many thousands of decisions; avoid spreading them into a call.
       for (const row of rows) decisionIds.push(String(row.id));
     }
@@ -2919,7 +3327,12 @@ export class CrowdsecDatabase {
   }
 }
 
-function runChunkedIdMutation(db: Database, statementPrefix: string, ids: string[], leadingParams: unknown[] = []): number {
+function runChunkedIdMutation(
+  db: Database,
+  statementPrefix: string,
+  ids: string[],
+  leadingParams: unknown[] = [],
+): number {
   if (ids.length === 0) {
     return 0;
   }
@@ -2947,9 +3360,10 @@ function resolveDatabasePaths(options: DatabaseOptions): DatabasePaths {
     ensureDirectory(path.dirname(options.cachePath));
     return {
       cachePath: options.cachePath,
-      statePath: options.statePath === undefined
-        ? path.join(path.dirname(options.cachePath), STATE_DATABASE_FILE)
-        : options.statePath,
+      statePath:
+        options.statePath === undefined
+          ? path.join(path.dirname(options.cachePath), STATE_DATABASE_FILE)
+          : options.statePath,
       legacyPath: null,
     };
   }
@@ -2958,7 +3372,8 @@ function resolveDatabasePaths(options: DatabaseOptions): DatabasePaths {
   const cacheDir = options.cacheDir ? resolveDataDirectory(options.cacheDir) : dataDir;
   return {
     cachePath: path.join(cacheDir, CACHE_DATABASE_FILE),
-    statePath: options.statePath === undefined ? path.join(dataDir, STATE_DATABASE_FILE) : options.statePath,
+    statePath:
+      options.statePath === undefined ? path.join(dataDir, STATE_DATABASE_FILE) : options.statePath,
     legacyPath: path.join(dataDir, LEGACY_DATABASE_FILE),
   };
 }
@@ -2988,7 +3403,12 @@ function openDatabase(
   journalSizeLimitBytes: number,
   incrementalVacuumEnabled: boolean,
 ): { database: Database; wasFresh: boolean } {
-  return prepareDatabase(createDatabase(dbPath), walEnabled, journalSizeLimitBytes, incrementalVacuumEnabled);
+  return prepareDatabase(
+    createDatabase(dbPath),
+    walEnabled,
+    journalSizeLimitBytes,
+    incrementalVacuumEnabled,
+  );
 }
 
 // The state database is small and rarely written. A rollback journal keeps it usable on
@@ -3027,12 +3447,17 @@ function prepareDatabase(
   };
 }
 
-function configureDatabase(database: Database, walEnabled: boolean, journalSizeLimitBytes: number): Database {
+function configureDatabase(
+  database: Database,
+  walEnabled: boolean,
+  journalSizeLimitBytes: number,
+): Database {
   database.exec(`PRAGMA journal_mode = ${walEnabled ? 'WAL' : 'DELETE'}`);
   if (walEnabled) {
-    const limit = Number.isSafeInteger(journalSizeLimitBytes) && journalSizeLimitBytes >= -1
-      ? journalSizeLimitBytes
-      : DEFAULT_JOURNAL_SIZE_LIMIT_BYTES;
+    const limit =
+      Number.isSafeInteger(journalSizeLimitBytes) && journalSizeLimitBytes >= -1
+        ? journalSizeLimitBytes
+        : DEFAULT_JOURNAL_SIZE_LIMIT_BYTES;
     database.exec(`PRAGMA journal_size_limit = ${limit}`);
   }
   database.exec('PRAGMA foreign_keys = ON');
@@ -3059,8 +3484,13 @@ function pragmaString(database: Database, name: string): string {
 
 function registerDatabaseFunctions(database: Database): void {
   try {
-    database.function?.('matches_ip_search_value', { deterministic: true }, (candidate: unknown, value: unknown) =>
-      matchesIpSearchValue(candidate as string | number | null | undefined, String(value ?? '')) ? 1 : 0,
+    database.function?.(
+      'matches_ip_search_value',
+      { deterministic: true },
+      (candidate: unknown, value: unknown) =>
+        matchesIpSearchValue(candidate as string | number | null | undefined, String(value ?? ''))
+          ? 1
+          : 0,
     );
   } catch {
     // Older better-sqlite3 builds may not expose custom functions; SQL callers also keep LIKE fallbacks.
@@ -3068,12 +3498,14 @@ function registerDatabaseFunctions(database: Database): void {
 }
 
 function isDatabaseFresh(db: Database, schema = 'main'): boolean {
-  const row = db.query(`
+  const row = db
+    .query(`
     SELECT COUNT(*) AS count
     FROM ${schema}.sqlite_master
     WHERE type = 'table'
       AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
-  `).get() as CountRow;
+  `)
+    .get() as CountRow;
   return row.count === 0;
 }
 
@@ -3091,7 +3523,13 @@ function createDatabase(dbPath: string): Database {
 }
 
 function normalizeBindingValue(value: unknown): unknown {
-  if (!value || Array.isArray(value) || Buffer.isBuffer(value) || value instanceof Date || typeof value !== 'object') {
+  if (
+    !value ||
+    Array.isArray(value) ||
+    Buffer.isBuffer(value) ||
+    value instanceof Date ||
+    typeof value !== 'object'
+  ) {
     return value;
   }
 
@@ -3402,9 +3840,15 @@ function createStateSchema(db: Database, schema: string, fresh: boolean): void {
       ON pending_alert_deletions(completed_at, delete_after, requested_at);
   `);
   // Columns added after auth_users was introduced.
-  const authUserColumns = (db.prepare(`PRAGMA ${schema}.table_info(auth_users)`).all() as Array<{ name: string }>)
-    .map((column) => column.name);
-  for (const column of ['disabled', 'password_change_required', 'oidc_session_version', 'oidc_auto_link_blocked']) {
+  const authUserColumns = (
+    db.prepare(`PRAGMA ${schema}.table_info(auth_users)`).all() as Array<{ name: string }>
+  ).map((column) => column.name);
+  for (const column of [
+    'disabled',
+    'password_change_required',
+    'oidc_session_version',
+    'oidc_auto_link_blocked',
+  ]) {
     if (!authUserColumns.includes(column)) {
       db.exec(`ALTER TABLE ${schema}.auth_users ADD COLUMN ${column} INTEGER NOT NULL DEFAULT 0`);
     }
@@ -3415,14 +3859,17 @@ function createStateSchema(db: Database, schema: string, fresh: boolean): void {
     }
   }
   // Only new installations enable authentication by default; migrated ones keep their previous state.
-  db.prepare(`INSERT OR IGNORE INTO ${schema}.settings (key, value) VALUES ('auth_existing_install_default_disabled', ?)`)
-    .run(fresh ? 'false' : 'true');
+  db.prepare(
+    `INSERT OR IGNORE INTO ${schema}.settings (key, value) VALUES ('auth_existing_install_default_disabled', ?)`,
+  ).run(fresh ? 'false' : 'true');
   // Long-term statistics are opt-in for installations that existed before them.
-  db.prepare(`INSERT OR IGNORE INTO ${schema}.settings (key, value) VALUES ('statistics_existing_install_default_disabled', ?)`)
-    .run(fresh ? 'false' : 'true');
+  db.prepare(
+    `INSERT OR IGNORE INTO ${schema}.settings (key, value) VALUES ('statistics_existing_install_default_disabled', ?)`,
+  ).run(fresh ? 'false' : 'true');
   // Existing installations are resolved on startup, once the effective OIDC configuration is known.
-  db.prepare(`INSERT OR IGNORE INTO ${schema}.settings (key, value) VALUES ('${OIDC_END_SESSION_LEGACY_DEFAULT_KEY}', ?)`)
-    .run(fresh ? 'false' : 'pending');
+  db.prepare(
+    `INSERT OR IGNORE INTO ${schema}.settings (key, value) VALUES ('${OIDC_END_SESSION_LEGACY_DEFAULT_KEY}', ?)`,
+  ).run(fresh ? 'false' : 'pending');
 }
 
 // Before the split, everything lived in crowdsec.db. Its durable data, including queued
@@ -3454,10 +3901,14 @@ function migrateLegacyDatabase(legacyPath: string, statePath: string): void {
   try {
     removeDatabaseFiles(legacyPath);
   } catch (error) {
-    console.warn(`Migrated durable data to ${statePath}, but could not remove ${legacyPath}: ${(error as Error).message}`);
+    console.warn(
+      `Migrated durable data to ${statePath}, but could not remove ${legacyPath}: ${(error as Error).message}`,
+    );
     return;
   }
-  console.log(`Migrated durable data to ${statePath} and removed ${legacyPath}. Cached alerts and decisions are rebuilt by the next sync.`);
+  console.log(
+    `Migrated durable data to ${statePath} and removed ${legacyPath}. Cached alerts and decisions are rebuilt by the next sync.`,
+  );
 }
 
 const LEGACY_STATE_TABLES = [
@@ -3473,7 +3924,14 @@ const LEGACY_STATE_TABLES = [
 ] as const;
 
 // Older versions stored some timestamps in non-ISO formats.
-const LEGACY_TIMESTAMP_COLUMNS = new Set(['created_at', 'updated_at', 'read_at', 'first_seen_at', 'last_seen_at', 'resolved_at']);
+const LEGACY_TIMESTAMP_COLUMNS = new Set([
+  'created_at',
+  'updated_at',
+  'read_at',
+  'first_seen_at',
+  'last_seen_at',
+  'resolved_at',
+]);
 const LEGACY_TIMESTAMP_JSON_COLUMNS = new Set(['metadata_json', 'deliveries_json']);
 
 function importLegacyState(legacy: Database, target: Database): void {
@@ -3486,15 +3944,22 @@ function importLegacyState(legacy: Database, target: Database): void {
       INSERT OR REPLACE INTO ${table} (${columns.join(', ')})
       VALUES (${columns.map(() => '?').join(', ')})
     `);
-    const rows = legacy.prepare(`SELECT ${columns.join(', ')} FROM ${table}`).all() as Array<Record<string, unknown>>;
+    const rows = legacy.prepare(`SELECT ${columns.join(', ')} FROM ${table}`).all() as Array<
+      Record<string, unknown>
+    >;
     for (const row of rows) {
       insert.run(...columns.map((column) => normalizeLegacyValue(column, row[column])));
     }
   }
 
   if (tableColumns(legacy, 'meta').length > 0) {
-    const insertSetting = target.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-    const rows = legacy.prepare('SELECT key, value FROM meta').all() as Array<{ key: string; value: string | null }>;
+    const insertSetting = target.prepare(
+      'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+    );
+    const rows = legacy.prepare('SELECT key, value FROM meta').all() as Array<{
+      key: string;
+      value: string | null;
+    }>;
     for (const row of rows) {
       if (isStateSettingKey(row.key)) insertSetting.run(row.key, row.value);
     }
@@ -3514,7 +3979,9 @@ function importLegacyState(legacy: Database, target: Database): void {
 }
 
 function tableColumns(db: Database, table: string): string[] {
-  return (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((column) => column.name);
+  return (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(
+    (column) => column.name,
+  );
 }
 
 function normalizeLegacyValue(column: string, value: unknown): unknown {
@@ -3649,13 +4116,17 @@ function initSearchIndexes(db: Database): boolean {
     synchronizeDecisionSearchRows(db);
     return true;
   } catch (error) {
-    console.warn('SQLite FTS5 is unavailable; falling back to LIKE search.', (error as Error).message);
+    console.warn(
+      'SQLite FTS5 is unavailable; falling back to LIKE search.',
+      (error as Error).message,
+    );
     return false;
   }
 }
 
 function backfillSearchIndexes(db: Database): void {
-  const alertCount = (db.query('SELECT COUNT(*) AS count FROM alerts_fts').get() as CountRow | null)?.count || 0;
+  const alertCount =
+    (db.query('SELECT COUNT(*) AS count FROM alerts_fts').get() as CountRow | null)?.count || 0;
   if (alertCount === 0) {
     db.exec(`
       INSERT INTO alerts_fts(rowid, alert_id, search_text)
@@ -3667,7 +4138,8 @@ function backfillSearchIndexes(db: Database): void {
     `);
   }
 
-  const decisionCount = (db.query('SELECT COUNT(*) AS count FROM decisions_fts').get() as CountRow | null)?.count || 0;
+  const decisionCount =
+    (db.query('SELECT COUNT(*) AS count FROM decisions_fts').get() as CountRow | null)?.count || 0;
   if (decisionCount === 0) {
     db.exec(`
       INSERT INTO decisions_fts(decision_id, search_text)
@@ -3681,8 +4153,11 @@ function backfillSearchIndexes(db: Database): void {
 }
 
 function synchronizeDecisionSearchRows(db: Database): void {
-  const searchCount = (db.query('SELECT COUNT(*) AS count FROM decisions_fts').get() as CountRow | null)?.count || 0;
-  const mappingCount = (db.query('SELECT COUNT(*) AS count FROM decision_fts_rows').get() as CountRow | null)?.count || 0;
+  const searchCount =
+    (db.query('SELECT COUNT(*) AS count FROM decisions_fts').get() as CountRow | null)?.count || 0;
+  const mappingCount =
+    (db.query('SELECT COUNT(*) AS count FROM decision_fts_rows').get() as CountRow | null)?.count ||
+    0;
   if (searchCount === mappingCount) return;
 
   const synchronize = db.transaction(() => {
@@ -3696,7 +4171,11 @@ function synchronizeDecisionSearchRows(db: Database): void {
   synchronize();
 }
 
-async function backfillSearchIndexesCooperative(db: Database, yieldControl: () => Promise<void>, batchSize: number): Promise<void> {
+async function backfillSearchIndexesCooperative(
+  db: Database,
+  yieldControl: () => Promise<void>,
+  batchSize: number,
+): Promise<void> {
   let lastAlertId = 0;
   const selectAlerts = db.query(`
     SELECT id, search_text
@@ -3708,14 +4187,19 @@ async function backfillSearchIndexesCooperative(db: Database, yieldControl: () =
     LIMIT ?
   `);
   const insertAlerts = db.transaction((rows: Array<{ id: number; search_text: string }>) => {
-    const insert = db.prepare('INSERT INTO alerts_fts(rowid, alert_id, search_text) VALUES (?, ?, ?)');
+    const insert = db.prepare(
+      'INSERT INTO alerts_fts(rowid, alert_id, search_text) VALUES (?, ?, ?)',
+    );
     for (const row of rows) {
       insert.run(row.id, String(row.id), row.search_text);
     }
   });
 
   while (true) {
-    const rows = selectAlerts.all(lastAlertId, batchSize) as Array<{ id: number; search_text: string }>;
+    const rows = selectAlerts.all(lastAlertId, batchSize) as Array<{
+      id: number;
+      search_text: string;
+    }>;
     if (rows.length === 0) {
       break;
     }
@@ -3734,19 +4218,29 @@ async function backfillSearchIndexesCooperative(db: Database, yieldControl: () =
     ORDER BY rowid
     LIMIT ?
   `);
-  const insertDecisions = db.transaction((rows: Array<{ id: string; rowid: number; search_text: string }>) => {
-    const insert = db.prepare('INSERT INTO decisions_fts(decision_id, search_text) VALUES (?, ?)');
-    const insertMapping = db.prepare('INSERT OR REPLACE INTO decision_fts_rows(decision_id, fts_rowid) VALUES (?, ?)');
-    for (const row of rows) {
-      const result = insert.run(String(row.id), row.search_text);
-      if (result.lastInsertRowid !== undefined) {
-        insertMapping.run(String(row.id), result.lastInsertRowid);
+  const insertDecisions = db.transaction(
+    (rows: Array<{ id: string; rowid: number; search_text: string }>) => {
+      const insert = db.prepare(
+        'INSERT INTO decisions_fts(decision_id, search_text) VALUES (?, ?)',
+      );
+      const insertMapping = db.prepare(
+        'INSERT OR REPLACE INTO decision_fts_rows(decision_id, fts_rowid) VALUES (?, ?)',
+      );
+      for (const row of rows) {
+        const result = insert.run(String(row.id), row.search_text);
+        if (result.lastInsertRowid !== undefined) {
+          insertMapping.run(String(row.id), result.lastInsertRowid);
+        }
       }
-    }
-  });
+    },
+  );
 
   while (true) {
-    const rows = selectDecisions.all(lastDecisionRowId, batchSize) as Array<{ id: string; rowid: number; search_text: string }>;
+    const rows = selectDecisions.all(lastDecisionRowId, batchSize) as Array<{
+      id: string;
+      rowid: number;
+      search_text: string;
+    }>;
     if (rows.length === 0) {
       break;
     }
@@ -3757,22 +4251,34 @@ async function backfillSearchIndexesCooperative(db: Database, yieldControl: () =
 }
 
 function seedNotificationIncidentsFromHistoryIfEmpty(db: Database): void {
-  const countRow = db.query('SELECT COUNT(*) as count FROM notification_incidents').get() as CountRow | null;
+  const countRow = db
+    .query('SELECT COUNT(*) as count FROM notification_incidents')
+    .get() as CountRow | null;
   if ((countRow?.count || 0) > 0) {
     return;
   }
 
-  const rows = db.query(`
+  const rows = db
+    .query(`
     SELECT rule_id, rule_type, dedupe_key, created_at
     FROM notifications
     ORDER BY created_at DESC
-  `).all() as Array<{ rule_id?: string; rule_type?: string; dedupe_key?: string; created_at?: string }>;
+  `)
+    .all() as Array<{
+    rule_id?: string;
+    rule_type?: string;
+    dedupe_key?: string;
+    created_at?: string;
+  }>;
 
   if (rows.length === 0) {
     return;
   }
 
-  const latestByIncident = new Map<string, { ruleId: string; incidentKey: string; createdAt: string }>();
+  const latestByIncident = new Map<
+    string,
+    { ruleId: string; incidentKey: string; createdAt: string }
+  >();
   for (const row of rows) {
     const ruleId = String(row.rule_id || '');
     const ruleType = String(row.rule_type || '');
@@ -3797,22 +4303,28 @@ function seedNotificationIncidentsFromHistoryIfEmpty(db: Database): void {
     VALUES ($rule_id, $incident_key, $first_seen_at, $last_seen_at, $resolved_at)
   `);
 
-  const restore = db.transaction((entries: Array<{ ruleId: string; incidentKey: string; createdAt: string }>) => {
-    for (const entry of entries) {
-      (insertStatement as any).run({
-        $rule_id: entry.ruleId,
-        $incident_key: entry.incidentKey,
-        $first_seen_at: entry.createdAt,
-        $last_seen_at: entry.createdAt,
-        $resolved_at: null,
-      });
-    }
-  });
+  const restore = db.transaction(
+    (entries: Array<{ ruleId: string; incidentKey: string; createdAt: string }>) => {
+      for (const entry of entries) {
+        (insertStatement as any).run({
+          $rule_id: entry.ruleId,
+          $incident_key: entry.incidentKey,
+          $first_seen_at: entry.createdAt,
+          $last_seen_at: entry.createdAt,
+          $resolved_at: null,
+        });
+      }
+    },
+  );
 
   restore([...latestByIncident.values()]);
 }
 
-function normalizeIncidentKeyForSeed(ruleId: string, ruleType: string, dedupeKey: string): string | null {
+function normalizeIncidentKeyForSeed(
+  ruleId: string,
+  ruleType: string,
+  dedupeKey: string,
+): string | null {
   if (!dedupeKey) {
     return null;
   }

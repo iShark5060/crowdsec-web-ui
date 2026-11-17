@@ -1,10 +1,18 @@
 import { render } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, vi } from 'vitest';
-import type { NotificationChannel, NotificationItem, NotificationListResponse, NotificationRule, NotificationSettingsResponse } from '../../../types';
+
 import { I18nContext, type I18nContextValue } from '../../../lib/i18n';
 import en from '../../../locales/en.json';
 import zh from '../../../locales/zh.json';
+import { Provide } from '../../../test/Provide';
+import type {
+  NotificationChannel,
+  NotificationItem,
+  NotificationListResponse,
+  NotificationRule,
+  NotificationSettingsResponse,
+} from '../../../types';
 
 vi.mock('../../../contexts/useRefresh', () => ({
   useRefresh: () => ({
@@ -35,12 +43,8 @@ vi.mock('../../../lib/api', () => ({
   fetchConfig: vi.fn(),
 }));
 
-import {
-  fetchConfig,
-  fetchNotificationSettings,
-  fetchNotificationsPaginated,
-} from '../../../lib/api';
 import { useNotificationUnreadCount } from '../../../contexts/useNotificationUnreadCount';
+import { fetchConfig, fetchNotificationSettings, fetchNotificationsPaginated } from '../../../lib/api';
 
 const setUnreadCountMock = vi.fn();
 const refreshUnreadCountMock = vi.fn();
@@ -100,11 +104,11 @@ function buildNotificationPage(overrides?: {
     pagination: {
       page: overrides?.page ?? 1,
       page_size: overrides?.page_size ?? 50,
-      total: overrides?.total ?? (overrides?.data?.length ?? 0),
+      total: overrides?.total ?? overrides?.data?.length ?? 0,
       total_pages: overrides?.total_pages ?? ((overrides?.data?.length ?? 0) > 0 ? 1 : 0),
-      unfiltered_total: overrides?.total ?? (overrides?.data?.length ?? 0),
+      unfiltered_total: overrides?.total ?? overrides?.data?.length ?? 0,
     },
-    selectable_ids: overrides?.selectable_ids ?? (overrides?.data?.map((item) => String(item.id)) ?? []),
+    selectable_ids: overrides?.selectable_ids ?? overrides?.data?.map((item) => String(item.id)) ?? [],
     unread_count: overrides?.unread_count ?? 0,
   };
 }
@@ -112,20 +116,23 @@ function buildNotificationPage(overrides?: {
 function installControlledIntersectionObserver() {
   const callbacks: Array<() => void> = [];
 
-  vi.stubGlobal('IntersectionObserver', class {
-    constructor(callback: IntersectionObserverCallback) {
-      callbacks.push(() => {
-        callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
-      });
-    }
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(() => {
+          callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+        });
+      }
 
-    observe(): void {}
-    disconnect(): void {}
-    unobserve(): void {}
-    takeRecords(): IntersectionObserverEntry[] {
-      return [];
-    }
-  });
+      observe(): void {}
+      disconnect(): void {}
+      unobserve(): void {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+    },
+  );
 
   return () => callbacks.forEach((callback) => callback());
 }
@@ -151,51 +158,59 @@ function renderWithChineseLocale(children: ReactNode) {
   };
 
   return render(
-    <I18nContext.Provider value={i18nValue}>
+    <Provide context={I18nContext} value={i18nValue}>
       {children}
-    </I18nContext.Provider>,
+    </Provide>,
   );
 }
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    window.localStorage.clear();
-    mockMatchMedia();
-    setUnreadCountMock.mockReset();
-    refreshUnreadCountMock.mockReset();
+beforeEach(() => {
+  vi.clearAllMocks();
+  window.localStorage.clear();
+  mockMatchMedia();
+  setUnreadCountMock.mockReset();
+  refreshUnreadCountMock.mockReset();
 
-    vi.mocked(useNotificationUnreadCount).mockReturnValue({
-      unreadCount: 0,
-      setUnreadCount: setUnreadCountMock,
-      refreshUnreadCount: refreshUnreadCountMock,
-    });
-
-    vi.mocked(fetchNotificationSettings).mockResolvedValue(buildSettings());
-
-    vi.mocked(fetchNotificationsPaginated).mockResolvedValue(buildNotificationPage());
-    vi.mocked(fetchConfig).mockResolvedValue({
-      lookback_period: '1h',
-      lookback_hours: 1,
-      lookback_days: 1,
-      refresh_interval: 30000,
-      current_interval_name: '30s',
-      lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
-      sync_status: { isSyncing: false, progress: 100, message: 'done', startedAt: null, completedAt: null },
-      simulations_enabled: true,
-      machine_features_enabled: false,
-      origin_features_enabled: false,
-      permissions: {
-        mode: 'admin',
-        can_manage_enforcement: true,
-        can_manage_settings: true,
-      },
-    });
+  vi.mocked(useNotificationUnreadCount).mockReturnValue({
+    unreadCount: 0,
+    setUnreadCount: setUnreadCountMock,
+    refreshUnreadCount: refreshUnreadCountMock,
   });
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+  vi.mocked(fetchNotificationSettings).mockResolvedValue(buildSettings());
+
+  vi.mocked(fetchNotificationsPaginated).mockResolvedValue(buildNotificationPage());
+  vi.mocked(fetchConfig).mockResolvedValue({
+    lookback_period: '1h',
+    lookback_hours: 1,
+    lookback_days: 1,
+    refresh_interval: 30000,
+    current_interval_name: '30s',
+    lapi_status: { isConnected: true, lastCheck: null, lastError: null, offline_since: null },
+    sync_status: { isSyncing: false, progress: 100, message: 'done', startedAt: null, completedAt: null },
+    simulations_enabled: true,
+    machine_features_enabled: false,
+    origin_features_enabled: false,
+    permissions: {
+      mode: 'admin',
+      can_manage_enforcement: true,
+      can_manage_settings: true,
+    },
   });
+});
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
-export { setUnreadCountMock, refreshUnreadCountMock, buildSettings, mockMatchMedia, buildNotificationPage, installControlledIntersectionObserver, createTestTranslator, renderWithChineseLocale };
+export {
+  setUnreadCountMock,
+  refreshUnreadCountMock,
+  buildSettings,
+  mockMatchMedia,
+  buildNotificationPage,
+  installControlledIntersectionObserver,
+  createTestTranslator,
+  renderWithChineseLocale,
+};

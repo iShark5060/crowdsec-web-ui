@@ -48,7 +48,9 @@ export function createAuditLogger(options: CreateAuditLoggerOptions): AuditLogge
       fs.mkdirSync(path.dirname(logFile), { recursive: true });
     } catch (error) {
       fileWritable = false;
-      console.error(`Audit log file directory for "${logFile}" could not be created: ${(error as Error).message}`);
+      console.error(
+        `Audit log file directory for "${logFile}" could not be created: ${(error as Error).message}`,
+      );
     }
   }
 

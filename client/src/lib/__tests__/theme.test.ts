@@ -1,16 +1,20 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+
 import { useTheme } from '../theme';
 
 type Listener = (event: { matches: boolean }) => void;
 
 function stubMatchMedia(matches: boolean) {
   const listeners = new Set<Listener>();
-  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
-    matches,
-    addEventListener: (_: string, cb: Listener) => listeners.add(cb),
-    removeEventListener: (_: string, cb: Listener) => listeners.delete(cb),
-  }));
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockReturnValue({
+      matches,
+      addEventListener: (_: string, cb: Listener) => listeners.add(cb),
+      removeEventListener: (_: string, cb: Listener) => listeners.delete(cb),
+    }),
+  );
   return (next: boolean) => listeners.forEach((cb) => cb({ matches: next }));
 }
 

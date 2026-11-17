@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+
 import { CrowdsecDatabase } from '../../database';
 import { createTestDatabase, createTestDatabasePath } from './harness';
 
@@ -21,7 +22,12 @@ describe('OIDC logout persistence', () => {
     const db = new CrowdsecDatabase({ cachePath });
     const firstUser = db.upsertOidcUser({ username: 'first', role: 'admin', issuer: ISSUER, subject: 'subject-1' });
     const secondIssuer = 'https://other-idp.example.com';
-    const secondUser = db.upsertOidcUser({ username: 'second', role: 'admin', issuer: secondIssuer, subject: 'subject-1' });
+    const secondUser = db.upsertOidcUser({
+      username: 'second',
+      role: 'admin',
+      issuer: secondIssuer,
+      subject: 'subject-1',
+    });
     const params = logoutParams();
     try {
       db.applyOidcLogout(params);
@@ -59,39 +65,42 @@ describe('OIDC logout persistence', () => {
     }
   });
 
-  test.each([undefined, 'session-1'])('rolls back the event and revocation together on failure (sid=%s)', (sessionId) => {
-    const db = createTestDatabase();
-    const user = db.upsertOidcUser({ username: 'operator', role: 'admin', issuer: ISSUER, subject: 'subject-1' });
-    const params = { ...logoutParams(), sessionId };
-    const revokeUser = db.revokeOidcUserSessions.bind(db);
-    const revokeSession = db.revokeOidcSession.bind(db);
-    // Fail after the revocation write to ensure both writes are rolled back.
-    const failure = sessionId
-      ? vi.spyOn(db, 'revokeOidcSession').mockImplementation((...args) => {
-        revokeSession(...args);
-        throw new Error('write failed');
-      })
-      : vi.spyOn(db, 'revokeOidcUserSessions').mockImplementation((...args) => {
-        revokeUser(...args);
-        throw new Error('write failed');
-      });
-    try {
-      expect(() => db.applyOidcLogout(params)).toThrow('write failed');
-      expect(db.getAuthUserById(user.id)!.session_version).toBe(user.session_version);
-      expect(db.isOidcSessionRevoked(ISSUER, 'session-1')).toBe(false);
-      expect(db.getOidcLogoutVersion(ISSUER, 'subject-1')).toBe(1);
-
-      failure.mockRestore();
-      db.applyOidcLogout(params);
-      if (sessionId) {
-        expect(db.isOidcSessionRevoked(ISSUER, sessionId)).toBe(true);
+  test.each([undefined, 'session-1'])(
+    'rolls back the event and revocation together on failure (sid=%s)',
+    (sessionId) => {
+      const db = createTestDatabase();
+      const user = db.upsertOidcUser({ username: 'operator', role: 'admin', issuer: ISSUER, subject: 'subject-1' });
+      const params = { ...logoutParams(), sessionId };
+      const revokeUser = db.revokeOidcUserSessions.bind(db);
+      const revokeSession = db.revokeOidcSession.bind(db);
+      // Fail after the revocation write to ensure both writes are rolled back.
+      const failure = sessionId
+        ? vi.spyOn(db, 'revokeOidcSession').mockImplementation((...args) => {
+            revokeSession(...args);
+            throw new Error('write failed');
+          })
+        : vi.spyOn(db, 'revokeOidcUserSessions').mockImplementation((...args) => {
+            revokeUser(...args);
+            throw new Error('write failed');
+          });
+      try {
+        expect(() => db.applyOidcLogout(params)).toThrow('write failed');
         expect(db.getAuthUserById(user.id)!.session_version).toBe(user.session_version);
-      } else {
-        expect(db.getAuthUserById(user.id)!.session_version).toBe(user.session_version + 1);
+        expect(db.isOidcSessionRevoked(ISSUER, 'session-1')).toBe(false);
+        expect(db.getOidcLogoutVersion(ISSUER, 'subject-1')).toBe(1);
+
+        failure.mockRestore();
+        db.applyOidcLogout(params);
+        if (sessionId) {
+          expect(db.isOidcSessionRevoked(ISSUER, sessionId)).toBe(true);
+          expect(db.getAuthUserById(user.id)!.session_version).toBe(user.session_version);
+        } else {
+          expect(db.getAuthUserById(user.id)!.session_version).toBe(user.session_version + 1);
+        }
+      } finally {
+        failure.mockRestore();
+        db.close();
       }
-    } finally {
-      failure.mockRestore();
-      db.close();
-    }
-  });
+    },
+  );
 });

@@ -1,6 +1,18 @@
 import { describe, expect, test } from 'vitest';
+
 import { normalizeMachineId, resolveMachineName } from '../../../shared/machine';
-import { buildMetaSearch, getAlertSourceValue, getAlertTarget, getAlertTargets, getAlertTargetSummary, resolveAlertReason, resolveAlertScenario, toSlimAlert, toSlimDecision, withAlertTargetSummary } from '../alerts';
+import {
+  buildMetaSearch,
+  getAlertSourceValue,
+  getAlertTarget,
+  getAlertTargets,
+  getAlertTargetSummary,
+  resolveAlertReason,
+  resolveAlertScenario,
+  toSlimAlert,
+  toSlimDecision,
+  withAlertTargetSummary,
+} from '../alerts';
 
 describe('alert helpers', () => {
   test('getAlertTarget prioritizes event metadata', () => {
@@ -54,7 +66,12 @@ describe('alert helpers', () => {
       created_at: '2025-01-01T00:00:00.000Z',
       scenario: 'crowdsecurity/ssh-bf',
       events: [
-        { meta: [{ key: 'target_fqdn', value: 'api.example.test' }, { key: 'service', value: 'http' }] },
+        {
+          meta: [
+            { key: 'target_fqdn', value: 'api.example.test' },
+            { key: 'service', value: 'http' },
+          ],
+        },
         { meta: [{ key: 'target_host', value: 'admin.example.test' }] },
         { meta: [{ key: 'target_fqdn', value: 'api.example.test' }] },
         { meta: [{ key: 'service', value: 'ssh' }] },
@@ -67,34 +84,35 @@ describe('alert helpers', () => {
       target: 'api.example.test',
       count: 3,
     });
-    expect(getAlertTargets(alert)).toEqual([
-      'api.example.test',
-      'admin.example.test',
-      'ssh',
-    ]);
-    expect(withAlertTargetSummary(alert)).toEqual(expect.objectContaining({
-      target: 'api.example.test',
-      targets: ['api.example.test', 'admin.example.test', 'ssh'],
-      target_count: 3,
-    }));
+    expect(getAlertTargets(alert)).toEqual(['api.example.test', 'admin.example.test', 'ssh']);
+    expect(withAlertTargetSummary(alert)).toEqual(
+      expect.objectContaining({
+        target: 'api.example.test',
+        targets: ['api.example.test', 'admin.example.test', 'ssh'],
+        target_count: 3,
+      }),
+    );
   });
 
   test('buildMetaSearch combines event metadata and alert contexts', () => {
     expect(
-      buildMetaSearch([
-        {
-          meta: [
-            { key: 'context', value: 'skip' },
-            { key: 'service', value: 'ssh' },
-            { key: 'duplicate', value: 'example.test' },
-            { key: 'scope', value: '' },
-          ],
-        },
-      ], [
-        { key: 'host', value: 'example.test' },
-        { key: 'details', value: { protected: true } },
-        { key: 'empty', value: '   ' },
-      ]),
+      buildMetaSearch(
+        [
+          {
+            meta: [
+              { key: 'context', value: 'skip' },
+              { key: 'service', value: 'ssh' },
+              { key: 'duplicate', value: 'example.test' },
+              { key: 'scope', value: '' },
+            ],
+          },
+        ],
+        [
+          { key: 'host', value: 'example.test' },
+          { key: 'details', value: { protected: true } },
+          { key: 'empty', value: '   ' },
+        ],
+      ),
     ).toBe('ssh example.test {"protected":true}');
   });
 
@@ -148,70 +166,82 @@ describe('alert helpers', () => {
   });
 
   test('resolveAlertScenario prefers source scope for capi alerts', () => {
-    expect(resolveAlertScenario({
-      id: 1,
-      created_at: '2025-01-01T00:00:00.000Z',
-      kind: 'capi',
-      scenario: 'update : +15000/-0 IPs',
-      source: {
-        scope: 'crowdsecurity/community-blocklist',
-      },
-    })).toBe('crowdsecurity/community-blocklist');
+    expect(
+      resolveAlertScenario({
+        id: 1,
+        created_at: '2025-01-01T00:00:00.000Z',
+        kind: 'capi',
+        scenario: 'update : +15000/-0 IPs',
+        source: {
+          scope: 'crowdsecurity/community-blocklist',
+        },
+      }),
+    ).toBe('crowdsecurity/community-blocklist');
 
-    expect(toSlimAlert({
-      id: 2,
-      created_at: '2025-01-01T00:00:00.000Z',
-      kind: 'capi',
-      scenario: 'update : +15000/-0 IPs',
-      source: {
-        scope: 'crowdsecurity/community-blocklist',
-      },
-      decisions: [],
-    }).scenario).toBe('crowdsecurity/community-blocklist');
+    expect(
+      toSlimAlert({
+        id: 2,
+        created_at: '2025-01-01T00:00:00.000Z',
+        kind: 'capi',
+        scenario: 'update : +15000/-0 IPs',
+        source: {
+          scope: 'crowdsecurity/community-blocklist',
+        },
+        decisions: [],
+      }).scenario,
+    ).toBe('crowdsecurity/community-blocklist');
   });
 
   test('resolveAlertScenario prefers source scope for update-style blocklist alerts even when kind is missing', () => {
-    expect(resolveAlertScenario({
-      id: 11,
-      created_at: '2025-01-01T00:00:00.000Z',
-      scenario: 'update : +15000/-0 IPs',
-      source: {
-        scope: 'crowdsecurity/community-blocklist',
-      },
-    })).toBe('crowdsecurity/community-blocklist');
+    expect(
+      resolveAlertScenario({
+        id: 11,
+        created_at: '2025-01-01T00:00:00.000Z',
+        scenario: 'update : +15000/-0 IPs',
+        source: {
+          scope: 'crowdsecurity/community-blocklist',
+        },
+      }),
+    ).toBe('crowdsecurity/community-blocklist');
 
-    expect(toSlimAlert({
-      id: 12,
-      created_at: '2025-01-01T00:00:00.000Z',
-      scenario: 'update : +15000/-0 IPs',
-      source: {
-        scope: 'crowdsecurity/community-blocklist',
-      },
-      decisions: [],
-    }).scenario).toBe('crowdsecurity/community-blocklist');
+    expect(
+      toSlimAlert({
+        id: 12,
+        created_at: '2025-01-01T00:00:00.000Z',
+        scenario: 'update : +15000/-0 IPs',
+        source: {
+          scope: 'crowdsecurity/community-blocklist',
+        },
+        decisions: [],
+      }).scenario,
+    ).toBe('crowdsecurity/community-blocklist');
   });
 
   test('resolveAlertReason preserves raw scenario when display scenario is remapped', () => {
-    expect(resolveAlertReason({
-      id: 3,
-      created_at: '2025-01-01T00:00:00.000Z',
-      kind: 'capi',
-      scenario: 'update : +15000/-0 IPs',
-      source: {
-        scope: 'crowdsecurity/community-blocklist',
-      },
-    })).toBe('update : +15000/-0 IPs');
+    expect(
+      resolveAlertReason({
+        id: 3,
+        created_at: '2025-01-01T00:00:00.000Z',
+        kind: 'capi',
+        scenario: 'update : +15000/-0 IPs',
+        source: {
+          scope: 'crowdsecurity/community-blocklist',
+        },
+      }),
+    ).toBe('update : +15000/-0 IPs');
 
-    expect(toSlimAlert({
-      id: 4,
-      created_at: '2025-01-01T00:00:00.000Z',
-      kind: 'capi',
-      scenario: 'update : +15000/-0 IPs',
-      source: {
-        scope: 'crowdsecurity/community-blocklist',
-      },
-      decisions: [],
-    }).reason).toBe('update : +15000/-0 IPs');
+    expect(
+      toSlimAlert({
+        id: 4,
+        created_at: '2025-01-01T00:00:00.000Z',
+        kind: 'capi',
+        scenario: 'update : +15000/-0 IPs',
+        source: {
+          scope: 'crowdsecurity/community-blocklist',
+        },
+        decisions: [],
+      }).reason,
+    ).toBe('update : +15000/-0 IPs');
   });
 
   test('machine helpers ignore placeholder values like N/A and Unknown', () => {
@@ -221,5 +251,4 @@ describe('alert helpers', () => {
     expect(resolveMachineName({ machine_alias: 'Unknown', machine_id: 'machine-1' })).toBe('machine-1');
     expect(resolveMachineName({ machine_alias: 'localhost', machine_id: 'N/A' })).toBe('localhost');
   });
-
 });

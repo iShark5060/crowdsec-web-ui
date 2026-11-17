@@ -1,4 +1,11 @@
-import type { AlertRecord, SimulationFilter, SlimAlert, SlimDecision, StatsAlert, StatsDecision } from '../types';
+import type {
+  AlertRecord,
+  SimulationFilter,
+  SlimAlert,
+  SlimDecision,
+  StatsAlert,
+  StatsDecision,
+} from '../types';
 
 type AlertLike = Pick<AlertRecord | SlimAlert | StatsAlert, 'simulated'> & {
   decisions?: Array<Pick<SlimDecision, 'simulated'>>;
@@ -27,10 +34,17 @@ export function isSimulatedAlert(alert: AlertLike | null | undefined): boolean {
     return true;
   }
 
-  return Array.isArray(alert.decisions) && alert.decisions.length > 0 && alert.decisions.every((decision) => isSimulatedDecision(decision));
+  return (
+    Array.isArray(alert.decisions) &&
+    alert.decisions.length > 0 &&
+    alert.decisions.every((decision) => isSimulatedDecision(decision))
+  );
 }
 
-export function matchesSimulationFilter(item: { simulated?: boolean }, filter: SimulationFilter): boolean {
+export function matchesSimulationFilter(
+  item: { simulated?: boolean },
+  filter: SimulationFilter,
+): boolean {
   if (filter === 'all') {
     return true;
   }

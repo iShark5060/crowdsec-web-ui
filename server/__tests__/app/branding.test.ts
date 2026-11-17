@@ -1,14 +1,8 @@
 import { writeFileSync } from 'fs';
 import path from 'path';
+
 import { describe, expect, test } from 'vitest';
-import {
-  applyBrandingToIndexHtml,
-  detectAppLogoContentType,
-  normalizeAppName,
-  parseAppLogoUpload,
-  serializeBrandingForScript,
-} from '../../branding';
-import { createAuthSessionCookie, createController, tempDir } from './harness';
+
 import {
   DEFAULT_BRANDING_THEME,
   buildBrandingThemeCss,
@@ -20,35 +14,69 @@ import {
   parseBrandingThemeInput,
   resolveThemeMode,
 } from '../../../shared/branding-theme';
+import {
+  applyBrandingToIndexHtml,
+  detectAppLogoContentType,
+  normalizeAppName,
+  parseAppLogoUpload,
+  serializeBrandingForScript,
+} from '../../branding';
+import { createAuthSessionCookie, createController, tempDir } from './harness';
 
 const root = 'http://localhost/crowdsec/api/branding';
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
 const PNG_DATA_URL = `data:image/png;base64,${PNG_BYTES.toString('base64')}`;
 const SVG = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
 
-async function request(controller: ReturnType<typeof createController>['controller'], pathName = '', options: {
-  method?: string;
-  cookie?: string;
-  body?: unknown;
-} = {}) {
-  return await controller.fetch(new Request(`${root}${pathName}`, {
-    method: options.method ?? 'GET',
-    headers: {
-      ...(options.cookie ? { cookie: options.cookie } : {}),
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(options.body ? { body: JSON.stringify(options.body) } : {}),
-  }));
+async function request(
+  controller: ReturnType<typeof createController>['controller'],
+  pathName = '',
+  options: {
+    method?: string;
+    cookie?: string;
+    body?: unknown;
+  } = {},
+) {
+  return await controller.fetch(
+    new Request(`${root}${pathName}`, {
+      method: options.method ?? 'GET',
+      headers: {
+        ...(options.cookie ? { cookie: options.cookie } : {}),
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(options.body ? { body: JSON.stringify(options.body) } : {}),
+    }),
+  );
 }
 
 function createAuthenticatedController() {
   const { controller } = createController({ env: { AUTH_ENABLED: 'true' } });
-  const adminId = controller.database.createAuthUser({ username: 'admin', passwordHash: 'hash', role: 'admin', authProvider: 'password' });
-  const viewerId = controller.database.createAuthUser({ username: 'viewer', passwordHash: 'hash', role: 'read-only', authProvider: 'password' });
+  const adminId = controller.database.createAuthUser({
+    username: 'admin',
+    passwordHash: 'hash',
+    role: 'admin',
+    authProvider: 'password',
+  });
+  const viewerId = controller.database.createAuthUser({
+    username: 'viewer',
+    passwordHash: 'hash',
+    role: 'read-only',
+    authProvider: 'password',
+  });
   return {
     controller,
-    admin: createAuthSessionCookie(controller.database, { userId: adminId, username: 'admin', role: 'admin', authMethod: 'password' }),
-    viewer: createAuthSessionCookie(controller.database, { userId: viewerId, username: 'viewer', role: 'read-only', authMethod: 'password' }),
+    admin: createAuthSessionCookie(controller.database, {
+      userId: adminId,
+      username: 'admin',
+      role: 'admin',
+      authMethod: 'password',
+    }),
+    viewer: createAuthSessionCookie(controller.database, {
+      userId: viewerId,
+      username: 'viewer',
+      role: 'read-only',
+      authMethod: 'password',
+    }),
   };
 }
 
@@ -70,10 +98,13 @@ describe('branding helpers', () => {
 
     expect(parseAppLogoUpload(`data:image/gif;base64,${PNG_BYTES.toString('base64')}`).contentType).toBe('image/png');
     expect(() => parseAppLogoUpload('https://example.com/logo.png')).toThrow('base64 data URL');
-    expect(() => parseAppLogoUpload(`data:text/html;base64,${Buffer.from('<html></html>').toString('base64')}`))
-      .toThrow('PNG, JPEG, GIF, WebP, or SVG');
+    expect(() =>
+      parseAppLogoUpload(`data:text/html;base64,${Buffer.from('<html></html>').toString('base64')}`),
+    ).toThrow('PNG, JPEG, GIF, WebP, or SVG');
     const oversized = Buffer.concat([PNG_BYTES, Buffer.alloc(512 * 1024)]);
-    expect(() => parseAppLogoUpload(`data:image/png;base64,${oversized.toString('base64')}`)).toThrow('512 KB or smaller');
+    expect(() => parseAppLogoUpload(`data:image/png;base64,${oversized.toString('base64')}`)).toThrow(
+      '512 KB or smaller',
+    );
   });
 
   test('injects an escaped title and branded icons into the SPA shell', () => {
@@ -95,15 +126,33 @@ describe('branding helpers', () => {
     });
 
     expect(branded).toContain('<title>Acme &lt;SOC&gt; $&amp;</title>');
-    expect(branded).toContain('<link rel="icon" sizes="96x96" href="/api/branding/logo?v=abc" data-default-href="./favicon-96x96.png" data-default-type="image/png" />');
-    expect(branded).toContain('<link rel="shortcut icon" href="/api/branding/logo?v=abc" data-default-href="./favicon.ico" data-default-type="" />');
+    expect(branded).toContain(
+      '<link rel="icon" sizes="96x96" href="/api/branding/logo?v=abc" data-default-href="./favicon-96x96.png" data-default-type="image/png" />',
+    );
+    expect(branded).toContain(
+      '<link rel="shortcut icon" href="/api/branding/logo?v=abc" data-default-href="./favicon.ico" data-default-type="" />',
+    );
     expect(branded).toContain('<link rel="apple-touch-icon" sizes="180x180" href="/api/branding/logo?v=abc"');
     expect(branded).toContain('<link rel="manifest" href="./site.webmanifest" />');
 
-    expect(applyBrandingToIndexHtml(html, { appName: 'Acme', defaultAppName: 'CrowdSec Web UI', logoUrl: null, logoDarkUrl: null, theme: DEFAULT_BRANDING_THEME }))
-      .toContain('<link rel="icon" type="image/png" sizes="96x96" href="./favicon-96x96.png" />');
-    expect(serializeBrandingForScript({ appName: '</script><script>', defaultAppName: 'x', logoUrl: null, logoDarkUrl: null, theme: DEFAULT_BRANDING_THEME }))
-      .not.toContain('</script>');
+    expect(
+      applyBrandingToIndexHtml(html, {
+        appName: 'Acme',
+        defaultAppName: 'CrowdSec Web UI',
+        logoUrl: null,
+        logoDarkUrl: null,
+        theme: DEFAULT_BRANDING_THEME,
+      }),
+    ).toContain('<link rel="icon" type="image/png" sizes="96x96" href="./favicon-96x96.png" />');
+    expect(
+      serializeBrandingForScript({
+        appName: '</script><script>',
+        defaultAppName: 'x',
+        logoUrl: null,
+        logoDarkUrl: null,
+        theme: DEFAULT_BRANDING_THEME,
+      }),
+    ).not.toContain('</script>');
   });
 });
 
@@ -113,7 +162,9 @@ describe('branding theme', () => {
       light: { accent: '#e11d48', neutral: 'slate' },
       dark: { accent: null, neutral: null },
     });
-    expect(parseBrandingThemeInput({ light: { accent: 'abc', neutral: '' }, dark: { accent: '', neutral: null } })).toEqual({
+    expect(
+      parseBrandingThemeInput({ light: { accent: 'abc', neutral: '' }, dark: { accent: '', neutral: null } }),
+    ).toEqual({
       light: { accent: '#aabbcc', neutral: null },
       dark: { accent: null, neutral: null },
     });
@@ -146,13 +197,19 @@ describe('branding theme', () => {
   test('builds CSS where dark mode inherits light mode unless it has its own colors', () => {
     expect(buildBrandingThemeCss(DEFAULT_BRANDING_THEME)).toBe('');
 
-    const lightOnly = buildBrandingThemeCss({ light: { accent: '#e11d48', neutral: 'stone' }, dark: { accent: null, neutral: null } });
+    const lightOnly = buildBrandingThemeCss({
+      light: { accent: '#e11d48', neutral: 'stone' },
+      dark: { accent: null, neutral: null },
+    });
     expect(lightOnly).toMatch(/^:root\{--color-primary-50:#[0-9a-f]{6};/);
     expect(lightOnly).toContain('--color-primary-600:#e11d48;');
     expect(lightOnly).toContain('--color-gray-950:oklch(14.7% 0.004 49.25);');
     expect(lightOnly).not.toContain(':root.dark');
 
-    const darkOnly = buildBrandingThemeCss({ light: { accent: null, neutral: null }, dark: { accent: null, neutral: 'zinc' } });
+    const darkOnly = buildBrandingThemeCss({
+      light: { accent: null, neutral: null },
+      dark: { accent: null, neutral: 'zinc' },
+    });
     expect(darkOnly).toMatch(/^:root\.dark\{--color-gray-50:/);
     expect(darkOnly).not.toContain('--color-primary');
 
@@ -160,7 +217,7 @@ describe('branding theme', () => {
     expect(resolveThemeMode(theme, 'dark')).toEqual({ accent: '#e11d48', neutral: 'slate' });
     expect(resolveThemeMode(theme, 'light')).toEqual({ accent: '#e11d48', neutral: 'gray' });
     expect(getResolvedThemeModeVariables(DEFAULT_BRANDING_THEME, 'light')).toMatchObject({
-      '--color-primary-600': '#0284c7',
+      '--color-primary-600': '#765cf0',
       '--color-gray-50': 'oklch(98.5% 0.002 247.839)',
     });
   });
@@ -217,15 +274,26 @@ describe('branding routes', () => {
     const readOnly = await request(controller, '', { method: 'PUT', cookie: viewer, body: { appName: 'Acme' } });
     expect(readOnly.status).toBe(403);
     expect(await readOnly.json()).toMatchObject({ code: 'READ_ONLY' });
-    expect((await request(controller, '/logo', { method: 'PUT', cookie: viewer, body: { dataUrl: PNG_DATA_URL } })).status).toBe(403);
+    expect(
+      (await request(controller, '/logo', { method: 'PUT', cookie: viewer, body: { dataUrl: PNG_DATA_URL } })).status,
+    ).toBe(403);
     expect((await request(controller, '/logo', { method: 'DELETE', cookie: viewer })).status).toBe(403);
 
-    const invalidName = await request(controller, '', { method: 'PUT', cookie: admin, body: { appName: 'x'.repeat(61) } });
+    const invalidName = await request(controller, '', {
+      method: 'PUT',
+      cookie: admin,
+      body: { appName: 'x'.repeat(61) },
+    });
     expect(invalidName.status).toBe(400);
 
     const renamed = await request(controller, '', { method: 'PUT', cookie: admin, body: { appName: '  Acme   SOC ' } });
     expect(renamed.status).toBe(200);
-    expect(await renamed.json()).toMatchObject({ appName: 'Acme SOC', logoUrl: null, logoDarkUrl: null, theme: DEFAULT_BRANDING_THEME });
+    expect(await renamed.json()).toMatchObject({
+      appName: 'Acme SOC',
+      logoUrl: null,
+      logoDarkUrl: null,
+      theme: DEFAULT_BRANDING_THEME,
+    });
 
     const invalidLogo = await request(controller, '/logo', {
       method: 'PUT',
@@ -234,9 +302,13 @@ describe('branding routes', () => {
     });
     expect(invalidLogo.status).toBe(400);
 
-    const uploaded = await request(controller, '/logo', { method: 'PUT', cookie: admin, body: { dataUrl: PNG_DATA_URL } });
+    const uploaded = await request(controller, '/logo', {
+      method: 'PUT',
+      cookie: admin,
+      body: { dataUrl: PNG_DATA_URL },
+    });
     expect(uploaded.status).toBe(200);
-    const branding = await uploaded.json() as { appName: string; logoUrl: string };
+    const branding = (await uploaded.json()) as { appName: string; logoUrl: string };
     expect(branding.appName).toBe('Acme SOC');
     expect(branding.logoUrl).toMatch(/^\/crowdsec\/api\/branding\/logo\?v=[0-9a-f]{16}$/);
 
@@ -252,7 +324,12 @@ describe('branding routes', () => {
 
     const reset = await request(controller, '/logo', { method: 'DELETE', cookie: admin });
     expect(reset.status).toBe(200);
-    expect(await reset.json()).toMatchObject({ appName: 'Acme SOC', logoUrl: null, logoDarkUrl: null, theme: DEFAULT_BRANDING_THEME });
+    expect(await reset.json()).toMatchObject({
+      appName: 'Acme SOC',
+      logoUrl: null,
+      logoDarkUrl: null,
+      theme: DEFAULT_BRANDING_THEME,
+    });
     expect((await request(controller, '/logo')).status).toBe(404);
 
     const restored = await request(controller, '', { method: 'PUT', cookie: admin, body: { appName: '' } });
@@ -264,14 +341,25 @@ describe('branding routes', () => {
     const svgDataUrl = `data:image/svg+xml;base64,${Buffer.from(SVG).toString('base64')}`;
 
     expect((await request(controller, '/logo/dark')).status).toBe(404);
-    expect((await request(controller, '/logo/dark', { method: 'PUT', body: { dataUrl: PNG_DATA_URL } })).status).toBe(401);
-    expect((await request(controller, '/logo/dark', { method: 'PUT', cookie: viewer, body: { dataUrl: PNG_DATA_URL } })).status).toBe(403);
+    expect((await request(controller, '/logo/dark', { method: 'PUT', body: { dataUrl: PNG_DATA_URL } })).status).toBe(
+      401,
+    );
+    expect(
+      (await request(controller, '/logo/dark', { method: 'PUT', cookie: viewer, body: { dataUrl: PNG_DATA_URL } }))
+        .status,
+    ).toBe(403);
     expect((await request(controller, '/logo/dark', { method: 'DELETE', cookie: viewer })).status).toBe(403);
-    expect((await request(controller, '/logo/dark', { method: 'PUT', cookie: admin, body: { dataUrl: 'nope' } })).status).toBe(400);
+    expect(
+      (await request(controller, '/logo/dark', { method: 'PUT', cookie: admin, body: { dataUrl: 'nope' } })).status,
+    ).toBe(400);
 
-    const uploaded = await request(controller, '/logo/dark', { method: 'PUT', cookie: admin, body: { dataUrl: svgDataUrl } });
+    const uploaded = await request(controller, '/logo/dark', {
+      method: 'PUT',
+      cookie: admin,
+      body: { dataUrl: svgDataUrl },
+    });
     expect(uploaded.status).toBe(200);
-    const branding = await uploaded.json() as { logoUrl: string | null; logoDarkUrl: string };
+    const branding = (await uploaded.json()) as { logoUrl: string | null; logoDarkUrl: string };
     expect(branding.logoUrl).toBeNull();
     expect(branding.logoDarkUrl).toMatch(/^\/crowdsec\/api\/branding\/logo\/dark\?v=[0-9a-f]{16}$/);
     expect((await request(controller, '/logo')).status).toBe(404);
@@ -313,7 +401,11 @@ describe('branding routes', () => {
     expect(await saved.json()).toMatchObject({ theme: expected });
     expect(await (await request(controller)).json()).toMatchObject({ theme: expected });
 
-    const restored = await request(controller, '/theme', { method: 'PUT', cookie: admin, body: { theme: DEFAULT_BRANDING_THEME } });
+    const restored = await request(controller, '/theme', {
+      method: 'PUT',
+      cookie: admin,
+      body: { theme: DEFAULT_BRANDING_THEME },
+    });
     expect(await restored.json()).toMatchObject({ theme: DEFAULT_BRANDING_THEME });
   });
 
@@ -324,7 +416,9 @@ describe('branding routes', () => {
 
     const logo = await request(controller, '/logo');
     expect(logo.headers.get('content-type')).toBe('image/svg+xml');
-    expect(logo.headers.get('content-security-policy')).toBe("default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox");
+    expect(logo.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox",
+    );
     expect(logo.headers.get('x-content-type-options')).toBe('nosniff');
   });
 
@@ -335,17 +429,27 @@ describe('branding routes', () => {
       '<!doctype html><html><head><link rel="icon" type="image/png" href="./logo-sidebar.png" /><title>CrowdSec Web UI</title></head><body></body></html>',
     );
     await request(controller, '', { method: 'PUT', cookie: admin, body: { appName: 'Acme SOC' } });
-    const uploaded = await request(controller, '/logo', { method: 'PUT', cookie: admin, body: { dataUrl: PNG_DATA_URL } });
-    const { logoUrl } = await uploaded.json() as { logoUrl: string };
+    const uploaded = await request(controller, '/logo', {
+      method: 'PUT',
+      cookie: admin,
+      body: { dataUrl: PNG_DATA_URL },
+    });
+    const { logoUrl } = (await uploaded.json()) as { logoUrl: string };
 
     const page = await controller.fetch(new Request('http://localhost/crowdsec/'));
     const html = await page.text();
     expect(html).toContain('<title>Acme SOC</title>');
-    expect(html).toContain(`<link rel="icon" href="${logoUrl}" data-default-href="/crowdsec/logo-sidebar.png" data-default-type="image/png" />`);
+    expect(html).toContain(
+      `<link rel="icon" href="${logoUrl}" data-default-href="/crowdsec/logo-sidebar.png" data-default-type="image/png" />`,
+    );
     expect(html).toContain('window.__BRANDING__={"appName":"Acme SOC"');
     expect(html).not.toContain('<style id="branding-theme">');
 
-    await request(controller, '/theme', { method: 'PUT', cookie: admin, body: { theme: { light: { accent: '#e11d48' } } } });
+    await request(controller, '/theme', {
+      method: 'PUT',
+      cookie: admin,
+      body: { theme: { light: { accent: '#e11d48' } } },
+    });
     const themedHtml = await (await controller.fetch(new Request('http://localhost/crowdsec/'))).text();
     expect(themedHtml).toContain('<style id="branding-theme">:root{--color-primary-50:');
     expect(themedHtml).toContain('"theme":{"light":{"accent":"#e11d48","neutral":null}');
@@ -357,12 +461,14 @@ describe('branding routes', () => {
       icons: [{ src: logoUrl, sizes: 'any' }],
     });
 
-    const totp = await controller.fetch(new Request('http://localhost/crowdsec/api/auth/totp/setup', {
-      method: 'POST',
-      headers: { cookie: admin },
-    }));
+    const totp = await controller.fetch(
+      new Request('http://localhost/crowdsec/api/auth/totp/setup', {
+        method: 'POST',
+        headers: { cookie: admin },
+      }),
+    );
     expect(totp.status).toBe(200);
-    const { otpauthUrl } = await totp.json() as { otpauthUrl: string };
+    const { otpauthUrl } = (await totp.json()) as { otpauthUrl: string };
     expect(otpauthUrl).toContain('issuer=Acme%20SOC');
   });
 });

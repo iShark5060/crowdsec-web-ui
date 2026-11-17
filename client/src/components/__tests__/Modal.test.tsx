@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test, vi } from 'vitest';
+
 import { Modal } from '../ui/Modal';
 
 function renderModal(onClose: () => void) {

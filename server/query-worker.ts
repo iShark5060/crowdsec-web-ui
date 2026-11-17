@@ -1,4 +1,5 @@
 import BetterSqlite3 from 'better-sqlite3';
+
 import { matchesIpSearchValue } from '../shared/search';
 import { installTimestampedConsole } from './logging';
 import { withoutUnavailableIndexHints } from './query-index-fallback';
@@ -40,8 +41,13 @@ database.pragma('temp_store = MEMORY');
 database.pragma('mmap_size = 268435456');
 
 try {
-  database.function('matches_ip_search_value', { deterministic: true }, (candidate: unknown, value: unknown) =>
-    matchesIpSearchValue(candidate as string | number | null | undefined, String(value ?? '')) ? 1 : 0,
+  database.function(
+    'matches_ip_search_value',
+    { deterministic: true },
+    (candidate: unknown, value: unknown) =>
+      matchesIpSearchValue(candidate as string | number | null | undefined, String(value ?? ''))
+        ? 1
+        : 0,
   );
 } catch {
   // Older better-sqlite3 builds may not expose custom functions; SQL callers also keep LIKE fallbacks.
@@ -59,7 +65,8 @@ process.on('message', (request: WorkerRequest) => {
       try {
         response.rows = executeQuery({ ...request, sql: fallbackSql });
       } catch (fallbackError) {
-        response.error = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        response.error =
+          fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
       }
     } else {
       response.error = error instanceof Error ? error.message : String(error);

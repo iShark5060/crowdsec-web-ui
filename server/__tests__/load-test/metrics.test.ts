@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { parsePrometheusText, summarizeCrowdsecMetrics } from '../../metrics';
+
 import { buildLoadTestFleetMetrics } from '../../../scripts/load-test-metrics';
+import { parsePrometheusText, summarizeCrowdsecMetrics } from '../../metrics';
 
 describe('load-test metrics fleet', () => {
   const now = Date.parse('2026-10-30T12:00:00.000Z');
@@ -15,9 +16,9 @@ describe('load-test metrics fleet', () => {
     expect(summary.machines).toHaveLength(45);
     expect(new Set(summary.bouncers.map((bouncer) => bouncer.mode))).toEqual(new Set(['stream', 'live', 'mixed']));
 
-    const heartbeatAges = summary.machines.map((machine) => (
-      machine.lastHeartbeatAt ? now - Date.parse(machine.lastHeartbeatAt) : null
-    ));
+    const heartbeatAges = summary.machines.map((machine) =>
+      machine.lastHeartbeatAt ? now - Date.parse(machine.lastHeartbeatAt) : null,
+    );
     expect(heartbeatAges.filter((age) => age !== null && age < 2 * 60 * 1_000)).toHaveLength(33);
     expect(heartbeatAges.filter((age) => age !== null && age >= 15 * 60 * 1_000)).toHaveLength(8);
     expect(heartbeatAges.filter((age) => age === null)).toHaveLength(4);

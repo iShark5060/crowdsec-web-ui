@@ -152,12 +152,15 @@ export interface DashboardStatsAccumulator {
 export interface DashboardDecisionAccumulator {
   decisions: number;
   simulatedDecisions: number;
-  countries: Map<string, {
-    liveDecisionCount: number;
-    simulatedDecisionCount: number;
-    activeLiveDecisionCount: number;
-    activeSimulatedDecisionCount: number;
-  }>;
+  countries: Map<
+    string,
+    {
+      liveDecisionCount: number;
+      simulatedDecisionCount: number;
+      activeLiveDecisionCount: number;
+      activeSimulatedDecisionCount: number;
+    }
+  >;
   liveDecisionBuckets: Map<string, number>;
   simulatedDecisionBuckets: Map<string, number>;
   activeLiveDecisionBuckets: Map<string, number>;

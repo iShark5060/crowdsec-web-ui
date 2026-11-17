@@ -1,3 +1,4 @@
+import { Search } from 'lucide-react';
 import {
   forwardRef,
   useEffect,
@@ -11,7 +12,7 @@ import {
   type Ref,
   type UIEventHandler,
 } from 'react';
-import { Search } from 'lucide-react';
+
 import {
   analyzeSearchQuery,
   type SearchFeatureFlags,
@@ -58,10 +59,21 @@ export const SearchQueryHighlight = forwardRef<HTMLDivElement, SearchQueryHighli
     },
     ref,
   ) {
-    const segments = useSearchHighlightSegments(query, searchPage, searchFeatures, error, highlightErrors);
+    const segments = useSearchHighlightSegments(
+      query,
+      searchPage,
+      searchFeatures,
+      error,
+      highlightErrors,
+    );
 
     return (
-      <div ref={ref} className={className} aria-hidden={ariaHidden} data-search-highlight-layer="true">
+      <div
+        ref={ref}
+        className={className}
+        aria-hidden={ariaHidden}
+        data-search-highlight-layer="true"
+      >
         {renderHighlightSegments(segments)}
       </div>
     );
@@ -77,7 +89,13 @@ export function InlineSearchQueryHighlight({
   ariaHidden,
   className = '',
 }: SearchQueryHighlightProps) {
-  const segments = useSearchHighlightSegments(query, searchPage, searchFeatures, error, highlightErrors);
+  const segments = useSearchHighlightSegments(
+    query,
+    searchPage,
+    searchFeatures,
+    error,
+    highlightErrors,
+  );
 
   return (
     <span className={className} aria-hidden={ariaHidden} data-search-highlight-layer="true">
@@ -153,8 +171,8 @@ export const HighlightedSearchInput = forwardRef<HTMLInputElement, HighlightedSe
       <div
         className={`relative h-11 rounded-md border bg-white dark:bg-gray-800 ${
           activeError
-            ? 'border-red-300 dark:border-red-700 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500'
-            : 'border-gray-300 dark:border-gray-700 focus-within:border-primary-500 focus-within:ring-1 focus-within:ring-primary-500'
+            ? 'border-red-300 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500 dark:border-red-700'
+            : 'focus-within:border-primary-500 focus-within:ring-primary-500 border-gray-300 focus-within:ring-1 dark:border-gray-700'
         } ${containerClassName}`}
       >
         {showSearchIcon && (
@@ -162,10 +180,15 @@ export const HighlightedSearchInput = forwardRef<HTMLInputElement, HighlightedSe
             <Search className="h-5 w-5 text-gray-400" />
           </div>
         )}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
-          <div className={`absolute inset-0 flex items-center overflow-hidden px-3 font-mono text-sm leading-5 ${
-            showSearchIcon ? 'pl-10' : 'pl-3'
-          }`}>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-md"
+        >
+          <div
+            className={`absolute inset-0 flex items-center overflow-hidden px-3 font-mono text-sm leading-5 ${
+              showSearchIcon ? 'pl-10' : 'pl-3'
+            }`}
+          >
             <SearchQueryHighlight
               ref={highlightRef}
               query={query}
@@ -190,7 +213,7 @@ export const HighlightedSearchInput = forwardRef<HTMLInputElement, HighlightedSe
           onKeyUp={handleKeyUp}
           onSelect={handleSelect}
           onScroll={handleScroll}
-          className={`relative z-10 block h-11 w-full rounded-md border-0 bg-transparent py-0 pr-3 font-mono text-sm leading-5 text-transparent caret-gray-900 placeholder-gray-500 focus:outline-none focus:ring-0 dark:caret-gray-100 dark:placeholder-gray-400 selection:bg-primary-500/20 dark:selection:bg-primary-900/60 ${
+          className={`selection:bg-primary-500/20 dark:selection:bg-primary-900/60 relative z-10 block h-11 w-full rounded-md border-0 bg-transparent py-0 pr-3 font-mono text-sm leading-5 text-transparent placeholder-gray-500 caret-gray-900 focus:ring-0 focus:outline-none dark:placeholder-gray-400 dark:caret-gray-100 ${
             showSearchIcon ? 'pl-10' : 'pl-3'
           } ${className}`}
           style={{ WebkitTextFillColor: 'transparent' }}
@@ -267,7 +290,9 @@ function buildHighlightSegments(
 
     const text = query.slice(start, end);
     const token = tokens.find((candidate) => candidate.start <= start && candidate.end >= end);
-    const errorEnd = error ? Math.min(query.length, error.position + Math.max(error.length, 1)) : -1;
+    const errorEnd = error
+      ? Math.min(query.length, error.position + Math.max(error.length, 1))
+      : -1;
     const hasError = error !== null && start < errorEnd && end > error.position;
 
     segments.push({
@@ -293,7 +318,9 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
 }
 
 function getSegmentClassName(kind: HighlightSegment['kind'], hasError: boolean): string {
-  const errorClassName = hasError ? 'rounded bg-red-100/90 text-red-900 dark:bg-red-900/40 dark:text-red-200' : '';
+  const errorClassName = hasError
+    ? 'rounded bg-red-100/90 text-red-900 dark:bg-red-900/40 dark:text-red-200'
+    : '';
 
   switch (kind) {
     case 'field':
