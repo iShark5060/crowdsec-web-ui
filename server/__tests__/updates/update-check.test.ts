@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { createUpdateChecker } from '../../update-check';
+import { createUpdateChecker, DEFAULT_UPDATE_CHECK_URL } from '../../update-check';
 
 describe('update checker', () => {
   test('returns early when update checking is disabled or image ref is invalid', async () => {
@@ -59,17 +59,20 @@ describe('update checker', () => {
   });
 
   test('uses latest release for main builds', async () => {
+    let requested = '';
     const check = createUpdateChecker({
       dockerImageRef: 'owner/repo',
       branch: 'main',
       commitHash: 'abc123',
       version: '1.0.0',
       enabled: true,
-      fetchImpl: async () =>
-        Response.json({
+      fetchImpl: async (input) => {
+        requested = String(input);
+        return Response.json({
           tag_name: 'v1.1.0',
           html_url: 'https://example.com/release',
-        }),
+        });
+      },
     });
 
     await expect(check()).resolves.toEqual({
@@ -79,6 +82,26 @@ describe('update checker', () => {
       release_url: 'https://example.com/release',
       tag: 'latest',
     });
+    expect(requested).toBe(DEFAULT_UPDATE_CHECK_URL);
+
+    const customUrl = 'https://example.com/api/releases/latest';
+    const custom = createUpdateChecker({
+      dockerImageRef: 'owner/repo',
+      branch: 'main',
+      commitHash: 'abc123',
+      version: '1.0.0',
+      enabled: true,
+      url: customUrl,
+      fetchImpl: async (input) => {
+        requested = String(input);
+        return Response.json({
+          tag_name: 'v1.2.0',
+          html_url: 'https://example.com/release',
+        });
+      },
+    });
+    await expect(custom()).resolves.toMatchObject({ remote_version: '1.2.0' });
+    expect(requested).toBe(customUrl);
   });
 
   test('does not report a release update when local version is equal or newer', async () => {

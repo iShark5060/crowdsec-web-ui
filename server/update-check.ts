@@ -1,12 +1,16 @@
 import type { UpdateCheckResponse } from '../shared/contracts';
 import type { FetchLike } from './lapi';
 
+export const DEFAULT_UPDATE_CHECK_URL =
+  'https://git.darkavianlabs.com/api/v1/repos/shark5060/crowdsec-web-ui/releases/latest';
+
 export interface UpdateCheckOptions {
   dockerImageRef: string;
   branch: string;
   commitHash: string;
   version: string;
   enabled: boolean;
+  url?: string;
   fetchImpl?: FetchLike;
 }
 
@@ -40,7 +44,9 @@ export function createUpdateChecker(options: UpdateCheckOptions) {
       commitHash: normalizeLocalValue(overrides.commitHash) || options.commitHash,
       version: normalizeLocalValue(overrides.version) || options.version,
     };
+    const releaseUrl = options.url?.trim() || DEFAULT_UPDATE_CHECK_URL;
     const cacheKey = JSON.stringify([
+      releaseUrl,
       options.dockerImageRef,
       local.branch,
       local.commitHash,
@@ -76,16 +82,13 @@ export function createUpdateChecker(options: UpdateCheckOptions) {
           tag: 'dev',
         };
       } else {
-        const response = await fetchImpl(
-          `https://api.github.com/repos/${owner}/${repo}/releases/latest`,
-          {
-            headers: {
-              Accept: 'application/vnd.github.v3+json',
-              'User-Agent': 'crowdsec-web-ui-update-check',
-            },
-            signal: AbortSignal.timeout(10_000),
+        const response = await fetchImpl(releaseUrl, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'crowdsec-web-ui-update-check',
           },
-        );
+          signal: AbortSignal.timeout(10_000),
+        });
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);

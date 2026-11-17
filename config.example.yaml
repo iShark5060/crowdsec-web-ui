@@ -50,6 +50,7 @@
 
 # updates:
 #   enabled: true
+#   checkUrl: https://git.darkavianlabs.com/api/v1/repos/shark5060/crowdsec-web-ui/releases/latest
 
 # auth:
 #   enabled: auto # New databases enable auth; migrated databases keep their existing state.

@@ -52,6 +52,7 @@ audit:
   logFile: /var/log/crowdsec-web-ui/audit.log
 updates:
   enabled: false
+  checkUrl: https://updates.example/latest
 crowdsec:
   simulationsEnabled: true
   alertFilters:
@@ -131,6 +132,7 @@ instances:
         auditEnabled: false,
         auditLogFile: '/var/log/crowdsec-web-ui/audit.log',
         updateCheckEnabled: false,
+        updateCheckUrl: 'https://updates.example/latest',
       });
       expect(config.dashboardAuth.sessionSecret).toBe('auth-secret');
       expect(config.dashboardAuth.oidcClientSecret).toBe('oidc-secret');
@@ -265,6 +267,7 @@ instances:
       CONFIG_AUTH_OIDC_ADMIN_GROUPS_0: 'admins',
       CONFIG_AUTH_OIDC_ADMIN_GROUPS_1: 'secops',
       CONFIG_UPDATES_ENABLED: 'false',
+      CONFIG_UPDATE_CHECK_URL: 'https://config.example/latest',
       CONFIG_CROWDSEC_SYNC_REFRESH_INTERVAL: '2m',
       CONFIG_CROWDSEC_SYNC_DELETION_QUEUE_MAX_AGE: '6h',
       CONFIG_INSTANCE_LAPI_URL: 'https://primary.example.com:8080',
@@ -300,6 +303,7 @@ instances:
         refreshIntervalMs: 120_000,
         deletionQueueMaxAgeMs: 21_600_000,
         updateCheckEnabled: false,
+        updateCheckUrl: 'https://config.example/latest',
       });
       expect(config.dashboardAuth.sessionSecret).toBe('do-not-write-this-auth-secret');
       expect(config.dashboardAuth.oidcAdminGroups).toEqual(['admins', 'secops']);
