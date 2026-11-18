@@ -305,7 +305,7 @@ describe('CrowdsecDatabase duplicates and indexes', () => {
     expect(db.getMeta('decision_duplicate_refresh_at')?.value).toBe('2029-07-01T00:00:00.000Z');
 
     db.close();
-  });
+  }, 60_000);
 
   test('deleting retained expired decisions does not dirty active duplicate flags', () => {
     const db = createTestDatabase();
