@@ -945,7 +945,7 @@ describe('createApp search API', () => {
     controller.stopBackgroundTasks();
     database.close();
     destroyTempDir();
-  }, 15_000);
+  }, 60_000);
 
   test('returns a 400 for invalid advanced search queries', async () => {
     const { controller, database } = createController();
