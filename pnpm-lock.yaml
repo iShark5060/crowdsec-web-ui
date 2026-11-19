@@ -180,8 +180,8 @@ importers:
   .:
     dependencies:
       '@hono/node-server':
-        specifier: 2.1.8
-        version: 2.1.8(hono@4.13.18)
+        specifier: 2.1.9
+        version: 2.1.9(hono@4.13.19)
       '@simplewebauthn/server':
         specifier: ^14.1.0
         version: 14.1.0
@@ -192,11 +192,11 @@ importers:
         specifier: 13.2.0
         version: 13.2.0
       hono:
-        specifier: 4.13.18
-        version: 4.13.18
+        specifier: 4.13.19
+        version: 4.13.19
       i18next:
-        specifier: ^27.1.2
-        version: 27.1.2(@typescript/typescript6@6.0.2)
+        specifier: ^27.1.5
+        version: 27.1.5(@typescript/typescript6@6.0.2)
       jose:
         specifier: ^6.2.17
         version: 6.2.17
@@ -216,8 +216,8 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
       react-i18next:
-        specifier: ^18.0.1
-        version: 18.0.1(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.1.2(@typescript/typescript6@6.0.2))(react@19.3.1)
+        specifier: ^18.0.2
+        version: 18.0.2(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.1.5(@typescript/typescript6@6.0.2))(react@19.3.1)
       sortablejs:
         specifier: ^1.15.7
         version: 1.15.7
@@ -584,8 +584,8 @@ packages:
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
 
-  '@hono/node-server@2.1.8':
-    resolution: {integrity: sha512-jdf7FHh6A1lzjpHHQUgxsg2GeER2vMetnAOfeActzcoli6jamlK+NAwL6Dsr5Fl3BS3tYUQzCdtZjU8Qxv7bEA==}
+  '@hono/node-server@2.1.9':
+    resolution: {integrity: sha512-Sk4NQd3GFY0WZWCzndwFMPwJhtD0y9qjsQ+pjID0/03nK9pxyBCUoUHCho8QYBLBVhi0ssL8UkNPHqbgSOFPIQ==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
@@ -2135,8 +2135,8 @@ packages:
   help-me@5.0.0:
     resolution: {integrity: sha512-7xgomUX6ADmcYzFik0HzAxh/73YlKR9bmFzf51CZwR+b6YtzU2m0u49hQCqV6SvlqIqsaxovfwdvbnsw3b/zpg==}
 
-  hono@4.13.18:
-    resolution: {integrity: sha512-H9q/E1XizaWstJxUW881dmLxEj+t/TrGGnyxINkm4+sK0qUwsMtFdo2BWI9Vs3cIS19MU6b6iCijoUoEf4f3DA==}
+  hono@4.13.19:
+    resolution: {integrity: sha512-KmXvQAXwcAHV+muzbIwoJ23niEB5nMoDVr9WcRkU8mvjUECm/1+7v4Jgp7P7a+H6MLFrh+vXrGonGrGS+RQfkA==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@7.0.0:
@@ -2146,8 +2146,8 @@ packages:
   html-parse-stringify@4.0.1:
     resolution: {integrity: sha512-0zHsZJrK7S3K2aucXWL6ycoYJ/iNtIcFHC/nYQgFklPtrv5LpJctIiSCroWZWeuoXvuyFdzp6KzjJQ+OT5MfFw==}
 
-  i18next@27.1.2:
-    resolution: {integrity: sha512-851D6dY9vuhn9hF0p5KpY7FPeYnm3P73tqyX2nxfsjeEYVg7Du0Fflw0rJtv7nFnZcDQS0+Hqn0UP6+SPx8mew==}
+  i18next@27.1.5:
+    resolution: {integrity: sha512-KLrH2SWYWiI8Rx+ZbJ4+fdl5Ny2i8V9bJ6TkJ5YFrSyHgeUIGxoueQTZaafcHZcr1ENFqBicpu7ofr3SCSYDgA==}
     engines: {node: '>=22'}
     peerDependencies:
       typescript: ^5 || ^6 || ^7
@@ -2657,8 +2657,8 @@ packages:
     peerDependencies:
       react: ^19.3.1
 
-  react-i18next@18.0.1:
-    resolution: {integrity: sha512-kPWXI0E/lrPj3+/umcKNzYZVnWmEedLiamMzDIHfbs+5ANf6yzvlZsjKou8f7kaGkfMMDLIZBejV+4aSN1CyBw==}
+  react-i18next@18.0.2:
+    resolution: {integrity: sha512-g7YfBxTDC9dYdEsb3F7o0pRr6jg14f08U5G6N3DTUqSgGt/nq7AYf279ESRjE3Dy+Q/YG7OGVd7vtiylxTfV4w==}
     engines: {node: '>=22'}
     peerDependencies:
       '@types/react': '*'
@@ -3402,9 +3402,9 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/node-server@2.1.8(hono@4.13.18)':
+  '@hono/node-server@2.1.9(hono@4.13.19)':
     dependencies:
-      hono: 4.13.18
+      hono: 4.13.19
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -4811,7 +4811,7 @@ snapshots:
 
   help-me@5.0.0: {}
 
-  hono@4.13.18: {}
+  hono@4.13.19: {}
 
   html-encoding-sniffer@7.0.0(@noble/hashes@2.4.0):
     dependencies:
@@ -4821,7 +4821,7 @@ snapshots:
 
   html-parse-stringify@4.0.1: {}
 
-  i18next@27.1.2(@typescript/typescript6@6.0.2):
+  i18next@27.1.5(@typescript/typescript6@6.0.2):
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
 
@@ -5328,10 +5328,10 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-i18next@18.0.1(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.1.2(@typescript/typescript6@6.0.2))(react@19.3.1):
+  react-i18next@18.0.2(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.1.5(@typescript/typescript6@6.0.2))(react@19.3.1):
     dependencies:
       html-parse-stringify: 4.0.1
-      i18next: 27.1.2(@typescript/typescript6@6.0.2)
+      i18next: 27.1.5(@typescript/typescript6@6.0.2)
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
