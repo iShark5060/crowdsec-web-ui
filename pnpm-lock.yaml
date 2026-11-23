@@ -180,8 +180,8 @@ importers:
   .:
     dependencies:
       '@hono/node-server':
-        specifier: 2.1.9
-        version: 2.1.9(hono@4.13.19)
+        specifier: 2.1.11
+        version: 2.1.11(hono@4.13.19)
       '@simplewebauthn/server':
         specifier: ^14.1.0
         version: 14.1.0
@@ -195,8 +195,8 @@ importers:
         specifier: 4.13.19
         version: 4.13.19
       i18next:
-        specifier: ^27.2.1
-        version: 27.2.1(@typescript/typescript6@6.0.2)
+        specifier: ^27.2.3
+        version: 27.2.3(@typescript/typescript6@6.0.2)
       jose:
         specifier: ^6.2.18
         version: 6.2.18
@@ -207,8 +207,8 @@ importers:
         specifier: ^5.16.1
         version: 5.16.1
       openid-client:
-        specifier: ^6.9.0
-        version: 6.9.0
+        specifier: ^6.9.1
+        version: 6.9.1
       otplib:
         specifier: ^13.6.0
         version: 13.6.0
@@ -216,14 +216,14 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
       react-i18next:
-        specifier: ^18.0.2
-        version: 18.0.2(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.2.1(@typescript/typescript6@6.0.2))(react@19.3.1)
+        specifier: ^18.0.3
+        version: 18.0.3(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.2.3(@typescript/typescript6@6.0.2))(react@19.3.1)
       sortablejs:
         specifier: ^1.15.7
         version: 1.15.7
       undici:
-        specifier: 8.12.4
-        version: 8.12.4
+        specifier: 8.13.1
+        version: 8.13.1
       ws:
         specifier: 8.22.1
         version: 8.22.1
@@ -584,8 +584,8 @@ packages:
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
 
-  '@hono/node-server@2.1.9':
-    resolution: {integrity: sha512-Sk4NQd3GFY0WZWCzndwFMPwJhtD0y9qjsQ+pjID0/03nK9pxyBCUoUHCho8QYBLBVhi0ssL8UkNPHqbgSOFPIQ==}
+  '@hono/node-server@2.1.11':
+    resolution: {integrity: sha512-KzKz9vl4vvr1vgLHamj+g5uonbrj5NwAdO3yzOS6cd2HjALVeOgTgeZOyAzNxejbkfOOPIcvuf/Tg8l1pEFLog==}
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4 || ^5.0.0-0
@@ -2146,8 +2146,8 @@ packages:
   html-parse-stringify@4.0.1:
     resolution: {integrity: sha512-0zHsZJrK7S3K2aucXWL6ycoYJ/iNtIcFHC/nYQgFklPtrv5LpJctIiSCroWZWeuoXvuyFdzp6KzjJQ+OT5MfFw==}
 
-  i18next@27.2.1:
-    resolution: {integrity: sha512-dNYOxb2d+zjmn/vlvx99XribYwtJ/WcIfVY3d61QkOKAiJ1Kgt7Ow+mBq8v7YUC/K3dCr9dDDEjheKbRycWGdA==}
+  i18next@27.2.3:
+    resolution: {integrity: sha512-14wcQLAu5Aykwk4scBGl8tosKYth4S2PQDcusbES/bUsQ7X7DbcPygMzCe298U/NcAvDpqr+CX6oygbQoyLBRA==}
     engines: {node: '>=22'}
     peerDependencies:
       typescript: ^5 || ^6 || ^7
@@ -2494,8 +2494,8 @@ packages:
     resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
-  oauth4webapi@3.8.8:
-    resolution: {integrity: sha512-8N28E+a/oxfXWBgOMt+ZP/JUf/XR+IFbvkAEPP3gznXOMv9BpAAwiIj0TFNz3tGTPc0ZQ8zmWBNgN1nAys0gng==}
+  oauth4webapi@3.8.9:
+    resolution: {integrity: sha512-gyn4jpaxyYFm1epl3mwqc1sFShLjT9eq/63JW+Nvk286Lz6FC72pVv/SyhJHxo+sQiHEcjIHs4TtFKX/+Md07A==}
 
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
@@ -2517,8 +2517,8 @@ packages:
     resolution: {integrity: sha512-5vvB5+W7ePv+p3uqxi+RcW1XAzLW0/hxt3/4X4Lc4qHudzOhmBiBwOY6DRob4WnanAEGvNcLjF+KNOufrUoEQw==}
     engines: {node: '>=12.20.0'}
 
-  openid-client@6.9.0:
-    resolution: {integrity: sha512-2IvamJR8PAnWHngaCsGGA8TYfcLI2egvuqa9cOQYHIISwIUhxJwwwcCnkgVX95fzZ6J0TAna0aVGUMOxnPeRqg==}
+  openid-client@6.9.1:
+    resolution: {integrity: sha512-wysSRjtNRRpu1S/HCVaQ7LRPSNc42lhS1szB1SihVTcA2kAarpzKyvAd+sjFX41ky7iDblGerORC8ASwpt3zqA==}
 
   otplib@13.6.0:
     resolution: {integrity: sha512-PCx6+14PYndCRk0G3JuJHmlExzENs43gafqMUVmSFmzMbEweVhBiYcBCL8B32ZMEDPZA4OsMxFEeAob1H+YFZg==}
@@ -2657,8 +2657,8 @@ packages:
     peerDependencies:
       react: ^19.3.1
 
-  react-i18next@18.0.2:
-    resolution: {integrity: sha512-g7YfBxTDC9dYdEsb3F7o0pRr6jg14f08U5G6N3DTUqSgGt/nq7AYf279ESRjE3Dy+Q/YG7OGVd7vtiylxTfV4w==}
+  react-i18next@18.0.3:
+    resolution: {integrity: sha512-S84rtVuaKuiRtoCOspbGEaDlFjka+KvK/A5YCOr4LQ41XF3iJOrJ5rqQTD/jJHFVUf6X1i4ZMN5PGGgpz8NN6g==}
     engines: {node: '>=22'}
     peerDependencies:
       '@types/react': '*'
@@ -3064,8 +3064,8 @@ packages:
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
-  undici@8.12.4:
-    resolution: {integrity: sha512-8Mx+uNKKER2bA4AdtedkqRbwUCIJFr2nJckXRe5yrDqzePqwLP7VNcctN8/XdmDSbF7mS+jJKIszlL+vbam1VA==}
+  undici@8.13.1:
+    resolution: {integrity: sha512-Kt7EaPjh0s93lJH/PmW3d5rhkcpUa6fS3jqZ7+YGxNd9L7Xy/i827xe4C2uhhq+pJebM4tQOl5AgHmW11G5Skg==}
     engines: {node: '>=22.19.0'}
 
   unzip-stream@0.3.4:
@@ -3406,7 +3406,7 @@ snapshots:
 
   '@hexagon/base64@1.1.28': {}
 
-  '@hono/node-server@2.1.9(hono@4.13.19)':
+  '@hono/node-server@2.1.11(hono@4.13.19)':
     dependencies:
       hono: 4.13.19
 
@@ -4825,7 +4825,7 @@ snapshots:
 
   html-parse-stringify@4.0.1: {}
 
-  i18next@27.2.1(@typescript/typescript6@6.0.2):
+  i18next@27.2.3(@typescript/typescript6@6.0.2):
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
 
@@ -4988,7 +4988,7 @@ snapshots:
       parse5-parser-stream: 8.1.1
       saxes: 6.0.0
       tough-cookie: 6.1.0
-      undici: 8.12.4
+      undici: 8.13.1
       w3c-xmlserializer: 6.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
@@ -5164,7 +5164,7 @@ snapshots:
       fetch-blob: 3.2.0
       formdata-polyfill: 4.0.10
 
-  oauth4webapi@3.8.8: {}
+  oauth4webapi@3.8.9: {}
 
   object-assign@4.1.1: {}
 
@@ -5183,10 +5183,10 @@ snapshots:
 
   obug@3.0.0: {}
 
-  openid-client@6.9.0:
+  openid-client@6.9.1:
     dependencies:
       jose: 6.2.18
-      oauth4webapi: 3.8.8
+      oauth4webapi: 3.8.9
 
   otplib@13.6.0:
     dependencies:
@@ -5332,10 +5332,10 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-i18next@18.0.2(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.2.1(@typescript/typescript6@6.0.2))(react@19.3.1):
+  react-i18next@18.0.3(@types/react@19.3.0)(@typescript/typescript6@6.0.2)(i18next@27.2.3(@typescript/typescript6@6.0.2))(react@19.3.1):
     dependencies:
       html-parse-stringify: 4.0.1
-      i18next: 27.2.1(@typescript/typescript6@6.0.2)
+      i18next: 27.2.3(@typescript/typescript6@6.0.2)
       react: 19.3.1
     optionalDependencies:
       '@types/react': 19.3.0
@@ -5851,7 +5851,7 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  undici@8.12.4: {}
+  undici@8.13.1: {}
 
   unzip-stream@0.3.4:
     dependencies:
